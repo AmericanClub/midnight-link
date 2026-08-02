@@ -232,10 +232,13 @@ async def evaluate_request(workspace_id: str, link: dict | None, ip: str, ua: st
             reasons.append("Proxy/VPN blocked by link policy")
         bc = [c.upper() for c in prot.get("block_countries", [])]
         ac = [c.upper() for c in prot.get("allow_countries", [])]
-        if bc and signals["country"].upper() in bc:
-            reasons.append(f"Country {signals['country']} blocked")
-        if ac and signals["country"].upper() not in ac:
-            reasons.append(f"Country {signals['country']} not allowlisted")
+        country = signals["country"].upper()
+        # only apply country rules when geo is actually resolved
+        if country != "UNKNOWN":
+            if bc and country in bc:
+                reasons.append(f"Country {signals['country']} blocked")
+            if ac and country not in ac:
+                reasons.append(f"Country {signals['country']} not allowlisted")
         rl = prot.get("rate_limit_per_min", 0)
         if rl and not rate_limiter.allow(f"{link['id']}:{ip}", rl):
             reasons.append("Rate limit exceeded")

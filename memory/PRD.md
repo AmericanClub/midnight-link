@@ -19,6 +19,14 @@ Original spec asked for Go + Next.js + PostgreSQL + Redis monorepo. The Emergent
 ## Core requirements (static, from spec)
 Full spec covers 38 sections / 10 milestones (auth, tenancy, links, QR, analytics, protection, billing/QRIS, developer API, webhooks, domains, admin, privacy, security, observability, CI/CD).
 
+## Implemented — MidGate Protect Pro (2026-08-02)
+- **Threat intelligence** (`app/intel.py`): live Tor exit-node list (1,400+ nodes, refreshed on startup + admin button), curated datacenter/hosting CIDR detection, UA classification (search/social/monitoring/automation/headless), in-memory rate limiter. Behind IPIntelProvider abstraction (paid provider swappable later).
+- **IP allow/block lists** (workspace-level, CIDR) + **admin global blocklist**. `evaluate_request` pipeline: allowlist → blocklist(+global) → per-link protection → rules → risk thresholds.
+- **Per-link Protection** (`/links/{id}/protection`): toggles for block bots/Tor/datacenter/proxy-VPN, block countries (applied only when geo resolved), rate limit, and configurable block action (Safe fallback / block page 403 / 404 / custom redirect). UI on Link detail.
+- **Public Blocker API** (`/api/v1|v2/blocker?apikey&ip&ua&url&reff`) returning allow/block JSON; hashed API keys (shown once), per-key rate limit + usage. Developers page with API key mgmt + integration snippets (cURL/PHP/Node/Cloudflare Worker).
+- **Admin panel** (admin-only, `/app/admin`): overview stats + feeds refresh, security events, users, workspaces, global blocklist, API usage. Nav gated by role.
+- Rules now score is_tor/is_datacenter/is_proxy/is_headless. Tested: backend 19/19 pytest, frontend all UI flows (iteration_4.json). No open bugs. Legal boundary: anti-bot/anti-abuse only (no cloaking).
+
 ## Implemented — Billing quota/receipts/roles (2026-08-02)
 - **Plan Limit Enforcement**: `enforce_quota` blocks creating links (limit 10 on Free) / QR (limit 3) beyond plan with a 403 "upgrade" message; `can_record_event` stops storing analytics past the monthly limit (redirect still 302s — safe degradation). Billing page shows a Usage card with used/limit bars (red at capacity).
 - **Invoice Receipts**: reportlab-generated PDF receipt at `/api/billing/invoices/{id}/receipt.pdf` (paid only); a receipt email is sent on activation (console/MOCKED). Receipt download button on paid invoices.

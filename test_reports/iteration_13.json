@@ -1,0 +1,30 @@
+{
+  "summary": "Verified the Recent clicks table enhancement on Link Detail (/app/links/c9c31302-97b0-4291-b802-c854db14141f, alias HP14cx 'Signals Demo'). Since admin users are auto-redirected to /admin by ProtectedRoute, used the teammate account (teammate@example.com / Teammate123!) and switched into 'MidGate Admin's Workspace' via the workspace switcher to access the link. All 4 test scenarios pass.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "verified_scenarios": [
+    "TABLE COLUMNS: Recent clicks card renders columns exactly ['Time','Country','Device','Browser','Type','Signals','Result']",
+    "TWO BLOCKED ROWS: 2 rows returned. Row 0 = Human + VPN + Datacenter + Blocked (reason: 'Datacenter IP blocked by link policy · Proxy/VPN blocked by link policy'). Row 1 = Bot + VPN + Datacenter + Blocked (reason: 'Bot blocked by link policy · Datacenter IP blocked by link policy · Proxy/VPN blocked by link policy'). Confirms the exact user-confusion scenario: a click can be Type=Human AND Result=Blocked, and the reason is now clearly shown beneath the badge.",
+    "SIGNAL BADGES: flag-vpn count=2, flag-dc count=2, flag-proxy=0, flag-tor=0 (proxy is suppressed when VPN is present per JSX logic, so this is expected). Badges render in amber outline style.",
+    "RESULT BADGES: result-block count=2 (red destructive style), reason line rendered under badge. No result-allow / result-challenge on this link (both blocked).",
+    "NO REGRESSION: Stats cards (Total clicks, Unique visitors, Bot traffic), Countries/Devices/Browsers/Referrers breakdown, Clicks-over-time chart, and Protection settings block all render. No React errors / pageerrors in console. Only 404s from unrelated dev asset probes."
+  ],
+  "test_report_links": [],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "Admin cannot access /app/links/:id because ProtectedRoute unconditionally redirects role=admin to /admin. This forced testing via a teammate account. If the product intent is that admins can view/manage links owned by their own workspace, consider allowing admins into /app/* routes (or provide an 'Impersonate/View as workspace' entry point from /admin).",
+    "LinksPage list shows 'Signals Demo — 0 clicks' even though 2 blocked events exist. Blocked clicks are excluded from the list count but they DO appear in the detail page's Recent clicks table. This inconsistency may confuse users (same confusion the current fix addresses). Consider either counting blocked events separately (e.g. '0 clicks · 2 blocked') on the list card."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "n/a", "frontend": "100%"},
+  "test_credentials": "teammate@example.com / Teammate123! (used because admin gets redirected out of /app/*). Admin workspace id: c5a21b8e-1fdc-4bc8-9265-5601095c4390.",
+  "seed_data_creation": "None. Used the 2 pre-existing blocked click events on HP14cx.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "To view any /app/* page owned by admin's workspace, log in as teammate@example.com, then click data-testid=workspace-switcher-btn and choose data-testid=workspace-option-c5a21b8e-1fdc-4bc8-9265-5601095c4390. Use SPA navigation (click 'Smart Links' then data-testid=analytics-btn-<alias>) rather than page.goto — a hard reload resets workspace state to Team Mate's Workspace via /auth/me.",
+  "rca of the issue": "N/A — this iteration was a display/clarity enhancement, not a bug. The blocking logic is correct (strict preset + proxycheck flags infra IP as VPN/datacenter). The new Signals + Result columns and per-row reason line now surface WHY a Human click was blocked, resolving the original confusion."
+}

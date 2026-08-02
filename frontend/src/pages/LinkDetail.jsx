@@ -307,20 +307,57 @@ export default function LinkDetail() {
                 <TableHead>Device</TableHead>
                 <TableHead>Browser</TableHead>
                 <TableHead>Type</TableHead>
+                <TableHead>Signals</TableHead>
+                <TableHead>Result</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {stats.recent.map((r) => (
-                <TableRow key={r.id}>
-                  <TableCell className="font-mono text-xs">{new Date(r.occurred_at).toLocaleString()}</TableCell>
-                  <TableCell>{r.country}</TableCell>
-                  <TableCell>{r.device}</TableCell>
-                  <TableCell>{r.browser}</TableCell>
-                  <TableCell>
-                    <Badge variant={r.is_bot ? "secondary" : "default"}>{r.is_bot ? "Bot" : "Human"}</Badge>
-                  </TableCell>
-                </TableRow>
-              ))}
+              {stats.recent.map((r) => {
+                const flags = [];
+                if (r.is_vpn) flags.push({ k: "vpn", label: "VPN" });
+                if (r.is_proxy && !r.is_vpn) flags.push({ k: "proxy", label: "Proxy" });
+                if (r.is_tor) flags.push({ k: "tor", label: "Tor" });
+                if (r.is_datacenter) flags.push({ k: "dc", label: "Datacenter" });
+                const decision = r.decision || "allow";
+                const resultMeta = {
+                  block: { label: "Blocked", cls: "bg-destructive text-destructive-foreground hover:bg-destructive" },
+                  challenge: { label: "Challenge", cls: "bg-amber-500 text-white hover:bg-amber-500" },
+                  allow: { label: "Allowed", cls: "bg-emerald-600 text-white hover:bg-emerald-600" },
+                }[decision] || { label: decision, cls: "" };
+                const reasons = (r.risk_reasons || []).join(" · ");
+                return (
+                  <TableRow key={r.id} data-testid={`recent-click-${r.id}`}>
+                    <TableCell className="font-mono text-xs">{new Date(r.occurred_at).toLocaleString()}</TableCell>
+                    <TableCell>{r.country}</TableCell>
+                    <TableCell>{r.device}</TableCell>
+                    <TableCell>{r.browser}</TableCell>
+                    <TableCell>
+                      <Badge variant={r.is_bot ? "secondary" : "default"}>{r.is_bot ? "Bot" : "Human"}</Badge>
+                    </TableCell>
+                    <TableCell>
+                      {flags.length === 0 ? (
+                        <span className="text-xs text-muted-foreground">Clean</span>
+                      ) : (
+                        <div className="flex flex-wrap gap-1">
+                          {flags.map((f) => (
+                            <Badge key={f.k} variant="outline" className="border-amber-500 text-amber-600" data-testid={`flag-${f.k}`}>
+                              {f.label}
+                            </Badge>
+                          ))}
+                        </div>
+                      )}
+                    </TableCell>
+                    <TableCell>
+                      <Badge className={resultMeta.cls} title={reasons || undefined} data-testid={`result-${decision}`}>
+                        {resultMeta.label}
+                      </Badge>
+                      {decision !== "allow" && reasons && (
+                        <p className="mt-1 max-w-[220px] truncate text-xs text-muted-foreground" title={reasons}>{reasons}</p>
+                      )}
+                    </TableCell>
+                  </TableRow>
+                );
+              })}
             </TableBody>
           </Table>
         )}

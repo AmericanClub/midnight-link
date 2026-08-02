@@ -173,6 +173,8 @@ async def _record(link, alias, signals, result, challenge_result, visitor_id):
         "is_tor": signals["is_tor"],
         "is_datacenter": signals["is_datacenter"],
         "is_proxy": signals["is_proxy"],
+        "is_vpn": signals.get("is_vpn", False),
+        "intel_source": signals.get("intel_source"),
         "risk_score": result["risk_score"],
         "decision": result["decision"],
         "risk_reasons": result["reasons"],

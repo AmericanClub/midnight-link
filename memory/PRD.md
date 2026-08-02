@@ -1,5 +1,11 @@
 # MidGate — Product Requirements & Progress
 
+## Implemented — Iteration 13: Recent Clicks transparency (2026-08-02)
+- **Problem**: a visitor shown as "Human" (UA-based) was blocked because they were on a proxy and the link used the `strict` preset (blocks proxy/VPN/datacenter). The Recent Clicks table gave no indication the click was blocked or why → user confusion ("human should be accessible").
+- **Fix (display + data)**: Link Detail → Recent clicks table (`LinkDetail.jsx`) now has two new columns: **Signals** (amber badges VPN / Proxy / Tor / Datacenter, or "Clean") and **Result** (Allowed=green / Blocked=red / Challenge=amber) with the block reason(s) shown beneath the badge + as tooltip. Clarifies that Type (Human/Bot, from UA) is independent of IP reputation, so a Human on a proxy is correctly Blocked. Backend `redirect.py::_record` now also stores `is_vpn` and `intel_source` on each click event.
+- Blocking logic itself unchanged (correct behavior). Tested: testing_agent iteration_13.json frontend 100% pass (columns, Human+Blocked+reason row, flag-vpn/flag-dc badges, result-block badge, no regression). Note: blocked clicks still don't increment link `click_count` (list shows "0 clicks") — candidate future enhancement to show "N blocked".
+
+
 ## Implemented — Iteration 12: proxycheck.io IP Intelligence (2026-08-02)
 - **Provider integration** (`backend/app/ip_intel.py`): proxycheck.io v2 API (flags `vpn=1&asn=1&risk=1`) for accurate VPN/Proxy/Tor detection + 0-100 risk + ASN/provider/country. API key entered by platform admin, **Fernet-encrypted at rest** (`IPINTEL_SECRET` in backend/.env) in `db.platform_settings` (_id="proxycheck"), never returned plaintext (masked). Per-IP 24h in-memory cache to protect free-tier quota (1K/day). **Fails open** (disabled/unconfigured/error → available:false, traffic never blocked by outage). Skips private/invalid IPs.
 - **Admin endpoints** (`admin.py`, all `require_admin`): GET `/api/admin/ip-intel` (status+masked key+session stats+last test), PUT (save key / toggle enabled), POST `/ip-intel/test` (real verify call), DELETE `/ip-intel/key`.

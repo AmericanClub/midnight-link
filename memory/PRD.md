@@ -1,5 +1,11 @@
 # MidGate — Product Requirements & Progress
 
+## Implemented — Iteration 14: Blocked-click count + preset semantics fix (2026-08-02)
+- **Blocked count in Smart Links list**: `links.py::list_links` now aggregates `analytics_events` per returned link → adds `blocked_count` + `challenged_count`. `LinksPage.jsx` shows "N clicks · M blocked" (red) when blocked_count>0 (testid `link-blocked-{alias}`). So a link that rejects lots of traffic no longer looks empty at 0 clicks.
+- **Preset semantics fix** (`security.py::evaluate_request` tail): the automatic risk-based decision (`default_decision`) now only applies for `strict` (and legacy `custom`) presets. For `off`/`moderate`, when no explicit custom rule matches, traffic is ALLOWED — only the explicit block toggles (bots/Tor/etc.) apply. This makes preset behavior match its description ("moderate = block bots & Tor; allow normal traffic"). Previously off/moderate links still auto-blocked proxy/datacenter/high-risk IPs via the risk engine. Link `Gn2XuS` switched to `moderate` per user request.
+- Verified: curl (Gn2XuS moderate: Chrome→302, bot→403; HP14cx strict: Chrome→403; /api/links blocked_count=3) + testing_agent iteration_14.json 100% pass (backend+frontend, blocked indicator renders, no regression).
+
+
 ## Implemented — Iteration 13: Recent Clicks transparency (2026-08-02)
 - **Problem**: a visitor shown as "Human" (UA-based) was blocked because they were on a proxy and the link used the `strict` preset (blocks proxy/VPN/datacenter). The Recent Clicks table gave no indication the click was blocked or why → user confusion ("human should be accessible").
 - **Fix (display + data)**: Link Detail → Recent clicks table (`LinkDetail.jsx`) now has two new columns: **Signals** (amber badges VPN / Proxy / Tor / Datacenter, or "Clean") and **Result** (Allowed=green / Blocked=red / Challenge=amber) with the block reason(s) shown beneath the badge + as tooltip. Clarifies that Type (Human/Bot, from UA) is independent of IP reputation, so a Human on a proxy is correctly Blocked. Backend `redirect.py::_record` now also stores `is_vpn` and `intel_source` on each click event.

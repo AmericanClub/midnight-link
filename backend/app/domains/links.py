@@ -102,7 +102,7 @@ async def create_link(payload: LinkCreate, ws=Depends(get_current_workspace), us
 @router.get("")
 async def list_links(ws=Depends(get_current_workspace), search: str | None = Query(None),
                      status: str | None = Query(None), limit: int = Query(50, le=200), skip: int = 0):
-    flt = {"workspace_id": ws["id"]}
+    flt = {"workspace_id": ws["id"], "is_qr": {"$ne": True}}
     if status:
         flt["status"] = status
     if search:

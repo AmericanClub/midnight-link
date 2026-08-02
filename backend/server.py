@@ -8,7 +8,7 @@ from app.db import db, ensure_indexes
 from app.security import hash_password, verify_password
 from app.utils import now_iso
 from app.providers import wire_event_bus
-from app.domains import auth, workspace, links, analytics, redirect, billing
+from app.domains import auth, workspace, links, analytics, redirect, billing, qr, security
 from app.domains.workspace import create_default_workspace
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s %(message)s")
@@ -34,6 +34,8 @@ async def ready():
 app.include_router(auth.router)
 app.include_router(workspace.router)
 app.include_router(links.router)
+app.include_router(qr.router)
+app.include_router(security.router)
 app.include_router(analytics.router)
 app.include_router(redirect.router)
 app.include_router(billing.router)

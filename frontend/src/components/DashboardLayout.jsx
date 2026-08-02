@@ -3,6 +3,7 @@ import { Link, useLocation, useNavigate } from "react-router-dom";
 import {
   LayoutDashboard,
   Link2,
+  QrCode,
   BarChart3,
   Settings,
   LogOut,
@@ -30,6 +31,7 @@ import { useI18n } from "@/context/I18nContext";
 const nav = [
   { to: "/app", key: "dash.overview", icon: LayoutDashboard, testid: "nav-overview" },
   { to: "/app/links", key: "dash.links", icon: Link2, testid: "nav-links" },
+  { to: "/app/qr", key: null, label: "QR Codes", icon: QrCode, testid: "nav-qr" },
   { to: "/app/protection", key: null, label: "Protection", icon: ShieldCheck, testid: "nav-protection" },
   { to: "/app/settings", key: "dash.settings", icon: Settings, testid: "nav-settings" },
 ];

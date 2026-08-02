@@ -1,8 +1,8 @@
-import React from "react";
+import React, { useMemo, useState } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { ArrowLeft, Copy, ExternalLink, MousePointerClick, Users, ShieldAlert } from "lucide-react";
+import { ArrowLeft, Copy, ExternalLink, MousePointerClick, Users, ShieldAlert, Download } from "lucide-react";
 import {
   AreaChart,
   Area,
@@ -17,6 +17,7 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
+import DateRangeFilter, { rangeToDates } from "@/components/DateRangeFilter";
 import {
   Table,
   TableBody,
@@ -25,7 +26,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import api, { shortUrl } from "@/lib/api";
+import api, { shortUrl, BACKEND } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
 
 function Stat({ icon: Icon, label, value }) {
@@ -74,19 +75,29 @@ export default function LinkDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
   const { workspace } = useAuth();
+  const [range, setRange] = useState("30d");
+  const [compare, setCompare] = useState(false);
+  const { start, end } = useMemo(() => rangeToDates(range), [range]);
 
   const linkQ = useQuery({
     queryKey: ["link", id],
     queryFn: async () => (await api.get(`/links/${id}`)).data,
   });
   const statsQ = useQuery({
-    queryKey: ["link-analytics", id, workspace?.id],
-    queryFn: async () => (await api.get(`/analytics/links/${id}`)).data,
+    queryKey: ["link-analytics", id, workspace?.id, range, compare],
+    queryFn: async () => (await api.get(`/analytics/links/${id}`, { params: { start, end, compare } })).data,
     refetchInterval: 15000,
   });
 
   const link = linkQ.data;
   const stats = statsQ.data;
+
+  const exportCsv = () => {
+    const qs = new URLSearchParams();
+    if (start) qs.set("start", start);
+    if (end) qs.set("end", end);
+    window.open(`${BACKEND}/api/analytics/links/${id}/export.csv?${qs.toString()}`, "_blank");
+  };
 
   const copy = () => {
     if (link) {
@@ -124,6 +135,13 @@ export default function LinkDetail() {
           </div>
         </Card>
       )}
+
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+        <DateRangeFilter value={range} onChange={setRange} compare={compare} onCompareChange={setCompare} />
+        <Button variant="outline" className="gap-2" onClick={exportCsv} data-testid="export-csv-btn">
+          <Download className="h-4 w-4" /> Export CSV
+        </Button>
+      </div>
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
         <Stat icon={MousePointerClick} label="Total clicks" value={stats?.total_clicks ?? 0} />

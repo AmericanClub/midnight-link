@@ -8,6 +8,7 @@ from fastapi.responses import RedirectResponse, HTMLResponse
 from ..db import db
 from ..utils import now_iso, parse_user_agent, client_ip, client_country, visitor_hash
 from ..providers import event_bus
+from .security import get_rules, evaluate, challenge_token, verify_challenge
 
 router = APIRouter(tags=["redirect"])
 
@@ -28,10 +29,6 @@ def _cache_set(alias: str, link: dict):
     _CACHE[alias] = (time.time() + _TTL, link)
 
 
-def _cache_invalidate(alias: str):
-    _CACHE.pop(alias, None)
-
-
 async def _resolve(alias: str):
     cached = _cache_get(alias)
     if cached is not None:
@@ -42,17 +39,19 @@ async def _resolve(alias: str):
     return link
 
 
-def _unavailable(message: str) -> HTMLResponse:
+def _page(title: str, message: str, status: int, extra: str = "") -> HTMLResponse:
     html = f"""<!doctype html><html><head><meta charset="utf-8">
 <title>MidGate</title><meta name="viewport" content="width=device-width, initial-scale=1">
 <style>body{{font-family:system-ui,sans-serif;background:#FAFAFA;color:#0A0A0A;display:flex;
 align-items:center;justify-content:center;height:100vh;margin:0}}
-.card{{text-align:center;max-width:420px;padding:40px}}
+.card{{text-align:center;max-width:440px;padding:40px}}
 .b{{display:inline-block;font-weight:800;letter-spacing:-.02em;color:#4338CA;font-size:22px;margin-bottom:16px}}
-p{{color:#475569;line-height:1.6}}</style></head>
+h2{{margin:8px 0}} p{{color:#475569;line-height:1.6}}
+a.btn{{display:inline-block;margin-top:20px;background:#4338CA;color:#fff;padding:12px 24px;
+border-radius:8px;text-decoration:none;font-weight:600}}</style></head>
 <body><div class="card"><div class="b">MidGate</div>
-<h2>Link unavailable</h2><p>{message}</p></div></body></html>"""
-    return HTMLResponse(content=html, status_code=404)
+<h2>{title}</h2><p>{message}</p>{extra}</div></body></html>"""
+    return HTMLResponse(content=html, status_code=status)
 
 
 @router.get("/api/redirect/health")
@@ -64,11 +63,12 @@ async def redirect_health():
 async def redirect(alias: str, request: Request):
     link = await _resolve(alias)
     if not link:
-        return _unavailable("This link does not exist.")
+        return _page("Link unavailable", "This link does not exist.", 404)
 
     if link.get("status") != "active":
         fb = link.get("fallback_url")
-        return RedirectResponse(fb, status_code=302) if fb else _unavailable("This link is currently paused.")
+        return RedirectResponse(fb, status_code=302) if fb else _page(
+            "Link unavailable", "This link is currently paused.", 404)
 
     # expiry
     expires_at = link.get("expires_at")
@@ -79,7 +79,8 @@ async def redirect(alias: str, request: Request):
                 exp = exp.replace(tzinfo=timezone.utc)
             if exp < datetime.now(timezone.utc):
                 fb = link.get("fallback_url")
-                return RedirectResponse(fb, status_code=302) if fb else _unavailable("This link has expired.")
+                return RedirectResponse(fb, status_code=302) if fb else _page(
+                    "Link expired", "This link has expired.", 404)
         except ValueError:
             pass
 
@@ -87,33 +88,71 @@ async def redirect(alias: str, request: Request):
     max_clicks = link.get("max_clicks")
     if max_clicks and link.get("click_count", 0) >= max_clicks:
         fb = link.get("fallback_url")
-        return RedirectResponse(fb, status_code=302) if fb else _unavailable("This link reached its click limit.")
+        return RedirectResponse(fb, status_code=302) if fb else _page(
+            "Limit reached", "This link reached its click limit.", 404)
 
-    # atomic click counter
-    await db.links.update_one({"id": link["id"]}, {"$inc": {"click_count": 1}})
-
-    # build analytics event (never blocks redirect)
+    # ---- risk evaluation (MidGate Protect) ---- #
     ua = request.headers.get("user-agent", "")
     parsed = parse_user_agent(ua)
     ip = client_ip(request)
+    visitor_id = visitor_hash(ip, ua)
+    country = client_country(request)
+    signals = {
+        "country": country, "device": parsed["device"], "browser": parsed["browser"],
+        "os": parsed["os"], "is_bot": parsed["is_bot"],
+        "referrer": (request.headers.get("referer") or "Direct").split("?")[0][:200],
+        "user_agent": ua,
+    }
+    rules = await get_rules(link["workspace_id"])
+    result = evaluate(signals, rules)
+    decision = result["decision"]
+    challenge_result = "n/a"
+
+    # challenge handling
+    if decision == "challenge":
+        token = request.query_params.get("mg_ch")
+        if verify_challenge(alias, visitor_id, token):
+            challenge_result = "passed"
+            decision = "allow"
+        else:
+            await _record(link, alias, signals, result, "issued", visitor_id, request)
+            cont = f"/api/r/{alias}?mg_ch={challenge_token(alias, visitor_id)}"
+            extra = f'<a class="btn" href="{cont}" data-testid="challenge-continue">Continue</a>'
+            return _page("Quick security check",
+                         "We're verifying your request to keep this link safe. Click continue to proceed.",
+                         200, extra)
+
+    if decision == "block":
+        await _record(link, alias, signals, result, challenge_result, visitor_id, request)
+        return _page("Access blocked",
+                     "This request was blocked by the workspace security policy.", 403)
+
+    # allow / log_only -> proceed
+    await db.links.update_one({"id": link["id"]}, {"$inc": {"click_count": 1}})
+    await _record(link, alias, signals, result, challenge_result, visitor_id, request)
+    return RedirectResponse(link["destination_url"], status_code=link.get("redirect_type", 302))
+
+
+async def _record(link, alias, signals, result, challenge_result, visitor_id, request):
     event = {
         "id": str(uuid.uuid4()),
-        "event_type": "click",
+        "event_type": "click" if not link.get("is_qr") else "scan",
         "workspace_id": link["workspace_id"],
         "link_id": link["id"],
         "alias": alias,
         "occurred_at": now_iso(),
-        "country": client_country(request),
-        "device": parsed["device"],
-        "browser": parsed["browser"],
-        "os": parsed["os"],
-        "referrer": (request.headers.get("referer") or "Direct").split("?")[0][:200],
-        "is_bot": parsed["is_bot"],
-        "bot_category": "automation" if parsed["is_bot"] else "human",
-        "risk_score": 0,
-        "decision": "allow",
-        "visitor_id": visitor_hash(ip, ua),
+        "country": signals["country"],
+        "device": signals["device"],
+        "browser": signals["browser"],
+        "os": signals["os"],
+        "referrer": signals["referrer"],
+        "is_bot": signals["is_bot"],
+        "bot_category": "automation" if signals["is_bot"] else "human",
+        "risk_score": result["risk_score"],
+        "decision": result["decision"],
+        "risk_reasons": result["reasons"],
+        "matched_rule_id": result["matched_rule_id"],
+        "challenge_result": challenge_result,
+        "visitor_id": visitor_id,
     }
     await event_bus.publish("link.clicked", event)
-
-    return RedirectResponse(link["destination_url"], status_code=link.get("redirect_type", 302))

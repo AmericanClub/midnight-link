@@ -15,6 +15,7 @@ import ResetPassword from "@/pages/ResetPassword";
 import Overview from "@/pages/Overview";
 import LinksPage from "@/pages/LinksPage";
 import LinkDetail from "@/pages/LinkDetail";
+import QRPage from "@/pages/QRPage";
 import ProtectionPage from "@/pages/ProtectionPage";
 import SettingsPage from "@/pages/SettingsPage";
 import NotFound from "@/pages/NotFound";
@@ -36,6 +37,7 @@ function App() {
               <Route path="/app" element={<ProtectedRoute><Overview /></ProtectedRoute>} />
               <Route path="/app/links" element={<ProtectedRoute><LinksPage /></ProtectedRoute>} />
               <Route path="/app/links/:id" element={<ProtectedRoute><LinkDetail /></ProtectedRoute>} />
+              <Route path="/app/qr" element={<ProtectedRoute><QRPage /></ProtectedRoute>} />
               <Route path="/app/protection" element={<ProtectedRoute><ProtectionPage /></ProtectedRoute>} />
               <Route path="/app/settings" element={<ProtectedRoute><SettingsPage /></ProtectedRoute>} />
               <Route path="*" element={<NotFound />} />

@@ -1,0 +1,1 @@
+# MidGate core application package

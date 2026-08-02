@@ -1,5 +1,13 @@
 # MidGate — Product Requirements & Progress
 
+## Implemented — Iteration 12: proxycheck.io IP Intelligence (2026-08-02)
+- **Provider integration** (`backend/app/ip_intel.py`): proxycheck.io v2 API (flags `vpn=1&asn=1&risk=1`) for accurate VPN/Proxy/Tor detection + 0-100 risk + ASN/provider/country. API key entered by platform admin, **Fernet-encrypted at rest** (`IPINTEL_SECRET` in backend/.env) in `db.platform_settings` (_id="proxycheck"), never returned plaintext (masked). Per-IP 24h in-memory cache to protect free-tier quota (1K/day). **Fails open** (disabled/unconfigured/error → available:false, traffic never blocked by outage). Skips private/invalid IPs.
+- **Admin endpoints** (`admin.py`, all `require_admin`): GET `/api/admin/ip-intel` (status+masked key+session stats+last test), PUT (save key / toggle enabled), POST `/ip-intel/test` (real verify call), DELETE `/ip-intel/key`.
+- **Pipeline enrichment** (`security.py::enrich_signals` awaited in `evaluate_request`): overlays proxycheck `is_proxy`/`is_vpn`/`asn`/`provider`/`intel_risk` onto offline signals; `compute_risk` adds +30 (risk≥66) / +15 (risk≥33). Powers per-link block_proxy_vpn accurately.
+- **Admin UI** (`AdminConsole.jsx` → new `Integrations` section, nav `admin-nav-integrations`): proxycheck.io card with status badge (Active/Disabled/Not configured), masked key, key input (password) to set/replace, enable toggle, Test connection, Remove key, and a session usage-stats card.
+- Tested: backend curl (CRUD + RBAC 403 + real API: 8.8.8.8→US/Google, Tor→is_proxy/risk=100) + testing_agent iteration_12.json frontend 100% pass (nav/render, Active badge, test-connection success, toggle, RBAC redirect). User's real proxycheck.io key is configured + enabled. No open bugs.
+
+
 ## Implemented — Iteration 11: Admin Console validation + nav polish (2026-08-02)
 - **Dedicated Admin Console** (`/admin`, `frontend/pages/AdminConsole.jsx` + `components/AdminRoute.jsx`): platform-admin-only workspace (Overview stats, Users, Workspaces, Revenue, Security events, Global Blocklist, Support tickets, API usage). `AdminRoute` redirects non-admins to `/app`, unauthenticated to `/login`. Backend `/api/admin/*` all gated by `require_admin` (403 for non-admin).
 - **Suspension logic**: user `suspended:true` blocks login (auth.py 403); workspace `suspended:true` blocks link redirect (redirect.py). Admin PATCH `/api/admin/users/{id}` and `/api/admin/workspaces/{id}`. Self-modify (400) + last-admin demotion guards in place. Added `invalidate_suspended_workspaces()` (redirect.py) called on workspace PATCH so suspension takes effect immediately (previously up to 30s TTL lag).

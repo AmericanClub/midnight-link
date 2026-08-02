@@ -21,6 +21,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
 import {
   Dialog,
   DialogContent,
@@ -40,7 +41,7 @@ import api, { formatApiError, shortUrl } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
 
 function CreateLinkDialog({ open, onOpenChange, onCreated }) {
-  const [form, setForm] = useState({ name: "", destination_url: "", alias: "", description: "" });
+  const [form, setForm] = useState({ name: "", destination_url: "", alias: "", description: "", protection_preset: "off" });
   const [loading, setLoading] = useState(false);
 
   const set = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }));
@@ -49,12 +50,12 @@ function CreateLinkDialog({ open, onOpenChange, onCreated }) {
     e.preventDefault();
     setLoading(true);
     try {
-      const payload = { name: form.name, destination_url: form.destination_url };
+      const payload = { name: form.name, destination_url: form.destination_url, protection_preset: form.protection_preset };
       if (form.alias.trim()) payload.alias = form.alias.trim();
       if (form.description.trim()) payload.description = form.description.trim();
       const { data } = await api.post("/links", payload);
       toast.success("Smart Link created");
-      setForm({ name: "", destination_url: "", alias: "", description: "" });
+      setForm({ name: "", destination_url: "", alias: "", description: "", protection_preset: "off" });
       onCreated(data);
       onOpenChange(false);
     } catch (err) {
@@ -87,6 +88,18 @@ function CreateLinkDialog({ open, onOpenChange, onCreated }) {
           <div className="space-y-2">
             <Label htmlFor="desc">Description <span className="text-muted-foreground">(optional)</span></Label>
             <Textarea id="desc" value={form.description} onChange={set("description")} data-testid="link-description-input" rows={2} />
+          </div>
+          <div className="space-y-2">
+            <Label>Protection preset</Label>
+            <Select value={form.protection_preset} onValueChange={(v) => setForm((f) => ({ ...f, protection_preset: v }))}>
+              <SelectTrigger data-testid="link-preset-select"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="off" data-testid="preset-option-off">Off — log only, nothing blocked</SelectItem>
+                <SelectItem value="moderate" data-testid="preset-option-moderate">Moderate — block bots + Tor</SelectItem>
+                <SelectItem value="strict" data-testid="preset-option-strict">Strict — block bots, Tor, datacenter & proxy/VPN</SelectItem>
+              </SelectContent>
+            </Select>
+            <p className="text-xs text-muted-foreground">One-click security. Fine-tune later on the link's detail page.</p>
           </div>
           <DialogFooter>
             <Button type="button" variant="ghost" onClick={() => onOpenChange(false)}>Cancel</Button>

@@ -13,6 +13,7 @@ from ..db import db
 from ..config import settings
 from ..utils import now_iso, parse_user_agent
 from ..intel import lookup as intel_lookup, classify_ua, feeds_state, refresh_tor, rate_limiter
+from ..geoip import country_of
 from .workspace import get_current_workspace
 
 router = APIRouter(prefix="/api/security", tags=["security"])
@@ -25,6 +26,7 @@ THRESHOLDS = [(30, "allow"), (60, "challenge"), (80, "block"), (101, "block")]
 
 DEFAULT_PROTECTION = {
     "enabled": False,
+    "preset": "off",
     "block_bots": True,
     "block_tor": False,
     "block_datacenter": False,
@@ -34,6 +36,36 @@ DEFAULT_PROTECTION = {
     "block_action": "fallback",   # fallback | block_page | notfound | redirect
     "block_redirect_url": "",
     "rate_limit_per_min": 0,
+}
+
+# One-click protection presets. Each preset only sets the fields it cares about;
+# everything else falls back to DEFAULT_PROTECTION. "custom" means the user
+# hand-tuned the toggles and no preset is active.
+PROTECTION_PRESETS = {
+    "off": {
+        "enabled": False,
+    },
+    "moderate": {
+        "enabled": True,
+        "block_bots": True,
+        "block_tor": True,
+        "block_datacenter": False,
+        "block_proxy_vpn": False,
+        "block_action": "fallback",
+    },
+    "strict": {
+        "enabled": True,
+        "block_bots": True,
+        "block_tor": True,
+        "block_datacenter": True,
+        "block_proxy_vpn": True,
+        "block_action": "block_page",
+    },
+}
+PRESET_META = {
+    "off": {"label": "Off", "description": "Log only — nothing is blocked."},
+    "moderate": {"label": "Moderate", "description": "Block bots and Tor exit nodes; allow normal traffic."},
+    "strict": {"label": "Strict", "description": "Block bots, Tor, datacenter IPs and proxy/VPN."},
 }
 
 # --------------------------- caches --------------------------------------- #
@@ -110,6 +142,8 @@ def build_signals(ip: str, ua: str, referrer: str = "Direct", country: str = "Un
     intel = intel_lookup(ip)
     ua_cls = classify_ua(ua)
     parsed = parse_user_agent(ua)
+    if not country or str(country).upper() == "UNKNOWN":
+        country = country_of(ip)
     return {
         "ip": ip,
         "country": country,
@@ -378,6 +412,11 @@ async def delete_ip_rule(rule_id: str, ws=Depends(get_current_workspace)):
 @router.get("/feeds")
 async def feeds(ws=Depends(get_current_workspace)):
     return feeds_state()
+
+
+@router.get("/presets")
+async def list_presets(ws=Depends(get_current_workspace)):
+    return {"presets": {k: {**PROTECTION_PRESETS[k], **PRESET_META[k]} for k in PROTECTION_PRESETS}}
 
 
 # --------------------------- simulator ------------------------------------ #

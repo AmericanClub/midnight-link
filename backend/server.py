@@ -11,6 +11,7 @@ from app.providers import wire_event_bus
 from app.domains import auth, workspace, links, analytics, redirect, billing, qr, security, apikeys, blocker, admin
 from app.domains.workspace import create_default_workspace
 from app.intel import refresh_tor
+from app.geoip import warm as warm_geoip
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s %(message)s")
 logger = logging.getLogger("midgate")
@@ -75,4 +76,5 @@ async def on_startup():
     wire_event_bus()
     await seed_admin()
     asyncio.create_task(refresh_tor())
+    asyncio.create_task(asyncio.to_thread(warm_geoip))
     logger.info("MidGate Core API started")

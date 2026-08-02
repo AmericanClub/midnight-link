@@ -75,6 +75,17 @@ function Breakdown({ title, rows }) {
   );
 }
 
+const PRESETS = [
+  { v: "off", label: "Off", desc: "Log only — nothing blocked", color: "bg-slate-400" },
+  { v: "moderate", label: "Moderate", desc: "Block bots + Tor", color: "bg-amber-500" },
+  { v: "strict", label: "Strict", desc: "Bots, Tor, datacenter & proxy/VPN", color: "bg-red-500" },
+];
+const PRESET_VALUES = {
+  off: { enabled: false },
+  moderate: { enabled: true, block_bots: true, block_tor: true, block_datacenter: false, block_proxy_vpn: false, block_action: "fallback" },
+  strict: { enabled: true, block_bots: true, block_tor: true, block_datacenter: true, block_proxy_vpn: true, block_action: "block_page" },
+};
+
 function ProtectionSettings({ linkId }) {
   const [p, setP] = useState(null);
   const { data } = useQuery({
@@ -90,7 +101,9 @@ function ProtectionSettings({ linkId }) {
   });
 
   if (!p) return null;
-  const set = (k, v) => setP((s) => ({ ...s, [k]: v }));
+  // manual edits switch the preset to "custom"
+  const set = (k, v) => setP((s) => ({ ...s, [k]: v, preset: "custom" }));
+  const applyPreset = (name) => setP((s) => ({ ...s, ...PRESET_VALUES[name], preset: name }));
   const Toggle = ({ k, label, desc }) => (
     <div className="flex items-center justify-between rounded-lg border border-border p-3">
       <div><p className="text-sm font-medium">{label}</p>{desc && <p className="text-xs text-muted-foreground">{desc}</p>}</div>
@@ -107,6 +120,31 @@ function ProtectionSettings({ linkId }) {
           <Switch checked={!!p.enabled} onCheckedChange={(v) => set("enabled", v)} data-testid="prot-enabled" />
         </div>
       </div>
+
+      <div className="mb-5" data-testid="protection-presets">
+        <div className="mb-2 flex items-center gap-2">
+          <Label className="text-xs">Quick preset</Label>
+          {p.preset === "custom" && <Badge variant="secondary" data-testid="preset-custom-badge">Custom</Badge>}
+        </div>
+        <div className="grid gap-2 sm:grid-cols-3">
+          {PRESETS.map((pr) => (
+            <button
+              type="button"
+              key={pr.v}
+              onClick={() => applyPreset(pr.v)}
+              data-testid={`preset-${pr.v}`}
+              className={`rounded-lg border p-3 text-left transition-colors ${p.preset === pr.v ? "border-primary bg-primary/5 ring-1 ring-primary" : "border-border hover:border-primary/40"}`}
+            >
+              <div className="flex items-center gap-2">
+                <span className={`inline-block h-2 w-2 rounded-full ${pr.color}`} />
+                <span className="text-sm font-semibold">{pr.label}</span>
+              </div>
+              <p className="mt-1 text-xs text-muted-foreground">{pr.desc}</p>
+            </button>
+          ))}
+        </div>
+      </div>
+
       <div className={`grid gap-3 sm:grid-cols-2 ${p.enabled ? "" : "pointer-events-none opacity-50"}`}>
         <Toggle k="block_bots" label="Block bots" desc="Crawlers, automation, headless" />
         <Toggle k="block_tor" label="Block Tor" desc="Known Tor exit nodes" />

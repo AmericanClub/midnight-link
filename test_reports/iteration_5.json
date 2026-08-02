@@ -1,0 +1,31 @@
+{
+  "summary": "Iteration 5 — Protection Presets + Country Geo Detection. Backend pytest 16/16 pass (100%): GET /api/security/presets returns off/moderate/strict with labels & values; POST /api/links with protection_preset=strict/moderate/off applies correct toggles + block_action, unknown preset -> 400; GET /links/{id}/protection infers preset='off' for legacy disabled protection; PATCH preset='moderate' applies moderate values, preset='custom'+block_datacenter override yields custom, manual field change (block_bots=false) auto-switches preset to 'custom'; geoip2fast resolves 114.4.5.6->ID, 8.8.8.8->US, 1.1.1.1->AU, explicit non-Unknown country preserved. Country-based blocking verified via workspace rule (country equals ID -> block) on simulate with Indonesian IP + country Unknown -> decision='block'. Regression: link CRUD + pause/resume + simulator OK. Frontend e2e (admin login on preview URL): LinksPage 'New Smart Link' dialog shows link-preset-select with off/moderate/strict options; creating a link with strict shows 'Smart Link created' toast; LinkDetail protection card exposes data-testid=protection-presets with 3 buttons (preset-off, preset-moderate, preset-strict). After create-with-strict, preset-strict is highlighted (ring). Clicking preset-moderate highlights it and prot-block_datacenter switches to unchecked. Flipping prot-block_bots shows preset-custom-badge. prot-save-btn produces 'Protection settings saved' toast. Reload preserves the 'custom' state; then switching to strict + save + reload shows preset-strict highlighted and custom badge absent. All acceptance criteria pass.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {"ui_bugs": [], "integration_issues": [], "design_issues": []},
+  "test_report_links": [
+    "/app/backend/tests/test_iter5_presets_geo.py",
+    "/app/test_reports/pytest/it5_results.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "security.PROTECTION_PRESETS + PRESET_META cleanly split machine values from UI labels; GET /presets merges them. Good.",
+    "links.create_link: preset==='off' path intentionally skips the update (DEFAULT_PROTECTION already has enabled=False, preset='off'). Correct behaviour, matches acceptance test.",
+    "links.get_protection preset inference is only applied when 'preset' is missing from stored doc; new docs always have 'preset' after create_link because DEFAULT_PROTECTION carries preset='off'. Legacy docs without preset field are handled correctly via the fallback ('off' when disabled, 'custom' when enabled).",
+    "links.update_protection: correct order — apply data.update first, then preset override so PATCH {preset:'moderate', block_bots:false} would end up with preset='moderate' AND block_bots reset to True (preset wins). Only edge case: PATCH with just {preset:'custom'} keeps existing toggles untouched. Sensible.",
+    "security.build_signals only calls country_of() when incoming country is falsy or 'Unknown' — preserves CDN-provided cf-ipcountry. Good.",
+    "security.evaluate_request block_countries/allow_countries now gate on 'country != UNKNOWN' — resolves the iter-4 caveat about accidental blocking when geo not resolved. Nice fix.",
+    "geoip2fast is warmed at startup (server.warm_geoip) — first request latency is amortised.",
+    "Frontend LinksPage CreateLinkDialog: protection_preset default 'off'; select uses controlled shadcn Select with proper testids. Good.",
+    "Frontend LinkDetail ProtectionSettings: manual toggles set preset='custom' locally; server also enforces this on PATCH so a stale client cannot desync. Belt-and-suspenders. Good.",
+    "Minor: In ProtectionSettings.set(), toggling 'enabled' also sets preset='custom'. If a user turns Off via the top switch after selecting the 'Off' preset, badge will flip to Custom instead of staying 'Off'. Not a real bug but slight UX quirk — could special-case enabled=false -> preset='off'.",
+    "Minor: LinkDetail Protection card lacks toggles / input for allow_countries even though schema supports it; block_countries only. Documented as intentional in iter-4."
+  ],
+  "updated_files": ["/app/backend/tests/test_iter5_presets_geo.py (new — 16 tests, all pass)"],
+  "success_rate": {"backend": "100% (16/16 new + prior iter1-4 tests intact)", "frontend": "100% for the specified UI checks (preset select on create, all 3 preset buttons on detail, custom badge, save+persist reload)"},
+  "test_credentials": "Admin: admin@midgate.io / Admin123!. Fresh TEST_it5_* registrations for isolated workspace tests.",
+  "seed_data_creation": "~7 TEST_it5_* users + workspaces, ~10 smart links, 1 workspace security rule (TEST_it5_block_id). 1 additional admin-workspace smart link (TEST_e2e5_*) created via UI.",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Iter-5 backend tests at /app/backend/tests/test_iter5_presets_geo.py (16 tests, 100% pass; JUnit /app/test_reports/pytest/it5_results.xml). geoip2fast lookups: 114.4.5.6->ID, 8.8.8.8->US, 1.1.1.1->AU. Note: security.evaluate_request now gates country allow/block on country!=UNKNOWN, fixing prior iter-4 caveat. simulate with link=None means link-level block_countries won't fire; use a workspace security rule ({field:'country',operator:'equals',value:'ID'}) instead, and sleep 16s to bypass 15s rules cache. Frontend testids: link-preset-select + preset-option-{off|moderate|strict} in create dialog; protection-presets row + preset-{off|moderate|strict} + preset-custom-badge + prot-save-btn on LinkDetail. Auth uses httpOnly cookies; frontend redirects to /app (bare) after login, then to /app/links etc.",
+  "rca of the issue": "No issues found. All acceptance criteria for Protection Presets and Country Geo Detection pass end-to-end."
+}

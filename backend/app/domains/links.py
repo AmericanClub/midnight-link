@@ -10,7 +10,7 @@ from ..utils import now_iso, gen_alias
 from ..url_safety import validate_destination, UnsafeURLError
 from .workspace import get_current_workspace
 from .billing import enforce_quota
-from .security import DEFAULT_PROTECTION, invalidate_rules
+from .security import DEFAULT_PROTECTION, PROTECTION_PRESETS, invalidate_rules
 from .redirect import invalidate_cache
 
 router = APIRouter(prefix="/api/links", tags=["links"])
@@ -29,6 +29,7 @@ class LinkCreate(BaseModel):
     expires_at: str | None = None
     max_clicks: int | None = None
     fallback_url: str | None = None
+    protection_preset: str | None = None
 
 
 class LinkUpdate(BaseModel):
@@ -81,6 +82,14 @@ async def create_link(payload: LinkCreate, ws=Depends(get_current_workspace), us
         except UnsafeURLError as e:
             raise HTTPException(status_code=400, detail=f"Fallback: {e}")
 
+    protection = {**DEFAULT_PROTECTION}
+    preset = payload.protection_preset
+    if preset and preset != "off":
+        if preset not in PROTECTION_PRESETS:
+            raise HTTPException(status_code=400, detail=f"Unknown protection preset '{preset}'")
+        protection.update(PROTECTION_PRESETS[preset])
+        protection["preset"] = preset
+
     link = {
         "id": str(uuid.uuid4()),
         "workspace_id": ws["id"],
@@ -95,7 +104,7 @@ async def create_link(payload: LinkCreate, ws=Depends(get_current_workspace), us
         "max_clicks": payload.max_clicks,
         "fallback_url": fallback,
         "click_count": 0,
-        "protection": {**DEFAULT_PROTECTION},
+        "protection": protection,
         "created_by": user["id"],
         "created_at": now_iso(),
         "updated_at": now_iso(),
@@ -161,6 +170,7 @@ async def update_link(link_id: str, payload: LinkUpdate, ws=Depends(get_current_
 
 
 class ProtectionInput(BaseModel):
+    preset: str | None = None
     enabled: bool | None = None
     block_bots: bool | None = None
     block_tor: bool | None = None
@@ -179,7 +189,11 @@ BLOCK_ACTIONS = {"fallback", "block_page", "notfound", "redirect"}
 @router.get("/{link_id}/protection")
 async def get_protection(link_id: str, ws=Depends(get_current_workspace)):
     link = await _get_owned(link_id, ws)
-    return {**DEFAULT_PROTECTION, **(link.get("protection") or {})}
+    stored = link.get("protection") or {}
+    prot = {**DEFAULT_PROTECTION, **stored}
+    if "preset" not in stored:
+        prot["preset"] = "off" if not prot.get("enabled") else "custom"
+    return prot
 
 
 @router.patch("/{link_id}/protection")
@@ -187,6 +201,7 @@ async def update_protection(link_id: str, payload: ProtectionInput, ws=Depends(g
     link = await _get_owned(link_id, ws)
     current = {**DEFAULT_PROTECTION, **(link.get("protection") or {})}
     data = payload.model_dump(exclude_unset=True)
+    preset = data.pop("preset", None)
     if data.get("block_action") and data["block_action"] not in BLOCK_ACTIONS:
         raise HTTPException(status_code=400, detail=f"block_action must be one of {sorted(BLOCK_ACTIONS)}")
     if data.get("block_redirect_url"):
@@ -195,6 +210,16 @@ async def update_protection(link_id: str, payload: ProtectionInput, ws=Depends(g
         except UnsafeURLError as e:
             raise HTTPException(status_code=400, detail=str(e))
     current.update(data)
+    if preset is not None:
+        if preset == "custom":
+            current["preset"] = "custom"
+        elif preset in PROTECTION_PRESETS:
+            current.update(PROTECTION_PRESETS[preset])
+            current["preset"] = preset
+        else:
+            raise HTTPException(status_code=400, detail=f"Unknown protection preset '{preset}'")
+    elif data:
+        current["preset"] = "custom"
     await db.links.update_one({"id": link_id}, {"$set": {"protection": current, "updated_at": now_iso()}})
     invalidate_cache(link["alias"])
     return current

@@ -4,6 +4,12 @@
 **MidGate** — SaaS gateway between visitors and destinations. Tagline: *Every Click. Protected.*
 Smart Links, Dynamic QR, Traffic Analytics, Visitor Intelligence, Traffic Protection, Bot/Proxy/VPN/Tor detection, Security Rules, Custom Domains, Developer API, Webhooks, Team Workspaces, Billing (QRIS), Admin.
 
+## Implemented — Iteration 5: Protection Presets + Country Geo (2026-08-02)
+- **Protection Presets** (one-click security): `off` (log only), `moderate` (block bots + Tor), `strict` (block bots, Tor, datacenter, proxy/VPN). Defined server-side in `security.py` (`PROTECTION_PRESETS` + `PRESET_META`), exposed via `GET /api/security/presets`. Selectable at link creation (`LinkCreate.protection_preset`) and switchable on the link detail page. `GET/PATCH /api/links/{id}/protection` carry a `preset` field; manual toggle changes auto-switch preset to `custom`. Legacy links infer preset (`off` if disabled, else `custom`).
+- **Country Geo Detection** (free, offline, no API key): `geoip2fast` bundled DB resolves real visitor country. `app/geoip.py` (`country_of`, warmed at startup); `security.build_signals` fills country from IP when CDN header is absent/Unknown, so per-link `block_countries`/`allow_countries` now apply to real traffic. Verified: 114.4.5.6→ID, 8.8.8.8→US, 1.1.1.1→AU.
+- Tested: backend 16/16 pytest + frontend e2e, 100% pass (iteration_5.json). No open bugs.
+
+
 ## Platform / Architecture (adapted)
 Original spec asked for Go + Next.js + PostgreSQL + Redis monorepo. The Emergent preview only runs **React + FastAPI + MongoDB** live, so — per user approval (option A) — MidGate is built as a genuinely working app on that stack while keeping the spec's architecture principles:
 - Modular monolith: `backend/app/domains/{auth,workspace,links,analytics,redirect,billing}` with handler→service→repository separation and cross-domain access via exported service functions.

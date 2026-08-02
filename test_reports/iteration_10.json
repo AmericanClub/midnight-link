@@ -1,0 +1,42 @@
+{
+  "summary": "Iteration 10 (Support / Ticket system) fully verified. Backend: 20 pytest cases across public/user/admin/notify/patch flows — 20 passed, 1 cleanup skipped (handled manually). Frontend: landing footer contact/support-email, public /contact form submit + success, /app/support (nav, new-ticket dialog, thread + reply), /app/admin Support Tickets tab (list, filter, open_count, admin reply -> status pending, priority/status selects) all work. Notification bell present and receives ticket_reply / ticket_status notifications for workspace-scoped tickets. Public ticket admin reply no-notification path also works without errors.",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "GET /api/support/admin/tickets", "issue": "open_count is computed across ALL tickets ignoring the ?status filter. Not necessarily a bug (it's a global badge), but worth documenting: same value returned whether status=open or status=resolved is requested."},
+      {"endpoint": "POST /api/support/tickets", "issue": "X-Workspace-Id header is stored verbatim with no validation (a caller could pass any string / a workspace they don't belong to). Not exploitable for reading tickets — but notifications from admin replies would be routed to whatever workspace was recorded at create time."}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [
+      {"flow": "Admin Support Tickets tab initial load", "issue": "tickets-open-count sometimes shows '0 open' briefly on first mount before the query resolves (captured '0 open' from selector even though backend returned 3). Likely a placeholder rendered before data hydrates; not a functional bug.", "affected_selectors": ["[data-testid=\"tickets-open-count\"]"]}
+    ],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iter10_support.py",
+    "/app/test_reports/pytest/iter10_results.xml"
+  ],
+  "action_items": [
+    "(Optional) Consider validating X-Workspace-Id against user membership when creating a ticket to prevent mis-routed admin-reply notifications.",
+    "(Optional) Delay rendering of tickets-open-count until the admin list query resolves, or show '—' placeholder to avoid flashing '0 open'."
+  ],
+  "critical_code_review_comments": [
+    "support.py is well-scoped (~200 lines), uses uuid ids, excludes _id via _summary/_detail projections — good.",
+    "require_platform_admin is enforced on every /admin/* route including PATCH and POST/reply — verified 403 for non-admin.",
+    "create_notification is guarded by t.get('workspace_id'); public tickets correctly skip notification without error — verified.",
+    "user_reply correctly resets status to 'open'; admin_reply sets 'pending'; admin PATCH sets explicit status. Transitions verified.",
+    "Category/priority fallbacks: unknown category coerced to 'other' on public creation but for authenticated create it also coerces (verified indirectly). Priority validation on PATCH returns 400 as expected."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iter10_support.py"
+  ],
+  "success_rate": {"backend": "100% (20/20)", "frontend": "100% of tested flows"},
+  "test_credentials": "admin@midgate.io / Admin123! ; teammate@example.com / Teammate123!",
+  "seed_data_creation": "Created ephemeral tickets prefixed with 'TEST '/emails 'test_*@example.com' during tests. All test tickets + related notifications purged via pymongo after runs (delete_many). Demo tickets (Link not redirecting, Billing question) preserved.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Backend test file: /app/backend/tests/test_iter10_support.py (uses pytest.ini, run with -o addopts='' to disable xdist workers if fixture scope causes cross-worker issues; module-scoped fixtures are fine with default xdist because of --dist loadscope). Cleanup relies on pymongo + backend .env (DB_NAME, MONGO_URL). Notifications assertions read GET /api/notifications with X-Workspace-Id header set to the teammate's current_workspace (their own workspace, since ticket is created there).",
+  "rca of the issue": "N/A — no functional bugs found. Only two minor observations documented in action_items."
+}

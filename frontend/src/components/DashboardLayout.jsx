@@ -16,6 +16,7 @@ import {
   ShieldCheck,
   Globe,
   Users,
+  LifeBuoy,
 } from "lucide-react";
 import Logo from "@/components/Logo";
 import ThemeToggle from "@/components/ThemeToggle";
@@ -44,6 +45,7 @@ const nav = [
   { to: "/app/team", key: null, label: "Team", icon: Users, testid: "nav-team", adminWs: true },
   { to: "/app/billing", key: null, label: "Billing", icon: CreditCard, testid: "nav-billing", billingOnly: true },
   { to: "/app/admin", key: null, label: "Admin", icon: Shield, testid: "nav-admin", adminOnly: true },
+  { to: "/app/support", key: null, label: "Support", icon: LifeBuoy, testid: "nav-support" },
   { to: "/app/settings", key: "dash.settings", icon: Settings, testid: "nav-settings" },
 ];
 

@@ -1,5 +1,5 @@
 import React from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, Link } from "react-router-dom";
 import { motion } from "framer-motion";
 import {
   ShieldCheck,
@@ -182,9 +182,15 @@ export default function Landing() {
       <footer className="border-t border-border">
         <div className="mx-auto flex max-w-7xl flex-col items-center justify-between gap-4 px-4 py-8 sm:flex-row sm:px-6 lg:px-8">
           <Logo />
-          <p className="text-sm text-muted-foreground">
-            © {new Date().getFullYear()} MidGate. Every Click. Protected.
-          </p>
+          <div className="flex flex-col items-center gap-2 sm:items-end">
+            <div className="flex items-center gap-4 text-sm">
+              <Link to="/contact" className="text-muted-foreground transition-colors hover:text-foreground" data-testid="footer-contact-link">Contact</Link>
+              <a href="mailto:support@midgate.app" className="text-muted-foreground transition-colors hover:text-foreground" data-testid="footer-support-email">support@midgate.app</a>
+            </div>
+            <p className="text-sm text-muted-foreground">
+              © {new Date().getFullYear()} MidGate. Every Click. Protected.
+            </p>
+          </div>
         </div>
       </footer>
     </div>

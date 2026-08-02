@@ -23,6 +23,8 @@ import BillingPage from "@/pages/BillingPage";
 import DomainsPage from "@/pages/DomainsPage";
 import TeamPage from "@/pages/TeamPage";
 import AcceptInvitePage from "@/pages/AcceptInvitePage";
+import SupportPage from "@/pages/SupportPage";
+import ContactPage from "@/pages/ContactPage";
 import SettingsPage from "@/pages/SettingsPage";
 import NotFound from "@/pages/NotFound";
 
@@ -41,6 +43,7 @@ function App() {
               <Route path="/forgot-password" element={<ForgotPassword />} />
               <Route path="/reset-password" element={<ResetPassword />} />
               <Route path="/accept-invite" element={<AcceptInvitePage />} />
+              <Route path="/contact" element={<ContactPage />} />
               <Route path="/app" element={<ProtectedRoute><Overview /></ProtectedRoute>} />
               <Route path="/app/links" element={<ProtectedRoute><LinksPage /></ProtectedRoute>} />
               <Route path="/app/links/:id" element={<ProtectedRoute><LinkDetail /></ProtectedRoute>} />
@@ -51,6 +54,7 @@ function App() {
               <Route path="/app/billing" element={<ProtectedRoute><BillingPage /></ProtectedRoute>} />
               <Route path="/app/domains" element={<ProtectedRoute><DomainsPage /></ProtectedRoute>} />
               <Route path="/app/team" element={<ProtectedRoute><TeamPage /></ProtectedRoute>} />
+              <Route path="/app/support" element={<ProtectedRoute><SupportPage /></ProtectedRoute>} />
               <Route path="/app/settings" element={<ProtectedRoute><SettingsPage /></ProtectedRoute>} />
               <Route path="*" element={<NotFound />} />
             </Routes>

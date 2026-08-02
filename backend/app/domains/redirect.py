@@ -29,6 +29,18 @@ def invalidate_cache(alias):
     _CACHE.pop(alias, None)
 
 
+_WS_SUSPENDED: list = [0.0, set()]
+
+
+async def _suspended_workspaces() -> set:
+    if _WS_SUSPENDED[0] > time.time():
+        return _WS_SUSPENDED[1]
+    rows = await db.workspaces.find({"suspended": True}, {"_id": 0, "id": 1}).to_list(10000)
+    _WS_SUSPENDED[0] = time.time() + 30.0
+    _WS_SUSPENDED[1] = {r["id"] for r in rows}
+    return _WS_SUSPENDED[1]
+
+
 async def _resolve(alias):
     cached = _cache_get(alias)
     if cached is not None:
@@ -76,6 +88,9 @@ async def redirect(alias: str, request: Request):
     link = await _resolve(alias)
     if not link:
         return _page("Link unavailable", "This link does not exist.", 404)
+
+    if link.get("workspace_id") in await _suspended_workspaces():
+        return _page("Link unavailable", "This link is currently unavailable.", 404)
 
     if link.get("status") != "active":
         fb = link.get("fallback_url")

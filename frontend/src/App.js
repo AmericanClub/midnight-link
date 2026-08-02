@@ -5,6 +5,7 @@ import { ThemeProvider } from "@/context/ThemeContext";
 import { I18nProvider } from "@/context/I18nContext";
 import { AuthProvider } from "@/context/AuthContext";
 import ProtectedRoute from "@/components/ProtectedRoute";
+import AdminRoute from "@/components/AdminRoute";
 
 import Landing from "@/pages/Landing";
 import Pricing from "@/pages/Pricing";
@@ -18,7 +19,7 @@ import LinkDetail from "@/pages/LinkDetail";
 import QRPage from "@/pages/QRPage";
 import ProtectionPage from "@/pages/ProtectionPage";
 import DevelopersPage from "@/pages/DevelopersPage";
-import AdminPage from "@/pages/AdminPage";
+import AdminConsole from "@/pages/AdminConsole";
 import BillingPage from "@/pages/BillingPage";
 import DomainsPage from "@/pages/DomainsPage";
 import TeamPage from "@/pages/TeamPage";
@@ -50,7 +51,8 @@ function App() {
               <Route path="/app/qr" element={<ProtectedRoute><QRPage /></ProtectedRoute>} />
               <Route path="/app/protection" element={<ProtectedRoute><ProtectionPage /></ProtectedRoute>} />
               <Route path="/app/developers" element={<ProtectedRoute><DevelopersPage /></ProtectedRoute>} />
-              <Route path="/app/admin" element={<ProtectedRoute><AdminPage /></ProtectedRoute>} />
+              <Route path="/admin" element={<AdminRoute><AdminConsole /></AdminRoute>} />
+              <Route path="/admin/:section" element={<AdminRoute><AdminConsole /></AdminRoute>} />
               <Route path="/app/billing" element={<ProtectedRoute><BillingPage /></ProtectedRoute>} />
               <Route path="/app/domains" element={<ProtectedRoute><DomainsPage /></ProtectedRoute>} />
               <Route path="/app/team" element={<ProtectedRoute><TeamPage /></ProtectedRoute>} />

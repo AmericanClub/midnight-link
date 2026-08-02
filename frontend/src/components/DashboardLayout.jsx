@@ -44,7 +44,6 @@ const nav = [
   { to: "/app/domains", key: null, label: "Domains", icon: Globe, testid: "nav-domains", adminWs: true },
   { to: "/app/team", key: null, label: "Team", icon: Users, testid: "nav-team", adminWs: true },
   { to: "/app/billing", key: null, label: "Billing", icon: CreditCard, testid: "nav-billing", billingOnly: true },
-  { to: "/app/admin", key: null, label: "Admin", icon: Shield, testid: "nav-admin", adminOnly: true },
   { to: "/app/support", key: null, label: "Support", icon: LifeBuoy, testid: "nav-support" },
   { to: "/app/settings", key: "dash.settings", icon: Settings, testid: "nav-settings" },
 ];

@@ -96,6 +96,8 @@ async def login(payload: LoginInput, request: Request, response: Response):
         await _record_failure(identifier)
         raise HTTPException(status_code=401, detail="Invalid email or password")
     await _clear_failures(identifier)
+    if user.get("suspended"):
+        raise HTTPException(status_code=403, detail="Your account has been suspended. Contact support.")
     user_id = str(user["_id"])
     set_auth_cookies(response, create_access_token(user_id, email), create_refresh_token(user_id))
     workspaces = await list_user_workspaces(user_id)

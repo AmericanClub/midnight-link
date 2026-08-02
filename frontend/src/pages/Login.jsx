@@ -21,8 +21,9 @@ export default function Login() {
     e.preventDefault();
     setLoading(true);
     try {
-      await login(email, password);
+      const data = await login(email, password);
       toast.success("Welcome back!");
+      if (data?.user?.role === "admin") { navigate("/admin"); return; }
       const inv = localStorage.getItem("midgate_invite");
       if (inv) { localStorage.removeItem("midgate_invite"); navigate(`/accept-invite?token=${inv}`); }
       else navigate("/app");

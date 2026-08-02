@@ -70,6 +70,8 @@ async def get_current_user(request: Request) -> dict:
         raise HTTPException(status_code=401, detail="Invalid token")
     if not user:
         raise HTTPException(status_code=401, detail="User not found")
+    if user.get("suspended"):
+        raise HTTPException(status_code=403, detail="Your account has been suspended.")
     user["id"] = str(user["_id"])
     user.pop("_id", None)
     user.pop("password_hash", None)

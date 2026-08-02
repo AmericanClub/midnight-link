@@ -4,6 +4,12 @@
 **MidGate** — SaaS gateway between visitors and destinations. Tagline: *Every Click. Protected.*
 Smart Links, Dynamic QR, Traffic Analytics, Visitor Intelligence, Traffic Protection, Bot/Proxy/VPN/Tor detection, Security Rules, Custom Domains, Developer API, Webhooks, Team Workspaces, Billing (QRIS), Admin.
 
+## Implemented — Iteration 9: Webhook Docs + Notification Center (2026-08-02)
+- **Webhook Docs** (`frontend/components/WebhookDocs.jsx` on Developers page): event list, request headers, an example JSON payload, and copyable signature-verification snippets for Node.js (Express raw body) and PHP, in tabs. Documents the `X-MidGate-Signature: t=<ts>,v1=<hmac_sha256(secret, "ts.body")>` scheme + 2xx-ack/3× retry policy. Static, no backend.
+- **Notification Center** (`backend/app/domains/notifications.py` + `frontend/components/NotificationBell.jsx`): workspace-scoped shared feed with a header bell + unread badge (polls unread-count every 30s), panel with mark-read / mark-all-read / dismiss. Endpoints under `/api/notifications`. Producers: blocked traffic (throttled 1/hr per link via EventBus `link.clicked`), failed webhook delivery (throttled 30m per webhook), member joined (team accept), custom domain verified. Feed capped at 200 per workspace (auto-pruned).
+- Tested: backend 6/6 pytest + frontend e2e, 100% pass (iteration_9.json). No open bugs.
+
+
 ## Implemented — Iteration 8: Team Invitations + Branded Preview + Webhook Retry (2026-08-02)
 - **Team Invitations** (`backend/app/domains/team.py`): owner/admin invite members by email with role (admin/member/billing_manager) using opaque `secrets.token_urlsafe` tokens (14-day TTL). Public lookup, authenticated accept (invited email must match signed-in account → prevents privilege escalation), idempotent accept, revoke. Member management: change role & remove with owner-protection guards; all mutations RBAC-gated (owner/admin, else 403). UI: `pages/TeamPage.jsx` + `pages/AcceptInvitePage.jsx` (public route `/accept-invite`), `nav-team`. Post-auth redirect via `localStorage 'midgate_invite'` in Login/Register. Invite emails via ConsoleEmailProvider; accept link/token returned to inviter for demo.
 - **Branded Link Preview**: when a workspace has a verified PRIMARY custom domain (`workspace.primary_domain` surfaced in `/auth/me`), Smart Link & QR lists display + copy `https://{domain}/{alias}` (helper `brandedShortUrl` in `lib/api.js`). QR still encodes the functional short URL.

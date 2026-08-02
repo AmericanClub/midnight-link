@@ -29,6 +29,14 @@ async def create_notification(workspace_id: str, ntype: str, title: str, body: s
         "meta": meta or {}, "read": False, "created_at": now_iso(),
     }
     await db.notifications.insert_one({**doc})
+    count = await db.notifications.count_documents({"workspace_id": workspace_id})
+    if count > _MAX_KEEP:
+        old = await db.notifications.find(
+            {"workspace_id": workspace_id}, {"id": 1, "_id": 0}
+        ).sort("created_at", 1).to_list(count - _MAX_KEEP)
+        ids = [o["id"] for o in old]
+        if ids:
+            await db.notifications.delete_many({"id": {"$in": ids}})
     return doc
 
 

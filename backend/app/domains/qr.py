@@ -9,6 +9,7 @@ from ..utils import now_iso, gen_alias
 from ..url_safety import validate_destination, UnsafeURLError
 from .workspace import get_current_workspace
 from .links import ALIAS_RE
+from .billing import enforce_quota
 
 router = APIRouter(prefix="/api/qr", tags=["qr"])
 
@@ -55,6 +56,7 @@ def _clean(qr: dict) -> dict:
 
 @router.post("")
 async def create_qr(payload: QRCreate, ws=Depends(get_current_workspace), user=Depends(get_current_user)):
+    await enforce_quota(ws, "dynamic_qr")
     try:
         destination = validate_destination(payload.destination_url)
     except UnsafeURLError as e:

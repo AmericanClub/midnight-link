@@ -9,6 +9,7 @@ from ..db import db
 from ..utils import now_iso, parse_user_agent, client_ip, client_country, visitor_hash
 from ..providers import event_bus
 from .security import get_rules, evaluate, challenge_token, verify_challenge
+from .billing import can_record_event
 
 router = APIRouter(tags=["redirect"])
 
@@ -134,6 +135,9 @@ async def redirect(alias: str, request: Request):
 
 
 async def _record(link, alias, signals, result, challenge_result, visitor_id, request):
+    # respect the workspace monthly event quota (safe degradation — redirect still works)
+    if not await can_record_event(link["workspace_id"]):
+        return
     event = {
         "id": str(uuid.uuid4()),
         "event_type": "click" if not link.get("is_qr") else "scan",

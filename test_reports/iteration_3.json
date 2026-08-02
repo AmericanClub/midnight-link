@@ -1,0 +1,44 @@
+{
+  "summary": "Iteration 3 — Billing (Quota / Receipts / Roles) E2E. Backend pytest 9/9 pass (100%). Frontend: usage bars render correct free-plan limits (0/10, 0/3, 0/1000), turn red with 'Limit reached — upgrade' at capacity (3/3 dynamic QR), 4th QR returns 403 with 'Upgrade your plan' message. Pro upgrade via checkout+simulate-payment activates plan, current-plan-card updates to Pro, limits raise to 1000/250/500000, Receipt button appears on the paid invoice and opens the PDF in a new tab. Owner sees nav-billing; analyst is 403 on all /api/billing/* endpoints (verified via DB member insert). GET /api/billing/plans is public. Email receipt is logged by the console email provider ('EMAIL -> workspace:... | Your MidGate receipt — Pro plan'). One real bug found: nav-billing is hidden immediately after registration and only appears after a page reload (register returns current_workspace without role='owner').",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "POST /api/auth/register", "issue": "Response.current_workspace is missing the 'role' field. list_user_workspaces enriches with role, but create_default_workspace returns the raw workspace dict. This makes the frontend nav-billing gate fail for a freshly registered owner until /auth/me refresh."}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [
+      {"component": "DashboardLayout sidebar", "issue": "nav-billing item is HIDDEN right after registration (workspace.role is undefined in the register response), but VISIBLE after a page reload. Reproduced twice. RCA is backend: POST /api/auth/register returns current_workspace without role. Fix: set workspace['role']='owner' in create_default_workspace's return (or re-hydrate via list_user_workspaces before returning in /auth/register).", "selector": "[data-testid='nav-billing']", "priority": "HIGH"}
+    ],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "BillingPage — Usage card during initial load", "issues": ["Fallback default is { used:0, limit:0, pct:0 }, and the 'over' check is d.limit != null && d.used >= d.limit → matches during loading, so bars briefly show red 'Limit reached' before data arrives. Use limit:null in the fallback or gate on usageQ.isSuccess."]}
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_billing_features.py",
+    "/app/test_reports/pytest/it3_results.xml"
+  ],
+  "action_items": [
+    "Backend: include role='owner' on the workspace returned by POST /api/auth/register (either enrich in create_default_workspace or re-fetch via list_user_workspaces before returning). This unblocks the nav-billing gate on first login without needing a page reload.",
+    "Frontend (minor): in BillingPage.jsx usage-card fallback, use { used:0, limit:null, pct:0 } so the 'Limit reached' badge doesn't flash before /billing/usage resolves."
+  ],
+  "critical_code_review_comments": [
+    "billing.get_billing_workspace correctly checks role in {owner, admin, billing_manager} and 403s otherwise. GET /api/billing/plans stays public. Good.",
+    "billing.enforce_quota is wired into links.create_link and qr.create_qr; can_record_event is applied in redirect._record with safe degradation (redirect still 302s even if events are dropped). Correct behavior.",
+    "billing.receipt endpoint returns 404 for non-paid invoices and only serves paid ones — verified. Uses StreamingResponse with application/pdf, %PDF magic bytes confirmed in test.",
+    "billing._activate is idempotent (returns already:True when invoice is paid) and emits an email + audit log + event_bus messages.",
+    "Frontend BillingPage.noAccess handles 403 on /billing/subscription with billing-no-access card — good defense-in-depth even though nav-billing is normally hidden for non-billing roles.",
+    "DashboardLayout gates nav-billing on workspace.role ∈ {owner, admin, billing_manager}. This depends on the workspace object always carrying role — which is currently NOT the case on the register response (see bug)."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_billing_features.py (new — 9 tests, 9 pass)"
+  ],
+  "success_rate": {"backend": "100% (9/9 billing tests, plus prior 12/12 still valid)", "frontend": "90% — all specified UI works after reload; nav-billing hidden immediately after register is the one bug"},
+  "test_credentials": "Admin: admin@midgate.io / Admin123!. Fresh registrations e2e_bill_* / TEST_bill_* used for isolation.",
+  "seed_data_creation": "Created ~5 TEST_bill_/e2e_bill_ users + default workspaces, ~13 QR docs, ~10 smart links, 3 invoices (starter+pro paid, one pending), 1 analyst workspace_members row (test_analyst_forbidden_on_billing).",
+  "retest_needed": true,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Backend billing tests live at /app/backend/tests/test_billing_features.py (9 tests, 100% passing). Free-plan limits: smart_links=10 / dynamic_qr=3 / monthly_events=1000. Fastest way to hit a quota is dynamic_qr (3). After upgrade via checkout+simulate-payment, ws.plan becomes 'pro' and limits raise to 1000/250/500000. The nav-billing gate reads workspace.role — currently NOT set on fresh register response; refresh /auth/me populates it. Console email provider logs receipt emails to /var/log/supervisor/backend.err.log with subject 'Your MidGate receipt — <Plan> plan'.",
+  "rca of the issue": "nav-billing hidden after register: POST /api/auth/register (backend/app/domains/auth.py:81-85) returns the raw dict from create_default_workspace, which does not include the 'role' key. Frontend DashboardLayout.jsx:98 filters items with workspace?.role ∈ {owner,admin,billing_manager}. Because role is undefined, nav-billing is hidden. On page reload, AuthContext calls /auth/me which uses list_user_workspaces (workspace.py:34-41) — that path enriches each workspace with a role field, so nav-billing becomes visible. Fix: in auth.py register(), replace `workspaces=[workspace], current_workspace=workspace` with the enriched version, e.g. `workspaces = await list_user_workspaces(user_id)` (same as login already does)."
+}

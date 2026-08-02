@@ -9,6 +9,7 @@ from ..security import get_current_user
 from ..utils import now_iso, gen_alias
 from ..url_safety import validate_destination, UnsafeURLError
 from .workspace import get_current_workspace
+from .billing import enforce_quota
 
 router = APIRouter(prefix="/api/links", tags=["links"])
 
@@ -53,6 +54,7 @@ async def _unique_alias(alias: str):
 # ------------------------------ handlers ---------------------------------- #
 @router.post("")
 async def create_link(payload: LinkCreate, ws=Depends(get_current_workspace), user=Depends(get_current_user)):
+    await enforce_quota(ws, "smart_links")
     try:
         destination = validate_destination(payload.destination_url)
     except UnsafeURLError as e:

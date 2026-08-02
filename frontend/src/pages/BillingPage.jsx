@@ -1,17 +1,18 @@
 import React, { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { Check, CreditCard, ShieldCheck, Loader2, Sparkles } from "lucide-react";
+import { Check, CreditCard, ShieldCheck, Loader2, Sparkles, Download, Lock } from "lucide-react";
 import DashboardLayout from "@/components/DashboardLayout";
 import QRPreview from "@/components/QRPreview";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Progress } from "@/components/ui/progress";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription,
 } from "@/components/ui/dialog";
-import api, { formatApiError } from "@/lib/api";
+import api, { formatApiError, BACKEND } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
 
 const fmtPrice = (n, cur) =>
@@ -83,12 +84,22 @@ export default function BillingPage() {
     queryKey: ["subscription", workspace?.id],
     queryFn: async () => (await api.get("/billing/subscription")).data,
     enabled: !!workspace,
+    retry: false,
+  });
+  const usageQ = useQuery({
+    queryKey: ["usage", workspace?.id],
+    queryFn: async () => (await api.get("/billing/usage")).data,
+    enabled: !!workspace,
+    retry: false,
   });
   const invQ = useQuery({
     queryKey: ["invoices", workspace?.id],
     queryFn: async () => (await api.get("/billing/invoices")).data,
     enabled: !!workspace,
+    retry: false,
   });
+
+  const noAccess = subQ.isError && subQ.error?.response?.status === 403;
 
   const currentPlanId = subQ.data?.plan?.id || workspace?.plan || "free";
   const plans = plansQ.data?.plans || [];
@@ -102,6 +113,7 @@ export default function BillingPage() {
   const onPaid = async () => {
     await refreshSession();
     qc.invalidateQueries({ queryKey: ["subscription"] });
+    qc.invalidateQueries({ queryKey: ["usage"] });
     qc.invalidateQueries({ queryKey: ["invoices"] });
   };
 
@@ -119,6 +131,16 @@ export default function BillingPage() {
         <p className="mt-1 text-sm text-muted-foreground">Manage your subscription and payments.</p>
       </div>
 
+      {noAccess ? (
+        <Card className="flex flex-col items-center gap-3 border-dashed py-16 text-center" data-testid="billing-no-access">
+          <Lock className="h-8 w-8 text-muted-foreground/50" />
+          <div>
+            <h3 className="font-display font-semibold">Billing is restricted</h3>
+            <p className="text-sm text-muted-foreground">Only Owners and Billing Managers can view or change the subscription.</p>
+          </div>
+        </Card>
+      ) : (
+      <>
       <Card className="mb-8 flex flex-wrap items-center justify-between gap-4 p-6" data-testid="current-plan-card">
         <div className="flex items-center gap-4">
           <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-primary/10">
@@ -134,6 +156,30 @@ export default function BillingPage() {
         {subQ.data?.subscription?.current_period_end && (
           <Badge variant="secondary">Renews {new Date(subQ.data.subscription.current_period_end).toLocaleDateString()}</Badge>
         )}
+      </Card>
+
+      <Card className="mb-8 p-6" data-testid="usage-card">
+        <h2 className="mb-4 font-display font-semibold">Usage this month</h2>
+        <div className="grid gap-6 sm:grid-cols-3">
+          {[
+            { key: "smart_links", label: "Smart links" },
+            { key: "dynamic_qr", label: "Dynamic QR" },
+            { key: "monthly_events", label: "Monthly events" },
+          ].map((u) => {
+            const d = usageQ.data?.[u.key] || { used: 0, limit: 0, pct: 0 };
+            const over = d.limit != null && d.used >= d.limit;
+            return (
+              <div key={u.key} data-testid={`usage-${u.key}`}>
+                <div className="mb-1.5 flex items-center justify-between text-sm">
+                  <span className="text-muted-foreground">{u.label}</span>
+                  <span className="font-mono">{d.used}{d.limit != null ? ` / ${d.limit}` : " / ∞"}</span>
+                </div>
+                <Progress value={d.limit != null ? d.pct : 0} className={over ? "[&>div]:bg-destructive" : ""} />
+                {over && <p className="mt-1.5 text-xs text-destructive">Limit reached — upgrade to add more.</p>}
+              </div>
+            );
+          })}
+        </div>
       </Card>
 
       <h2 className="mb-4 font-display font-semibold">Plans</h2>
@@ -192,15 +238,24 @@ export default function BillingPage() {
                   <p className="font-medium">{inv.plan_name} plan</p>
                   <p className="font-mono text-xs text-muted-foreground">{new Date(inv.created_at).toLocaleString()}</p>
                 </div>
-                <div className="flex items-center gap-4">
+                <div className="flex items-center gap-3">
                   <span className="font-mono text-sm">{fmtPrice(inv.amount, inv.currency)}</span>
                   <Badge variant={inv.status === "paid" ? "default" : "secondary"} className="capitalize">{inv.status}</Badge>
+                  {inv.status === "paid" && (
+                    <Button variant="ghost" size="sm" className="gap-1" data-testid={`receipt-${inv.id}`}
+                      onClick={() => window.open(`${BACKEND}/api/billing/invoices/${inv.id}/receipt.pdf`, "_blank")}>
+                      <Download className="h-4 w-4" /> Receipt
+                    </Button>
+                  )}
                 </div>
               </li>
             ))}
           </ul>
         )}
       </Card>
+
+      </>
+      )}
 
       <CheckoutDialog open={dialog} onOpenChange={setDialog} invoice={invoice} onPaid={onPaid} />
     </DashboardLayout>

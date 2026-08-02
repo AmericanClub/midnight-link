@@ -245,3 +245,40 @@ async def revenue(admin=Depends(require_admin)):
 async def api_usage(admin=Depends(require_admin)):
     rows = await db.api_keys.find({}, {"_id": 0, "key_hash": 0}).sort("request_count", -1).limit(50).to_list(50)
     return {"items": rows}
+
+
+# --------------------------- IP intelligence (proxycheck.io) -------------- #
+class IPIntelUpdate(BaseModel):
+    api_key: str | None = None
+    enabled: bool | None = None
+
+
+@router.get("/ip-intel")
+async def ip_intel_status(admin=Depends(require_admin)):
+    from ..ip_intel import get_status
+    return await get_status()
+
+
+@router.put("/ip-intel")
+async def ip_intel_save(payload: IPIntelUpdate, admin=Depends(require_admin)):
+    from ..ip_intel import save_config, get_status
+    if payload.api_key is not None and payload.api_key.strip():
+        k = payload.api_key.strip()
+        if len(k) < 8:
+            raise HTTPException(status_code=400, detail="API key looks too short")
+    await save_config(api_key=payload.api_key, enabled=payload.enabled, admin_email=admin["email"])
+    return await get_status()
+
+
+@router.post("/ip-intel/test")
+async def ip_intel_test(admin=Depends(require_admin)):
+    from ..ip_intel import test_connection
+    return await test_connection()
+
+
+@router.delete("/ip-intel/key")
+async def ip_intel_remove(admin=Depends(require_admin)):
+    from ..ip_intel import remove_key, get_status
+    await remove_key()
+    return await get_status()
+

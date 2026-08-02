@@ -195,3 +195,30 @@ test_plan:
 agent_communication:
     - agent: "main"
       message: "Iteration 11: validate two new UI links (Contact navbar, Back-to-home on auth pages) + previously-implemented Admin Console and suspension logic (backend+frontend). Credentials in /app/memory/test_credentials.md: admin@midgate.io/Admin123!, teammate@example.com/Teammate123!. IMPORTANT: any suspend you toggle for verification must be restored to unsuspended afterwards; never leave admin or teammate accounts suspended."
+
+backend_iter12:
+  - task: "proxycheck.io IP intelligence admin config + pipeline enrichment"
+    implemented: true
+    working: true
+    file: "backend/app/ip_intel.py, backend/app/domains/admin.py, backend/app/domains/security.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+        - working: true
+          agent: "main"
+          comment: "Verified via curl: GET/PUT/POST-test/DELETE /api/admin/ip-intel all work; RBAC 403 for teammate; real proxycheck.io call succeeds (8.8.8.8->US/Google; Tor nodes -> is_proxy=true, risk=100). enrich_signals overlays is_proxy/is_vpn/intel_risk into evaluate_request and boosts risk score. Key stored Fernet-encrypted (IPINTEL_SECRET in backend/.env). User's real key configured + enabled."
+
+frontend_iter12:
+  - task: "Admin Console Integrations section (proxycheck.io setup UI)"
+    implemented: true
+    working: "NA"
+    file: "frontend/src/pages/AdminConsole.jsx"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+        - working: "NA"
+          agent: "main"
+          comment: "New nav item admin-nav-integrations + IntegrationsSection. data-testid: integrations-section, ipintel-card, ipintel-status-badge (Active/Disabled/Not configured), ipintel-key-input, ipintel-save-btn, ipintel-enable-switch, ipintel-test-btn, ipintel-remove-btn, ipintel-test-result, ipintel-stats-card. Must render for admin; key already configured (badge=Active). Test connection button should show success toast. DO NOT remove key or save a fake key; leave it enabled."
+

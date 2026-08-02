@@ -5,7 +5,7 @@ import { toast } from "sonner";
 import {
   LayoutDashboard, Users, Building2, DollarSign, ShieldAlert, Ban, LifeBuoy, KeyRound,
   RefreshCw, LogOut, Search, Trash2, Plus, TrendingUp, MousePointerClick, LinkIcon,
-  QrCode, Ticket, ShieldCheck,
+  QrCode, Ticket, ShieldCheck, Plug, ExternalLink, CheckCircle2, XCircle, Loader2,
 } from "lucide-react";
 import { AreaChart, Area, ResponsiveContainer, Tooltip, XAxis, CartesianGrid } from "recharts";
 import Logo from "@/components/Logo";
@@ -31,6 +31,7 @@ const NAV = [
   { key: "security", label: "Security Events", icon: ShieldAlert },
   { key: "blocklist", label: "Blocklist & Feeds", icon: Ban },
   { key: "tickets", label: "Support Tickets", icon: LifeBuoy },
+  { key: "integrations", label: "Integrations", icon: Plug },
   { key: "api", label: "API Usage", icon: KeyRound },
 ];
 
@@ -362,6 +363,180 @@ function ApiSection() {
   );
 }
 
+/* ---------------------------- Integrations ------------------------------ */
+function IntegrationsSection() {
+  const qc = useQueryClient();
+  const [key, setKey] = useState("");
+  const { data, isLoading } = useQuery({
+    queryKey: ["admin-ip-intel"],
+    queryFn: async () => (await api.get("/admin/ip-intel")).data,
+  });
+
+  const save = useMutation({
+    mutationFn: async (body) => (await api.put("/admin/ip-intel", body)).data,
+    onSuccess: (d) => {
+      qc.setQueryData(["admin-ip-intel"], d);
+      setKey("");
+      toast.success("Integration updated");
+    },
+    onError: (e) => toast.error(formatApiError(e)),
+  });
+  const test = useMutation({
+    mutationFn: async () => (await api.post("/admin/ip-intel/test")).data,
+    onSuccess: (d) => {
+      qc.invalidateQueries({ queryKey: ["admin-ip-intel"] });
+      d.ok ? toast.success(d.message) : toast.error(d.message || "Connection failed");
+    },
+    onError: (e) => toast.error(formatApiError(e)),
+  });
+  const removeKey = useMutation({
+    mutationFn: async () => (await api.delete("/admin/ip-intel/key")).data,
+    onSuccess: (d) => {
+      qc.setQueryData(["admin-ip-intel"], d);
+      toast.success("API key removed");
+    },
+    onError: (e) => toast.error(formatApiError(e)),
+  });
+
+  if (isLoading) return <Skeleton className="h-96 w-full max-w-2xl" data-testid="integrations-loading" />;
+
+  const configured = data?.configured;
+  const enabled = data?.enabled;
+  const stats = data?.stats || {};
+  const lastTest = data?.last_test;
+
+  const StatusBadge = () => {
+    if (!configured) return <Badge variant="secondary" data-testid="ipintel-status-badge">Not configured</Badge>;
+    if (!enabled) return <Badge variant="outline" className="border-amber-500 text-amber-600" data-testid="ipintel-status-badge">Disabled</Badge>;
+    return <Badge className="bg-emerald-600 hover:bg-emerald-600" data-testid="ipintel-status-badge">Active</Badge>;
+  };
+
+  return (
+    <div className="max-w-2xl space-y-6" data-testid="integrations-section">
+      <p className="text-sm text-muted-foreground">
+        Connect a paid IP intelligence provider to accurately detect VPNs, proxies, Tor and
+        risky IPs on every click. When active, results enrich MidGate's risk scoring and
+        per-link proxy/VPN protection automatically.
+      </p>
+
+      <Card className="overflow-hidden" data-testid="ipintel-card">
+        <div className="flex items-center justify-between gap-3 border-b border-border p-5">
+          <div className="flex items-center gap-3">
+            <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-primary/10 text-primary">
+              <ShieldCheck className="h-5 w-5" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <h3 className="font-display font-semibold">proxycheck.io</h3>
+                <a href="https://proxycheck.io/dashboard/" target="_blank" rel="noreferrer"
+                   className="text-muted-foreground hover:text-foreground" data-testid="ipintel-dashboard-link">
+                  <ExternalLink className="h-3.5 w-3.5" />
+                </a>
+              </div>
+              <p className="text-xs text-muted-foreground">VPN / Proxy / Tor detection · risk score · ASN</p>
+            </div>
+          </div>
+          <StatusBadge />
+        </div>
+
+        <div className="space-y-5 p-5">
+          {/* API key */}
+          <div className="space-y-1.5">
+            <label className="text-sm font-medium">API key</label>
+            {configured && (
+              <p className="text-xs text-muted-foreground">
+                Current key: <span className="font-mono">{data.key_masked}</span>
+                {data.updated_by && <> · set by {data.updated_by}</>}
+              </p>
+            )}
+            <div className="flex gap-2">
+              <Input
+                type="password"
+                autoComplete="new-password"
+                placeholder={configured ? "Enter a new key to replace" : "e.g. 190vm7-37y704-751911-58778j"}
+                value={key}
+                onChange={(e) => setKey(e.target.value)}
+                className="font-mono"
+                data-testid="ipintel-key-input"
+              />
+              <Button
+                onClick={() => save.mutate({ api_key: key, enabled: enabled ?? true })}
+                disabled={!key.trim() || save.isPending}
+                className="gap-2 whitespace-nowrap"
+                data-testid="ipintel-save-btn"
+              >
+                {save.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+                Save key
+              </Button>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Stored encrypted on the server and never shown again. Free tier allows 1,000 lookups/day.
+            </p>
+          </div>
+
+          {/* Enable toggle */}
+          <div className="flex items-center justify-between rounded-lg border border-border p-4">
+            <div>
+              <p className="text-sm font-medium">Enable live lookups</p>
+              <p className="text-xs text-muted-foreground">Query proxycheck.io on incoming traffic (cached 24h per IP).</p>
+            </div>
+            <Switch
+              checked={!!enabled}
+              disabled={!configured || save.isPending}
+              onCheckedChange={(v) => save.mutate({ enabled: v })}
+              data-testid="ipintel-enable-switch"
+            />
+          </div>
+
+          {/* Actions */}
+          <div className="flex flex-wrap items-center gap-2">
+            <Button variant="outline" onClick={() => test.mutate()} disabled={!configured || test.isPending}
+              className="gap-2" data-testid="ipintel-test-btn">
+              {test.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+              Test connection
+            </Button>
+            {configured && (
+              <Button variant="ghost" onClick={() => removeKey.mutate()} disabled={removeKey.isPending}
+                className="gap-2 text-destructive hover:text-destructive" data-testid="ipintel-remove-btn">
+                <Trash2 className="h-4 w-4" />Remove key
+              </Button>
+            )}
+          </div>
+
+          {lastTest && (
+            <div className={`flex items-start gap-2 rounded-lg p-3 text-sm ${lastTest.ok ? "bg-emerald-500/10 text-emerald-700 dark:text-emerald-400" : "bg-destructive/10 text-destructive"}`}
+              data-testid="ipintel-test-result">
+              {lastTest.ok ? <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0" /> : <XCircle className="mt-0.5 h-4 w-4 shrink-0" />}
+              <span>{lastTest.message}</span>
+            </div>
+          )}
+        </div>
+      </Card>
+
+      {/* Usage stats */}
+      <Card className="p-5" data-testid="ipintel-stats-card">
+        <h4 className="mb-4 text-sm font-semibold">Usage this session</h4>
+        <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+          {[
+            { label: "API queries", value: stats.queries ?? 0 },
+            { label: "Cache hits", value: stats.cache_hits ?? 0 },
+            { label: "Cached IPs", value: stats.cached_ips ?? 0 },
+            { label: "Errors", value: stats.errors ?? 0 },
+          ].map((s) => (
+            <div key={s.label} data-testid={`ipintel-stat-${s.label.toLowerCase().replace(/\W+/g, "-")}`}>
+              <p className="font-display text-2xl font-bold">{s.value}</p>
+              <p className="text-xs text-muted-foreground">{s.label}</p>
+            </div>
+          ))}
+        </div>
+        {stats.last_error && (
+          <p className="mt-4 text-xs text-destructive">Last error: {stats.last_error}</p>
+        )}
+      </Card>
+    </div>
+  );
+}
+
 const SECTIONS = {
   overview: OverviewSection,
   users: UsersSection,
@@ -370,6 +545,7 @@ const SECTIONS = {
   security: SecuritySection,
   blocklist: BlocklistSection,
   tickets: SupportTicketsAdmin,
+  integrations: IntegrationsSection,
   api: ApiSection,
 };
 

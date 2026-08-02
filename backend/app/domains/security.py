@@ -179,6 +179,14 @@ def compute_risk(signals: dict) -> tuple[int, list]:
     if signals.get("is_datacenter"):
         score += 25
         reasons.append("Datacenter / hosting IP")
+    intel_risk = signals.get("intel_risk")
+    if isinstance(intel_risk, (int, float)):
+        if intel_risk >= 66:
+            score += 30
+            reasons.append(f"High-risk IP ({int(intel_risk)}/100, proxycheck.io)")
+        elif intel_risk >= 33:
+            score += 15
+            reasons.append(f"Elevated-risk IP ({int(intel_risk)}/100, proxycheck.io)")
     if not signals.get("user_agent"):
         score += 25
         reasons.append("Missing user-agent")
@@ -235,10 +243,41 @@ def evaluate(signals: dict, rules: list) -> dict:
             "matched_rule_id": matched["id"] if matched else None, "policy_version": 1}
 
 
+async def enrich_signals(signals: dict, ip: str) -> dict:
+    """Overlay accurate proxycheck.io intelligence onto base signals when configured.
+
+    Fails open: any error leaves the base (offline) signals untouched.
+    """
+    try:
+        from ..ip_intel import check_ip
+        pc = await check_ip(ip)
+    except Exception:
+        return signals
+    if not pc.get("available"):
+        return signals
+    if pc.get("is_proxy"):
+        signals["is_proxy"] = True
+    if pc.get("is_vpn"):
+        signals["is_vpn"] = True
+    if pc.get("type") in ("Compromised Server", "Public Proxy", "Web Proxy"):
+        signals["is_datacenter"] = True
+    if pc.get("asn"):
+        signals["asn"] = pc["asn"]
+    if pc.get("provider"):
+        signals["provider"] = pc["provider"]
+    if pc.get("risk") is not None:
+        signals["intel_risk"] = pc["risk"]
+    if pc.get("country_iso") and str(signals.get("country", "")).upper() in ("", "UNKNOWN"):
+        signals["country"] = pc["country_iso"]
+    signals["intel_source"] = "proxycheck.io"
+    return signals
+
+
 async def evaluate_request(workspace_id: str, link: dict | None, ip: str, ua: str,
                            referrer: str = "Direct", country: str = "Unknown") -> dict:
     """Full pipeline: whitelist -> blacklist -> per-link protection -> rules -> risk."""
     signals = build_signals(ip, ua, referrer, country)
+    await enrich_signals(signals, ip)
     score, _ = compute_risk(signals)
     signals["risk_score"] = score
 

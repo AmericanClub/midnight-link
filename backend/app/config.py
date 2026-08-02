@@ -19,6 +19,7 @@ class Settings:
     CORS_ORIGINS = os.environ.get("CORS_ORIGINS", "*")
     EDGE_HOST = os.environ.get("EDGE_HOST", "edge.midgate.io")
     DOMAIN_VERIFY_PREFIX = os.environ.get("DOMAIN_VERIFY_PREFIX", "_midgate-challenge")
+    IPINTEL_SECRET = os.environ["IPINTEL_SECRET"]
 
 
 settings = Settings()

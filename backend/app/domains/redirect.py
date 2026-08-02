@@ -6,19 +6,18 @@ from fastapi import APIRouter, Request
 from fastapi.responses import RedirectResponse, HTMLResponse
 
 from ..db import db
-from ..utils import now_iso, parse_user_agent, client_ip, client_country, visitor_hash
+from ..utils import now_iso, client_ip, client_country, visitor_hash
 from ..providers import event_bus
-from .security import get_rules, evaluate, challenge_token, verify_challenge
+from .security import evaluate_request, challenge_token, verify_challenge
 from .billing import can_record_event
 
 router = APIRouter(tags=["redirect"])
 
-# ---- lightweight cache layer (represents Redis cache + PG fallback) ------- #
 _CACHE: dict[str, tuple[float, dict]] = {}
 _TTL = 30.0
 
 
-def _cache_get(alias: str):
+def _cache_get(alias):
     entry = _CACHE.get(alias)
     if entry and entry[0] > time.time():
         return entry[1]
@@ -26,21 +25,21 @@ def _cache_get(alias: str):
     return None
 
 
-def _cache_set(alias: str, link: dict):
-    _CACHE[alias] = (time.time() + _TTL, link)
+def invalidate_cache(alias):
+    _CACHE.pop(alias, None)
 
 
-async def _resolve(alias: str):
+async def _resolve(alias):
     cached = _cache_get(alias)
     if cached is not None:
         return cached
     link = await db.links.find_one({"alias": alias}, {"_id": 0})
     if link:
-        _cache_set(alias, link)
+        _CACHE[alias] = (time.time() + _TTL, link)
     return link
 
 
-def _page(title: str, message: str, status: int, extra: str = "") -> HTMLResponse:
+def _page(title, message, status, extra=""):
     html = f"""<!doctype html><html><head><meta charset="utf-8">
 <title>MidGate</title><meta name="viewport" content="width=device-width, initial-scale=1">
 <style>body{{font-family:system-ui,sans-serif;background:#FAFAFA;color:#0A0A0A;display:flex;
@@ -53,6 +52,18 @@ border-radius:8px;text-decoration:none;font-weight:600}}</style></head>
 <body><div class="card"><div class="b">MidGate</div>
 <h2>{title}</h2><p>{message}</p>{extra}</div></body></html>"""
     return HTMLResponse(content=html, status_code=status)
+
+
+def _apply_block(link, action, block_redirect_url):
+    if action == "fallback":
+        url = block_redirect_url or link.get("fallback_url")
+        return RedirectResponse(url, status_code=302) if url else _page(
+            "Access blocked", "This request was blocked by the link's security policy.", 403)
+    if action == "redirect" and block_redirect_url:
+        return RedirectResponse(block_redirect_url, status_code=302)
+    if action == "notfound":
+        return _page("Link unavailable", "This link does not exist.", 404)
+    return _page("Access blocked", "This request was blocked by the link's security policy.", 403)
 
 
 @router.get("/api/redirect/health")
@@ -71,7 +82,6 @@ async def redirect(alias: str, request: Request):
         return RedirectResponse(fb, status_code=302) if fb else _page(
             "Link unavailable", "This link is currently paused.", 404)
 
-    # expiry
     expires_at = link.get("expires_at")
     if expires_at:
         try:
@@ -85,38 +95,30 @@ async def redirect(alias: str, request: Request):
         except ValueError:
             pass
 
-    # click limit
     max_clicks = link.get("max_clicks")
     if max_clicks and link.get("click_count", 0) >= max_clicks:
         fb = link.get("fallback_url")
         return RedirectResponse(fb, status_code=302) if fb else _page(
             "Limit reached", "This link reached its click limit.", 404)
 
-    # ---- risk evaluation (MidGate Protect) ---- #
     ua = request.headers.get("user-agent", "")
-    parsed = parse_user_agent(ua)
     ip = client_ip(request)
     visitor_id = visitor_hash(ip, ua)
     country = client_country(request)
-    signals = {
-        "country": country, "device": parsed["device"], "browser": parsed["browser"],
-        "os": parsed["os"], "is_bot": parsed["is_bot"],
-        "referrer": (request.headers.get("referer") or "Direct").split("?")[0][:200],
-        "user_agent": ua,
-    }
-    rules = await get_rules(link["workspace_id"])
-    result = evaluate(signals, rules)
+    referrer = request.headers.get("referer") or "Direct"
+
+    result = await evaluate_request(link["workspace_id"], link, ip, ua, referrer, country)
     decision = result["decision"]
+    signals = result["signals"]
     challenge_result = "n/a"
 
-    # challenge handling
     if decision == "challenge":
         token = request.query_params.get("mg_ch")
         if verify_challenge(alias, visitor_id, token):
             challenge_result = "passed"
             decision = "allow"
         else:
-            await _record(link, alias, signals, result, "issued", visitor_id, request)
+            await _record(link, alias, signals, result, "issued", visitor_id)
             cont = f"/api/r/{alias}?mg_ch={challenge_token(alias, visitor_id)}"
             extra = f'<a class="btn" href="{cont}" data-testid="challenge-continue">Continue</a>'
             return _page("Quick security check",
@@ -124,23 +126,20 @@ async def redirect(alias: str, request: Request):
                          200, extra)
 
     if decision == "block":
-        await _record(link, alias, signals, result, challenge_result, visitor_id, request)
-        return _page("Access blocked",
-                     "This request was blocked by the workspace security policy.", 403)
+        await _record(link, alias, signals, result, challenge_result, visitor_id)
+        return _apply_block(link, result.get("action", "block_page"), result.get("block_redirect_url", ""))
 
-    # allow / log_only -> proceed
     await db.links.update_one({"id": link["id"]}, {"$inc": {"click_count": 1}})
-    await _record(link, alias, signals, result, challenge_result, visitor_id, request)
+    await _record(link, alias, signals, result, challenge_result, visitor_id)
     return RedirectResponse(link["destination_url"], status_code=link.get("redirect_type", 302))
 
 
-async def _record(link, alias, signals, result, challenge_result, visitor_id, request):
-    # respect the workspace monthly event quota (safe degradation — redirect still works)
+async def _record(link, alias, signals, result, challenge_result, visitor_id):
     if not await can_record_event(link["workspace_id"]):
         return
     event = {
         "id": str(uuid.uuid4()),
-        "event_type": "click" if not link.get("is_qr") else "scan",
+        "event_type": "scan" if link.get("is_qr") else "click",
         "workspace_id": link["workspace_id"],
         "link_id": link["id"],
         "alias": alias,
@@ -151,12 +150,16 @@ async def _record(link, alias, signals, result, challenge_result, visitor_id, re
         "os": signals["os"],
         "referrer": signals["referrer"],
         "is_bot": signals["is_bot"],
-        "bot_category": "automation" if signals["is_bot"] else "human",
+        "bot_category": signals["bot_category"],
+        "is_tor": signals["is_tor"],
+        "is_datacenter": signals["is_datacenter"],
+        "is_proxy": signals["is_proxy"],
         "risk_score": result["risk_score"],
         "decision": result["decision"],
         "risk_reasons": result["reasons"],
-        "matched_rule_id": result["matched_rule_id"],
+        "matched_rule_id": result.get("matched_rule_id"),
         "challenge_result": challenge_result,
         "visitor_id": visitor_id,
+        "source": "redirect",
     }
     await event_bus.publish("link.clicked", event)

@@ -10,6 +10,8 @@ from ..utils import now_iso, gen_alias
 from ..url_safety import validate_destination, UnsafeURLError
 from .workspace import get_current_workspace
 from .billing import enforce_quota
+from .security import DEFAULT_PROTECTION, invalidate_rules
+from .redirect import invalidate_cache
 
 router = APIRouter(prefix="/api/links", tags=["links"])
 
@@ -93,6 +95,7 @@ async def create_link(payload: LinkCreate, ws=Depends(get_current_workspace), us
         "max_clicks": payload.max_clicks,
         "fallback_url": fallback,
         "click_count": 0,
+        "protection": {**DEFAULT_PROTECTION},
         "created_by": user["id"],
         "created_at": now_iso(),
         "updated_at": now_iso(),
@@ -131,7 +134,7 @@ async def get_link(link_id: str, ws=Depends(get_current_workspace)):
 
 @router.patch("/{link_id}")
 async def update_link(link_id: str, payload: LinkUpdate, ws=Depends(get_current_workspace)):
-    await _get_owned(link_id, ws)
+    existing = await _get_owned(link_id, ws)
     updates = {}
     data = payload.model_dump(exclude_unset=True)
     if "destination_url" in data and data["destination_url"]:
@@ -153,26 +156,70 @@ async def update_link(link_id: str, payload: LinkUpdate, ws=Depends(get_current_
             updates[f] = data[f]
     updates["updated_at"] = now_iso()
     await db.links.update_one({"id": link_id}, {"$set": updates})
+    invalidate_cache(existing["alias"])
     return _clean(await db.links.find_one({"id": link_id}))
+
+
+class ProtectionInput(BaseModel):
+    enabled: bool | None = None
+    block_bots: bool | None = None
+    block_tor: bool | None = None
+    block_datacenter: bool | None = None
+    block_proxy_vpn: bool | None = None
+    allow_countries: list[str] | None = None
+    block_countries: list[str] | None = None
+    block_action: str | None = None
+    block_redirect_url: str | None = None
+    rate_limit_per_min: int | None = None
+
+
+BLOCK_ACTIONS = {"fallback", "block_page", "notfound", "redirect"}
+
+
+@router.get("/{link_id}/protection")
+async def get_protection(link_id: str, ws=Depends(get_current_workspace)):
+    link = await _get_owned(link_id, ws)
+    return {**DEFAULT_PROTECTION, **(link.get("protection") or {})}
+
+
+@router.patch("/{link_id}/protection")
+async def update_protection(link_id: str, payload: ProtectionInput, ws=Depends(get_current_workspace)):
+    link = await _get_owned(link_id, ws)
+    current = {**DEFAULT_PROTECTION, **(link.get("protection") or {})}
+    data = payload.model_dump(exclude_unset=True)
+    if data.get("block_action") and data["block_action"] not in BLOCK_ACTIONS:
+        raise HTTPException(status_code=400, detail=f"block_action must be one of {sorted(BLOCK_ACTIONS)}")
+    if data.get("block_redirect_url"):
+        try:
+            data["block_redirect_url"] = validate_destination(data["block_redirect_url"])
+        except UnsafeURLError as e:
+            raise HTTPException(status_code=400, detail=str(e))
+    current.update(data)
+    await db.links.update_one({"id": link_id}, {"$set": {"protection": current, "updated_at": now_iso()}})
+    invalidate_cache(link["alias"])
+    return current
 
 
 @router.post("/{link_id}/pause")
 async def pause_link(link_id: str, ws=Depends(get_current_workspace)):
-    await _get_owned(link_id, ws)
+    link = await _get_owned(link_id, ws)
     await db.links.update_one({"id": link_id}, {"$set": {"status": "paused", "updated_at": now_iso()}})
+    invalidate_cache(link["alias"])
     return _clean(await db.links.find_one({"id": link_id}))
 
 
 @router.post("/{link_id}/resume")
 async def resume_link(link_id: str, ws=Depends(get_current_workspace)):
-    await _get_owned(link_id, ws)
+    link = await _get_owned(link_id, ws)
     await db.links.update_one({"id": link_id}, {"$set": {"status": "active", "updated_at": now_iso()}})
+    invalidate_cache(link["alias"])
     return _clean(await db.links.find_one({"id": link_id}))
 
 
 @router.delete("/{link_id}")
 async def delete_link(link_id: str, ws=Depends(get_current_workspace)):
-    await _get_owned(link_id, ws)
+    link = await _get_owned(link_id, ws)
     await db.links.delete_one({"id": link_id})
+    invalidate_cache(link["alias"])
     await db.analytics_events.delete_many({"link_id": link_id})
     return {"ok": True}

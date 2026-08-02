@@ -1,8 +1,8 @@
 import React, { useMemo, useState } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { ArrowLeft, Copy, ExternalLink, MousePointerClick, Users, ShieldAlert, Download } from "lucide-react";
+import { ArrowLeft, Copy, ExternalLink, MousePointerClick, Users, ShieldAlert, Download, ShieldCheck } from "lucide-react";
 import {
   AreaChart,
   Area,
@@ -17,6 +17,10 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Switch } from "@/components/ui/switch";
+import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
+import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
 import DateRangeFilter, { rangeToDates } from "@/components/DateRangeFilter";
 import {
   Table,
@@ -67,6 +71,77 @@ function Breakdown({ title, rows }) {
           ))}
         </ul>
       )}
+    </Card>
+  );
+}
+
+function ProtectionSettings({ linkId }) {
+  const [p, setP] = useState(null);
+  const { data } = useQuery({
+    queryKey: ["link-protection", linkId],
+    queryFn: async () => (await api.get(`/links/${linkId}/protection`)).data,
+  });
+  React.useEffect(() => { if (data) setP(data); }, [data]);
+
+  const save = useMutation({
+    mutationFn: async () => api.patch(`/links/${linkId}/protection`, p),
+    onSuccess: () => toast.success("Protection settings saved"),
+    onError: (err) => toast.error(err.response?.data?.detail || err.message),
+  });
+
+  if (!p) return null;
+  const set = (k, v) => setP((s) => ({ ...s, [k]: v }));
+  const Toggle = ({ k, label, desc }) => (
+    <div className="flex items-center justify-between rounded-lg border border-border p-3">
+      <div><p className="text-sm font-medium">{label}</p>{desc && <p className="text-xs text-muted-foreground">{desc}</p>}</div>
+      <Switch checked={!!p[k]} onCheckedChange={(v) => set(k, v)} data-testid={`prot-${k}`} />
+    </div>
+  );
+
+  return (
+    <Card className="mt-6 p-6" data-testid="link-protection-card">
+      <div className="mb-4 flex items-center justify-between">
+        <div className="flex items-center gap-2"><ShieldCheck className="h-4 w-4 text-primary" /><h2 className="font-display font-semibold">Protection</h2></div>
+        <div className="flex items-center gap-2">
+          <span className="text-sm text-muted-foreground">Enabled</span>
+          <Switch checked={!!p.enabled} onCheckedChange={(v) => set("enabled", v)} data-testid="prot-enabled" />
+        </div>
+      </div>
+      <div className={`grid gap-3 sm:grid-cols-2 ${p.enabled ? "" : "pointer-events-none opacity-50"}`}>
+        <Toggle k="block_bots" label="Block bots" desc="Crawlers, automation, headless" />
+        <Toggle k="block_tor" label="Block Tor" desc="Known Tor exit nodes" />
+        <Toggle k="block_datacenter" label="Block datacenter IPs" desc="Cloud / hosting ranges" />
+        <Toggle k="block_proxy_vpn" label="Block proxy / VPN" desc="Anonymizers" />
+      </div>
+      <div className={`mt-4 grid gap-4 sm:grid-cols-2 ${p.enabled ? "" : "pointer-events-none opacity-50"}`}>
+        <div className="space-y-1.5">
+          <Label className="text-xs">When blocked</Label>
+          <Select value={p.block_action} onValueChange={(v) => set("block_action", v)}>
+            <SelectTrigger data-testid="prot-action"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="fallback">Safe fallback URL</SelectItem>
+              <SelectItem value="block_page">Show block page (403)</SelectItem>
+              <SelectItem value="notfound">Return 404</SelectItem>
+              <SelectItem value="redirect">Redirect to custom URL</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="space-y-1.5">
+          <Label className="text-xs">Block redirect URL (fallback/redirect)</Label>
+          <Input value={p.block_redirect_url || ""} onChange={(e) => set("block_redirect_url", e.target.value)} placeholder="https://…" data-testid="prot-redirect-url" />
+        </div>
+        <div className="space-y-1.5">
+          <Label className="text-xs">Block countries (comma sep, e.g. RU,CN)</Label>
+          <Input value={(p.block_countries || []).join(",")} onChange={(e) => set("block_countries", e.target.value.split(",").map((x) => x.trim()).filter(Boolean))} data-testid="prot-block-countries" />
+        </div>
+        <div className="space-y-1.5">
+          <Label className="text-xs">Rate limit / min per IP (0 = off)</Label>
+          <Input type="number" value={p.rate_limit_per_min || 0} onChange={(e) => set("rate_limit_per_min", Number(e.target.value))} data-testid="prot-rate-limit" />
+        </div>
+      </div>
+      <Button className="mt-5" onClick={() => save.mutate()} disabled={save.isPending} data-testid="prot-save-btn">
+        {save.isPending ? "Saving…" : "Save protection"}
+      </Button>
     </Card>
   );
 }
@@ -212,6 +287,8 @@ export default function LinkDetail() {
           </Table>
         )}
       </Card>
+
+      <ProtectionSettings linkId={id} />
     </DashboardLayout>
   );
 }

@@ -17,6 +17,8 @@ import LinksPage from "@/pages/LinksPage";
 import LinkDetail from "@/pages/LinkDetail";
 import QRPage from "@/pages/QRPage";
 import ProtectionPage from "@/pages/ProtectionPage";
+import DevelopersPage from "@/pages/DevelopersPage";
+import AdminPage from "@/pages/AdminPage";
 import BillingPage from "@/pages/BillingPage";
 import SettingsPage from "@/pages/SettingsPage";
 import NotFound from "@/pages/NotFound";
@@ -40,6 +42,8 @@ function App() {
               <Route path="/app/links/:id" element={<ProtectedRoute><LinkDetail /></ProtectedRoute>} />
               <Route path="/app/qr" element={<ProtectedRoute><QRPage /></ProtectedRoute>} />
               <Route path="/app/protection" element={<ProtectedRoute><ProtectionPage /></ProtectedRoute>} />
+              <Route path="/app/developers" element={<ProtectedRoute><DevelopersPage /></ProtectedRoute>} />
+              <Route path="/app/admin" element={<ProtectedRoute><AdminPage /></ProtectedRoute>} />
               <Route path="/app/billing" element={<ProtectedRoute><BillingPage /></ProtectedRoute>} />
               <Route path="/app/settings" element={<ProtectedRoute><SettingsPage /></ProtectedRoute>} />
               <Route path="*" element={<NotFound />} />

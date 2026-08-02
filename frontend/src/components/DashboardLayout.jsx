@@ -6,6 +6,8 @@ import {
   QrCode,
   BarChart3,
   CreditCard,
+  Code2,
+  Shield,
   Settings,
   LogOut,
   Menu,
@@ -34,7 +36,9 @@ const nav = [
   { to: "/app/links", key: "dash.links", icon: Link2, testid: "nav-links" },
   { to: "/app/qr", key: null, label: "QR Codes", icon: QrCode, testid: "nav-qr" },
   { to: "/app/protection", key: null, label: "Protection", icon: ShieldCheck, testid: "nav-protection" },
+  { to: "/app/developers", key: null, label: "Developers", icon: Code2, testid: "nav-developers" },
   { to: "/app/billing", key: null, label: "Billing", icon: CreditCard, testid: "nav-billing", billingOnly: true },
+  { to: "/app/admin", key: null, label: "Admin", icon: Shield, testid: "nav-admin", adminOnly: true },
   { to: "/app/settings", key: "dash.settings", icon: Settings, testid: "nav-settings" },
 ];
 
@@ -96,6 +100,7 @@ export default function DashboardLayout({ children }) {
       <nav className="flex-1 space-y-1 px-3 py-2">
         {nav
           .filter((item) => !item.billingOnly || ["owner", "admin", "billing_manager"].includes(workspace?.role))
+          .filter((item) => !item.adminOnly || user?.role === "admin")
           .map((item) => {
           const Icon = item.icon;
           return (

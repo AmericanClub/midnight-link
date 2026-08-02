@@ -8,8 +8,9 @@ from app.db import db, ensure_indexes
 from app.security import hash_password, verify_password
 from app.utils import now_iso
 from app.providers import wire_event_bus
-from app.domains import auth, workspace, links, analytics, redirect, billing, qr, security
+from app.domains import auth, workspace, links, analytics, redirect, billing, qr, security, apikeys, blocker, admin
 from app.domains.workspace import create_default_workspace
+from app.intel import refresh_tor
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s %(message)s")
 logger = logging.getLogger("midgate")
@@ -36,6 +37,9 @@ app.include_router(workspace.router)
 app.include_router(links.router)
 app.include_router(qr.router)
 app.include_router(security.router)
+app.include_router(apikeys.router)
+app.include_router(blocker.router)
+app.include_router(admin.router)
 app.include_router(analytics.router)
 app.include_router(redirect.router)
 app.include_router(billing.router)
@@ -66,7 +70,9 @@ async def seed_admin():
 
 @app.on_event("startup")
 async def on_startup():
+    import asyncio
     await ensure_indexes()
     wire_event_bus()
     await seed_admin()
+    asyncio.create_task(refresh_tor())
     logger.info("MidGate Core API started")

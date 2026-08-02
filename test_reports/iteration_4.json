@@ -1,0 +1,38 @@
+{
+  "summary": "Iteration 4 — Threat intel + IP lists + per-link Protection + Blocker API + Admin panel. Backend pytest 19/19 pass (100%) covering feeds, IP allow/block, per-link protection incl. datacenter->fallback 302, blocker API v1/v2 (auth, block=true for DC, request_count increments), admin overview + security-events + users + workspaces + api-usage + global-blocklist, and non-admin 403. Frontend: nav-admin correctly HIDDEN for a fresh non-admin registration and VISIBLE for admin@midgate.io. ProtectionPage /app/protection shows feeds-card (Tor + datacenter counts), tabs tab-rules/tab-ip/tab-sim work; IP-rule add+delete via UI verified; Simulator returned decision='block' for AWS 3.5.1.1 + curl/8.0. New Security Rule dialog with is_tor + boolean true/false value select saved OK. Link detail Protection card has all 10 required data-testids (prot-enabled, prot-block_bots/tor/datacenter/proxy_vpn, prot-action, prot-redirect-url, prot-block-countries, prot-rate-limit, prot-save-btn) and saved successfully ('Protection settings saved'). Developers page: blocker-docs-card + snip-curl/php/js/worker present, New API key dialog produced a raw key starting with 'mgk_' (52 chars) in new-key-value input. Admin page: all 6 admin-tab-* present, admin-refresh-feeds-btn visible, global blocklist add flow works. No critical bugs found.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "Admin > Global Blocklist", "issues": ["Legacy '9.9.9.0/24' entry shown with a 'bad range' note from a prior admin verification — harmless but shows old data."]}
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iter4_security.py",
+    "/app/test_reports/pytest/it4_results.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "security.evaluate_request correctly orders whitelist -> blocklist -> per-link protection -> rules -> risk. Global blocklist merged with workspace blocklist. Good.",
+    "IP validation in security._validate_ip_value handles both bare IPs and CIDR via ipaddress module; 400 on bad values. Admin global-blocklist reuses same check. Good.",
+    "blocker._blocker treats decision in ('block','challenge') as block=true — matches spec (no interstitial on pure API). resolve_key uses SHA256 of raw key; raw returned only on POST. Good.",
+    "apikeys._public correctly excludes key_hash from list responses. Good.",
+    "admin.require_admin gates every /api/admin/* route via user.role=='admin' — verified 403 for a normal user across 6 endpoints.",
+    "redirect._apply_block: 'fallback' with no URL falls through to 403 block_page — expected. 'redirect' requires a URL, else falls through to 403 (safe default).",
+    "TTL caches (_RULES_CACHE, _IP_CACHE, _GLOBAL_CACHE) are 15s per workspace — appropriate. Invalidated on mutation. Tests sleep 16s to bypass — acceptable.",
+    "links.create_link seeds link['protection'] = {**DEFAULT_PROTECTION}. GET/PATCH /links/{id}/protection correctly merge over DEFAULT_PROTECTION for backwards compat with older docs.",
+    "Minor: security.evaluate_request accepts allow_countries in per-link protection; when non-empty AND signals.country is 'Unknown' (no CF-IPCountry header), request will be BLOCKED as 'not allowlisted'. Since geo is currently always 'Unknown', enabling allow_countries in production could break traffic. Consider gating on 'country != Unknown' or documenting this caveat.",
+    "Minor: DEFAULT_PROTECTION includes 'allow_countries' but ProtectionInput schema on the PATCH endpoint does allow it. UI does not expose an input for allow_countries — only block_countries — which is fine since geo detection is stubbed.",
+    "Minor: blocker RATE_PER_MIN=1200 is a per-process in-memory counter (intel.rate_limiter). In a multi-worker deploy this is soft — consider Redis-backed limiter for production.",
+    "No secrets leak from admin responses: /admin/api-usage projects out key_hash. Good."
+  ],
+  "updated_files": ["/app/backend/tests/test_iter4_security.py (new — 19 tests, all pass)"],
+  "success_rate": {"backend": "100% (19/19 new + prior test files intact)", "frontend": "100% for the specified UI checks (feeds, IP lists, simulator, rules dialog, LinkDetail Protection card, Developers API keys + docs, Admin tabs + refresh + global blocklist, nav-admin gating)"},
+  "test_credentials": "Admin: admin@midgate.io / Admin123!. Fresh e2e_it4_* / TEST_it4_* accounts created for isolation.",
+  "seed_data_creation": "~6 e2e_it4_ / TEST_it4_ users + workspaces, ~5 smart links, ~5 API keys (some revoked implicitly by workspace isolation), ~10 IP-rule and rule docs, 2 global-blocklist entries (198.51.100.x and legacy 9.9.9.0/24 already present).",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Iter-4 backend tests at /app/backend/tests/test_iter4_security.py (19 tests, 100% pass; JUnit at /app/test_reports/pytest/it4_results.xml). Prior iter-3 billing tests still valid at /app/backend/tests/test_billing_features.py. IP rules and rules use a 15s TTL cache (sleep 16s in tests before hitting /api/r/{alias}). Datacenter IP for tests: 3.5.1.1 (AWS 3.0.0.0/9). Residential: 24.48.10.10. Bot UA: curl/8.0. Human UA: Mozilla/5.0 Chrome/120. Blocker API returns block=true for decision in {block, challenge}. Global blocklist is admin-only; workspace IP rules are per-workspace. To open Link detail from /app/links: click analytics-btn-{alias} (icon), NOT the row card itself. Create-link submit button testid is 'link-create-submit-btn' (not link-save-btn). Developers 'New API key' button appears near the Blocker docs card as data-testid='new-key-btn'.",
+  "rca of the issue": "No issues found. All specified acceptance criteria pass."
+}

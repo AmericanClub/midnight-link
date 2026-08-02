@@ -1,0 +1,144 @@
+{
+  "brand": {
+    "name": "MidGate",
+    "tagline": "Every Click. Protected.",
+    "personality": "Secure, Premium, Modern, Trustworthy, Professional, Technical, Clean, Calm, Global",
+    "logo_concept": "A minimalistic geometric monogram 'M' intersecting a subtle gate or shield structure, indicating security and passage. Wordmark uses tracking-tight geometric sans.",
+    "favicon_concept": "The minimalist 'M' shield icon."
+  },
+  "theme": {
+    "default": "light",
+    "supported": ["light", "dark"],
+    "strategy": "Clean enterprise SaaS. Stripe-level clarity mixed with Linear's technical precision. High contrast, low noise. Absolutely no hacker aesthetics or neon overdoses."
+  },
+  "colors": {
+    "archetype": "ARCHETYPE 4: SWISS & HIGH-CONTRAST + ARCHETYPE 5: LUXURY",
+    "light": {
+      "background": "#FAFAFA",
+      "foreground": "#0A0A0A",
+      "primary": "#4338CA",
+      "primary_foreground": "#FFFFFF",
+      "surface": "#FFFFFF",
+      "border": "#E2E8F0",
+      "muted": "#F1F5F9",
+      "accent": "#F59E0B",
+      "danger": "#EF4444"
+    },
+    "dark": {
+      "background": "#020617",
+      "foreground": "#F8FAFC",
+      "primary": "#6366F1",
+      "primary_foreground": "#FFFFFF",
+      "surface": "#0F172A",
+      "border": "#1E293B",
+      "muted": "#0F172A",
+      "accent": "#FBBF24",
+      "danger": "#F87171"
+    },
+    "charts": {
+      "chart-1": "#4338CA",
+      "chart-2": "#7C3AED",
+      "chart-3": "#F59E0B",
+      "chart-4": "#38BDF8",
+      "chart-5": "#E11D48"
+    },
+    "notes": "No red dominance (used only for destructive actions). Primary action is deep indigo. Avoid generic SaaS blue. Teal is explicitly forbidden in dashboards."
+  },
+  "typography": {
+    "headings": {
+      "family": "Outfit, sans-serif",
+      "weight": "font-bold to font-black",
+      "tracking": "tracking-tight",
+      "notes": "Used for landing page hero, dashboard section headers. Gives a crisp, modern, tech-forward vibe."
+    },
+    "body": {
+      "family": "IBM Plex Sans, sans-serif",
+      "weight": "font-normal to font-medium",
+      "notes": "Highly legible for data-heavy tables, analytics, and lists."
+    },
+    "monospace": {
+      "family": "JetBrains Mono, monospace",
+      "notes": "Used for IP addresses, tokens, short links, and IDs."
+    },
+    "scale": {
+      "h1": "text-4xl sm:text-5xl lg:text-6xl tracking-tight",
+      "h2": "text-2xl sm:text-3xl lg:text-4xl tracking-tight",
+      "h3": "text-xl sm:text-2xl",
+      "body": "text-base",
+      "small": "text-sm",
+      "tiny": "text-xs uppercase tracking-[0.2em]"
+    }
+  },
+  "spacing_and_layout": {
+    "philosophy": "Generous Spacing Philosophy. Wide margins, breathing room on marketing pages. Dense, intentional utility on dashboard.",
+    "marketing": {
+      "grid": "Bento Grid (Tetris Mode) - grid-cols-1 md:grid-cols-12 gap-8 to gap-12",
+      "hero_overlay": "Max bg-black/40 (dark) or bg-white/30 (light). Do not kill images."
+    },
+    "dashboard": {
+      "grid": "High Density Grid - grid-cols-1 lg:grid-cols-4 gap-4",
+      "density": "Data-table-first structure. Card-based widgets with grouped metrics. Use sharp edges or max 8px border-radius."
+    },
+    "radius": "sm (0.375rem) to md (0.5rem). Subtle roundness.",
+    "shadows": "Soft ambient shadow combined with 1px inner border. Use shadow-sm for cards to ground them."
+  },
+  "components": {
+    "strategy": "Shadcn UI heavily customized to match the brand. Strip the default Vercel-look, inject enterprise feel.",
+    "buttons": "Slightly rounded (rounded-md), crisp. Primary button is Indigo. Interaction states must have visible hover/focus ring.",
+    "inputs": "Clean, 1px border. Focus ring should be primary indigo.",
+    "cards": "Flat background, 1px border (border-border), crisp edges. No heavy glassmorphism.",
+    "tables": "Dense, crisp lines, optional zebra striping, clear hover states on rows. Left-align data unless it's numeric (then right-align).",
+    "charts": "Shadcn charts (Recharts) with brand colors. Accessible contrast.",
+    "navigation": "Sticky nav with solid or crystal glass (backdrop-blur-xl bg-background/80). NEVER transparent.",
+    "toast": "Use Sonner for toasts."
+  },
+  "visual_enhancers": {
+    "motion": "Minimalist. Micro-interactions for feedback. Hover lifts (-translate-y-1) for dashboard cards.",
+    "textures": "Subtle noise on dark mode backgrounds to prevent flatness, or keep entirely clean and Swiss.",
+    "surfaces": "Use Grid Borders (The Technical Look) for features sections. Expose the skeleton. border-collapse layouts."
+  },
+  "media": {
+    "icons": "Phosphor Icons (@phosphor-icons/react) for duotone high-end look on marketing, solid/regular on dashboard.",
+    "images": [
+      {
+        "url": "https://images.unsplash.com/photo-1516387938699-a93567ec168e?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjA1MDV8MHwxfHNlYXJjaHwxfHxidXNpbmVzcyUyMHByb2Zlc3Npb25hbCUyMHVzaW5nJTIwbGFwdG9wfGVufDB8fHx8MTc4NTY0NzI5Nnww&ixlib=rb-4.1.0&q=85",
+        "category": "Hero / Context",
+        "description": "Person typing on a laptop, professional setting."
+      },
+      {
+        "url": "https://images.unsplash.com/photo-1644088379091-d574269d422f?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjAzNzl8MHwxfHNlYXJjaHwxfHxhYnN0cmFjdCUyMGdlb21ldHJpYyUyMG5ldHdvcmt8ZW58MHx8fHwxNzg1NjQ3Mjk2fDA&ixlib=rb-4.1.0&q=85",
+        "category": "Abstract / Background",
+        "description": "Blue background with network lines and dots, for security/network representations."
+      },
+      {
+        "url": "https://images.unsplash.com/photo-1771616020737-5b3b64f7faac?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjAzNzl8MHwxfHNlYXJjaHw0fHxhYnN0cmFjdCUyMGdlb21ldHJpYyUyMG5ldHdvcmt8ZW58MHx8fHwxNzg1NjQ3Mjk2fDA&ixlib=rb-4.1.0&q=85",
+        "category": "Abstract / Security",
+        "description": "Abstract organic layered network, for deep tech vibe."
+      }
+    ]
+  },
+  "instructions_to_main_agent": [
+    "Install necessary packages: `yarn add @phosphor-icons/react framer-motion clsx tailwind-merge`",
+    "Configure Tailwind with the provided design tokens. Override Vercel/Shadcn defaults.",
+    "Use Phosphor Icons for all icons.",
+    "Create a solid workspace switcher in the dashboard.",
+    "Implement light and dark mode toggles.",
+    "Ensure all interactive elements have `data-testid` attributes."
+  ],
+  "UNIVERSAL_GUIDELINES_FOR_MAIN_AGENT": [
+    "You tend to converge toward generic, 'on distribution' outputs. Avoid this: make creative, distinctive frontends that surprise and delight.",
+    "Dark colors look good when used independently without gradients. DO NOT use dark colors as gradients.",
+    "Don't make generic centered layouts, simplistic gradients, and uniform styling.",
+    "Create depth through layered design elements with z-index hierarchy.",
+    "Use glass-morphism effects with backdrop filters (12-24px blur) where appropriate, but NOT on medical/dashboard data.",
+    "You MUST NOT apply universal transition (e.g., transition: all). Add transitions for specific properties.",
+    "You MUST NOT center align the app container. Do not add `.App { text-align: center; }`.",
+    "Always use modern button styles.",
+    "NEVER use AI assistant Emoji characters like 🤖🧠💭💡🔮🎯 etc for icons.",
+    "Every interaction needs micro-animations - hover states, transitions, entrance animations. Static = dead.",
+    "Use 2-3x more spacing than feels comfortable. Cramped designs look cheap.",
+    "Main agent relies on these image URLs. Missing categories = main agent will use placeholder text which is FORBIDDEN.",
+    "Prioritize using pre-existing components from src/components/ui when applicable.",
+    "Use sonner for toasts."
+  ]
+}

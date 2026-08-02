@@ -12,6 +12,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import WebhooksSection from "@/components/WebhooksSection";
+import WebhookDocs from "@/components/WebhookDocs";
 import api, { formatApiError, BACKEND } from "@/lib/api";
 
 const ENDPOINT = `${BACKEND}/api/v1/blocker`;
@@ -167,6 +168,8 @@ export default function DevelopersPage() {
       </Card>
 
       <WebhooksSection />
+
+      <WebhookDocs />
 
       <Card className="p-6" data-testid="blocker-docs-card">
         <div className="mb-4 flex items-center gap-2"><Code2 className="h-4 w-4 text-primary" /><h2 className="font-display font-semibold">Blocker API</h2></div>

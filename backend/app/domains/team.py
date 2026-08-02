@@ -206,4 +206,9 @@ async def accept_invitation(payload: AcceptInput, user=Depends(get_current_user)
             "user_id": user["id"], "role": inv["role"], "created_at": now_iso()})
     await db.invitations.update_one({"token": payload.token},
                                     {"$set": {"status": "accepted", "accepted_at": now_iso()}})
+    from .notifications import create_notification
+    await create_notification(
+        inv["workspace_id"], "member_joined", "New team member",
+        f"{user.get('name') or user['email']} joined the workspace as {ROLE_LABELS.get(inv['role'], inv['role'])}.",
+        "success", {"email": user["email"], "role": inv["role"]})
     return {"ok": True, "workspace_id": inv["workspace_id"]}

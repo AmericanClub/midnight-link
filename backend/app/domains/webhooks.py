@@ -80,6 +80,13 @@ async def deliver(webhook: dict, event_type: str, data: dict) -> dict:
     inc = {"success_count" if status == "success" else "failure_count": 1}
     await db.webhooks.update_one({"id": webhook["id"]},
                                  {"$set": {"last_delivery_at": now_iso()}, "$inc": inc})
+    if status == "failed":
+        from .notifications import notify_throttled
+        await notify_throttled(
+            webhook["workspace_id"], "webhook_failed", f"wh:{webhook['id']}", 1800,
+            title="Webhook delivery failed",
+            body=f"Delivery to {webhook['url']} failed after {attempts} attempt(s) ({error or 'no response'}).",
+            level="error", meta={"webhook_id": webhook["id"], "event_type": event_type})
     return record
 
 

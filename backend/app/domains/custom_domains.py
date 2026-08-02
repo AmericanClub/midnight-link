@@ -126,6 +126,11 @@ async def verify_domain(domain_id: str, ws=Depends(get_admin_workspace)):
         await db.custom_domains.update_one(
             {"id": domain_id}, {"$set": {"status": "verified", "verified_at": now_iso()}})
         d = await db.custom_domains.find_one({"id": domain_id}, {"_id": 0})
+        from .notifications import create_notification
+        await create_notification(
+            ws["id"], "domain_verified", "Domain verified",
+            f"{d['domain']} is verified and ready for branded links.",
+            "success", {"domain": d["domain"]})
         return {"verified": True, "domain": _public(d)}
     return {
         "verified": False,

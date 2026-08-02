@@ -19,6 +19,11 @@ Original spec asked for Go + Next.js + PostgreSQL + Redis monorepo. The Emergent
 ## Core requirements (static, from spec)
 Full spec covers 38 sections / 10 milestones (auth, tenancy, links, QR, analytics, protection, billing/QRIS, developer API, webhooks, domains, admin, privacy, security, observability, CI/CD).
 
+## Implemented — Billing quota/receipts/roles (2026-08-02)
+- **Plan Limit Enforcement**: `enforce_quota` blocks creating links (limit 10 on Free) / QR (limit 3) beyond plan with a 403 "upgrade" message; `can_record_event` stops storing analytics past the monthly limit (redirect still 302s — safe degradation). Billing page shows a Usage card with used/limit bars (red at capacity).
+- **Invoice Receipts**: reportlab-generated PDF receipt at `/api/billing/invoices/{id}/receipt.pdf` (paid only); a receipt email is sent on activation (console/MOCKED). Receipt download button on paid invoices.
+- **Billing Roles**: all `/api/billing/*` management endpoints require role owner/admin/billing_manager (`get_billing_workspace`); non-billing members get 403. Sidebar Billing item hidden for non-billing roles; page shows a restricted card. Register response now carries workspace role. Tested: backend 9/9 pytest; frontend verified.
+
 ## Implemented — Billing page (2026-08-02)
 - **Billing** (`/app/billing`): current plan card, plan grid (Free→Enterprise), in-dashboard QRIS checkout flow (create invoice → show QRIS QR → server-side activation → workspace plan updated), invoice history. Backend `billing.py`: `/checkout`, `/subscription`, `/invoices`, `/invoices/{id}/simulate-payment` (idempotent, represents a signed provider webhook). Payment confirmation is server-side only. **MOCKED**: no real QRIS gateway — a "simulate payment" button stands in for the provider webhook. Public Pricing CTA routes logged-in users to Billing.
 

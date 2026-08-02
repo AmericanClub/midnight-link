@@ -81,8 +81,9 @@ async def register(payload: RegisterInput, response: Response):
     workspace = await create_default_workspace(user_id, payload.name.strip())
     await email_provider.send(email, "Welcome to MidGate", f"Welcome {payload.name}! Every Click. Protected.")
     set_auth_cookies(response, create_access_token(user_id, email), create_refresh_token(user_id))
+    workspaces = await list_user_workspaces(user_id)
     return {"user": {"id": user_id, "name": doc["name"], "email": email, "role": "user"},
-            "workspaces": [workspace], "current_workspace": workspace}
+            "workspaces": workspaces, "current_workspace": workspaces[0] if workspaces else None}
 
 
 @router.post("/login")

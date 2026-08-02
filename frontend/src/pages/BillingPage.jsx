@@ -166,7 +166,7 @@ export default function BillingPage() {
             { key: "dynamic_qr", label: "Dynamic QR" },
             { key: "monthly_events", label: "Monthly events" },
           ].map((u) => {
-            const d = usageQ.data?.[u.key] || { used: 0, limit: 0, pct: 0 };
+            const d = usageQ.data?.[u.key] || { used: 0, limit: null, pct: 0 };
             const over = d.limit != null && d.used >= d.limit;
             return (
               <div key={u.key} data-testid={`usage-${u.key}`}>

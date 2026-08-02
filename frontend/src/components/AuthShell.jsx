@@ -1,11 +1,13 @@
 import React from "react";
 import { Link } from "react-router-dom";
-import { ShieldCheck, BarChart3, Bot } from "lucide-react";
+import { ShieldCheck, BarChart3, Bot, ArrowLeft } from "lucide-react";
 import Logo from "@/components/Logo";
 import ThemeToggle from "@/components/ThemeToggle";
 import LanguageToggle from "@/components/LanguageToggle";
+import { useI18n } from "@/context/I18nContext";
 
 export default function AuthShell({ title, subtitle, children }) {
+  const { t } = useI18n();
   return (
     <div className="grid min-h-screen lg:grid-cols-2">
       {/* Left brand panel */}
@@ -34,6 +36,14 @@ export default function AuthShell({ title, subtitle, children }) {
         <div className="flex items-center justify-between p-6">
           <Link to="/" className="lg:hidden">
             <Logo />
+          </Link>
+          <Link
+            to="/"
+            data-testid="auth-back-home-link"
+            className="hidden items-center gap-1.5 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground lg:flex"
+          >
+            <ArrowLeft className="h-4 w-4" />
+            {t("nav.backHome")}
           </Link>
           <div className="ml-auto flex items-center gap-1">
             <LanguageToggle />

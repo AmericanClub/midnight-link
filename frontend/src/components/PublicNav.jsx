@@ -15,9 +15,10 @@ export default function PublicNav() {
   const [open, setOpen] = useState(false);
 
   const links = [
-    { label: t("nav.features"), to: "/#features" },
-    { label: t("nav.pricing"), to: "/pricing" },
-    { label: t("nav.developers"), to: "/#developers" },
+    { label: t("nav.features"), to: "/#features", testid: "nav-features-link" },
+    { label: t("nav.pricing"), to: "/pricing", testid: "nav-pricing-link" },
+    { label: t("nav.developers"), to: "/#developers", testid: "nav-developers-link" },
+    { label: t("nav.contact"), to: "/contact", testid: "nav-contact-link" },
   ];
 
   return (
@@ -32,6 +33,7 @@ export default function PublicNav() {
             <a
               key={l.label}
               href={l.to}
+              data-testid={l.testid}
               className="text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
             >
               {l.label}
@@ -70,7 +72,7 @@ export default function PublicNav() {
         <div className="border-t border-border bg-background px-4 py-4 md:hidden">
           <div className="flex flex-col gap-3">
             {links.map((l) => (
-              <a key={l.label} href={l.to} className="text-sm font-medium text-muted-foreground">
+              <a key={l.label} href={l.to} data-testid={`mobile-${l.testid}`} className="text-sm font-medium text-muted-foreground">
                 {l.label}
               </a>
             ))}

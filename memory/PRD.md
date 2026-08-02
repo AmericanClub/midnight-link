@@ -1,5 +1,11 @@
 # MidGate — Product Requirements & Progress
 
+## Implemented — Iteration 11: Admin Console validation + nav polish (2026-08-02)
+- **Dedicated Admin Console** (`/admin`, `frontend/pages/AdminConsole.jsx` + `components/AdminRoute.jsx`): platform-admin-only workspace (Overview stats, Users, Workspaces, Revenue, Security events, Global Blocklist, Support tickets, API usage). `AdminRoute` redirects non-admins to `/app`, unauthenticated to `/login`. Backend `/api/admin/*` all gated by `require_admin` (403 for non-admin).
+- **Suspension logic**: user `suspended:true` blocks login (auth.py 403); workspace `suspended:true` blocks link redirect (redirect.py). Admin PATCH `/api/admin/users/{id}` and `/api/admin/workspaces/{id}`. Self-modify (400) + last-admin demotion guards in place. Added `invalidate_suspended_workspaces()` (redirect.py) called on workspace PATCH so suspension takes effect immediately (previously up to 30s TTL lag).
+- **Nav polish**: added **Contact** link to public navbar (`PublicNav.jsx`, → `/contact`, SPA `<Link>` for route links, `<a>` kept for hash anchors) and a **"Back to home"** link on all auth pages (`AuthShell.jsx`, → `/`). i18n keys `nav.contact`, `nav.backHome` (EN/ID).
+- Tested: testing_agent iteration_11.json — backend 23/23 pytest pass, frontend all critical flows pass (Contact link, back-home link, Admin Console RBAC/redirect, user+workspace suspension). No open bugs.
+
 ## Product
 **MidGate** — SaaS gateway between visitors and destinations. Tagline: *Every Click. Protected.*
 Smart Links, Dynamic QR, Traffic Analytics, Visitor Intelligence, Traffic Protection, Bot/Proxy/VPN/Tor detection, Security Rules, Custom Domains, Developer API, Webhooks, Team Workspaces, Billing (QRIS), Admin.

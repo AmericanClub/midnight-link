@@ -32,6 +32,10 @@ def invalidate_cache(alias):
 _WS_SUSPENDED: list = [0.0, set()]
 
 
+def invalidate_suspended_workspaces():
+    _WS_SUSPENDED[0] = 0.0
+
+
 async def _suspended_workspaces() -> set:
     if _WS_SUSPENDED[0] > time.time():
         return _WS_SUSPENDED[1]

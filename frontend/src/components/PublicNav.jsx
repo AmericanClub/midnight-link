@@ -29,16 +29,27 @@ export default function PublicNav() {
         </Link>
 
         <nav className="hidden items-center gap-8 md:flex">
-          {links.map((l) => (
-            <a
-              key={l.label}
-              href={l.to}
-              data-testid={l.testid}
-              className="text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
-            >
-              {l.label}
-            </a>
-          ))}
+          {links.map((l) =>
+            l.to.startsWith("/#") ? (
+              <a
+                key={l.label}
+                href={l.to}
+                data-testid={l.testid}
+                className="text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
+              >
+                {l.label}
+              </a>
+            ) : (
+              <Link
+                key={l.label}
+                to={l.to}
+                data-testid={l.testid}
+                className="text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
+              >
+                {l.label}
+              </Link>
+            )
+          )}
         </nav>
 
         <div className="hidden items-center gap-2 md:flex">
@@ -71,11 +82,17 @@ export default function PublicNav() {
       {open && (
         <div className="border-t border-border bg-background px-4 py-4 md:hidden">
           <div className="flex flex-col gap-3">
-            {links.map((l) => (
-              <a key={l.label} href={l.to} data-testid={`mobile-${l.testid}`} className="text-sm font-medium text-muted-foreground">
-                {l.label}
-              </a>
-            ))}
+            {links.map((l) =>
+              l.to.startsWith("/#") ? (
+                <a key={l.label} href={l.to} data-testid={`mobile-${l.testid}`} className="text-sm font-medium text-muted-foreground">
+                  {l.label}
+                </a>
+              ) : (
+                <Link key={l.label} to={l.to} data-testid={`mobile-${l.testid}`} onClick={() => setOpen(false)} className="text-sm font-medium text-muted-foreground">
+                  {l.label}
+                </Link>
+              )
+            )}
             <div className="flex gap-2 pt-2">
               <Button variant="outline" className="flex-1" onClick={() => navigate("/login")}>
                 {t("nav.login")}

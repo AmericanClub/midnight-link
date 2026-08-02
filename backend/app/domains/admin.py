@@ -217,6 +217,8 @@ async def update_workspace(workspace_id: str, payload: WorkspaceUpdate, admin=De
     if not ws:
         raise HTTPException(status_code=404, detail="Workspace not found")
     await db.workspaces.update_one({"id": workspace_id}, {"$set": {"suspended": payload.suspended}})
+    from .redirect import invalidate_suspended_workspaces
+    invalidate_suspended_workspaces()
     return {"ok": True, "id": workspace_id, "suspended": payload.suspended}
 
 

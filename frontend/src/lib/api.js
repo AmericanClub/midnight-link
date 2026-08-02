@@ -14,6 +14,10 @@ export function shortUrl(alias) {
   return `${API_BASE}/r/${alias}`;
 }
 
+export function brandedShortUrl(alias, primaryDomain) {
+  return primaryDomain ? `https://${primaryDomain}/${alias}` : shortUrl(alias);
+}
+
 export function formatApiError(detail) {
   if (detail == null) return "Something went wrong. Please try again.";
   if (typeof detail === "string") return detail;

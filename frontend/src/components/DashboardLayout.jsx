@@ -15,6 +15,7 @@ import {
   ChevronDown,
   ShieldCheck,
   Globe,
+  Users,
 } from "lucide-react";
 import Logo from "@/components/Logo";
 import ThemeToggle from "@/components/ThemeToggle";
@@ -39,6 +40,7 @@ const nav = [
   { to: "/app/protection", key: null, label: "Protection", icon: ShieldCheck, testid: "nav-protection" },
   { to: "/app/developers", key: null, label: "Developers", icon: Code2, testid: "nav-developers" },
   { to: "/app/domains", key: null, label: "Domains", icon: Globe, testid: "nav-domains", adminWs: true },
+  { to: "/app/team", key: null, label: "Team", icon: Users, testid: "nav-team", adminWs: true },
   { to: "/app/billing", key: null, label: "Billing", icon: CreditCard, testid: "nav-billing", billingOnly: true },
   { to: "/app/admin", key: null, label: "Admin", icon: Shield, testid: "nav-admin", adminOnly: true },
   { to: "/app/settings", key: "dash.settings", icon: Settings, testid: "nav-settings" },

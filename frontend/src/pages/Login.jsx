@@ -23,7 +23,9 @@ export default function Login() {
     try {
       await login(email, password);
       toast.success("Welcome back!");
-      navigate("/app");
+      const inv = localStorage.getItem("midgate_invite");
+      if (inv) { localStorage.removeItem("midgate_invite"); navigate(`/accept-invite?token=${inv}`); }
+      else navigate("/app");
     } catch (err) {
       toast.error(formatApiError(err.response?.data?.detail) || err.message);
     } finally {

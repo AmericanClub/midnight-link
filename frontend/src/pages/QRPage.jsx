@@ -186,11 +186,15 @@ function QRDialog({ open, onOpenChange, onSaved, existing }) {
   );
 }
 
-function QRCard({ qr, onEdit, onAction }) {
+function QRCard({ qr, onEdit, onAction, primaryDomain }) {
   const navigate = useNavigate();
   const ref = useRef(null);
   const value = `${BACKEND}${qr.short_path}`;
-  const copy = () => { navigator.clipboard.writeText(value); toast.success("Short URL copied"); };
+  const display = primaryDomain ? `${primaryDomain}/${qr.alias}` : `/api/r/${qr.alias}`;
+  const copy = () => {
+    navigator.clipboard.writeText(primaryDomain ? `https://${primaryDomain}/${qr.alias}` : value);
+    toast.success(primaryDomain ? "Branded URL copied" : "Short URL copied");
+  };
   return (
     <Card className="card-lift p-5" data-testid={`qr-card-${qr.alias}`}>
       <div className="flex gap-4">
@@ -201,7 +205,7 @@ function QRCard({ qr, onEdit, onAction }) {
             <Badge variant={qr.status === "active" ? "default" : "secondary"} className="capitalize">{qr.status}</Badge>
           </div>
           <button onClick={copy} className="mt-1 flex items-center gap-1 font-mono text-xs text-primary hover:underline">
-            /api/r/{qr.alias} <Copy className="h-3 w-3" />
+            {display} <Copy className="h-3 w-3" />
           </button>
           <p className="mt-1 truncate text-xs text-muted-foreground">→ {qr.destination_url}</p>
           <p className="mt-2 font-mono text-sm"><span className="font-bold">{qr.click_count}</span> <span className="text-muted-foreground">scans</span></p>
@@ -276,7 +280,7 @@ export default function QRPage() {
       ) : (
         <div className="grid gap-4 md:grid-cols-2" data-testid="qr-list">
           {items.map((qr) => (
-            <QRCard key={qr.id} qr={qr} onEdit={(q) => { setEditing(q); setDialog(true); }} onAction={(action, id) => mutate.mutate({ action, id })} />
+            <QRCard key={qr.id} qr={qr} primaryDomain={workspace?.primary_domain} onEdit={(q) => { setEditing(q); setDialog(true); }} onAction={(action, id) => mutate.mutate({ action, id })} />
           ))}
         </div>
       )}

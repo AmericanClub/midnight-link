@@ -8,7 +8,7 @@ from app.db import db, ensure_indexes
 from app.security import hash_password, verify_password
 from app.utils import now_iso
 from app.providers import wire_event_bus
-from app.domains import auth, workspace, links, analytics, redirect, billing, qr, security, apikeys, blocker, admin, webhooks, custom_domains
+from app.domains import auth, workspace, links, analytics, redirect, billing, qr, security, apikeys, blocker, admin, webhooks, custom_domains, team
 from app.domains.workspace import create_default_workspace
 from app.intel import refresh_tor
 from app.geoip import warm as warm_geoip
@@ -47,6 +47,7 @@ app.include_router(redirect.router)
 app.include_router(billing.router)
 app.include_router(webhooks.router)
 app.include_router(custom_domains.router)
+app.include_router(team.router)
 
 app.add_middleware(
     CORSMiddleware,

@@ -24,7 +24,9 @@ export default function Register() {
     try {
       await register(name, email, password);
       toast.success("Account created. Welcome to MidGate!");
-      navigate("/app");
+      const inv = localStorage.getItem("midgate_invite");
+      if (inv) { localStorage.removeItem("midgate_invite"); navigate(`/accept-invite?token=${inv}`); }
+      else navigate("/app");
     } catch (err) {
       toast.error(formatApiError(err.response?.data?.detail) || err.message);
     } finally {

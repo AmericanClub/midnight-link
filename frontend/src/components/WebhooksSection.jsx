@@ -118,10 +118,21 @@ function CreateWebhookDialog({ open, onOpenChange, onCreated }) {
 }
 
 function DeliveriesDialog({ webhook, open, onOpenChange }) {
+  const qc = useQueryClient();
   const { data, isLoading } = useQuery({
     queryKey: ["webhook-deliveries", webhook?.id],
     queryFn: async () => (await api.get(`/webhooks/${webhook.id}/deliveries`)).data,
     enabled: !!webhook && open,
+  });
+  const retry = useMutation({
+    mutationFn: async (id) => (await api.post(`/webhooks/${webhook.id}/deliveries/${id}/retry`)).data,
+    onSuccess: (res) => {
+      const d = res.delivery;
+      d.status === "success" ? toast.success(`Resent (HTTP ${d.status_code})`) : toast.error(`Retry failed: ${d.error || "no response"}`);
+      qc.invalidateQueries({ queryKey: ["webhook-deliveries", webhook.id] });
+      qc.invalidateQueries({ queryKey: ["webhooks"] });
+    },
+    onError: (err) => toast.error(formatApiError(err.response?.data?.detail) || err.message),
   });
   const items = data?.items || [];
   return (
@@ -136,7 +147,7 @@ function DeliveriesDialog({ webhook, open, onOpenChange }) {
         ) : (
           <ul className="max-h-80 space-y-2 overflow-y-auto">
             {items.map((d) => (
-              <li key={d.id} className="flex items-center justify-between rounded-lg border border-border px-3 py-2" data-testid={`delivery-${d.id}`}>
+              <li key={d.id} className="flex items-center justify-between gap-2 rounded-lg border border-border px-3 py-2" data-testid={`delivery-${d.id}`}>
                 <div className="min-w-0">
                   <p className="flex items-center gap-1.5 text-sm font-medium">
                     {d.status === "success" ? <CheckCircle2 className="h-4 w-4 text-emerald-500" /> : <XCircle className="h-4 w-4 text-red-500" />}
@@ -144,7 +155,14 @@ function DeliveriesDialog({ webhook, open, onOpenChange }) {
                   </p>
                   <p className="text-xs text-muted-foreground">{new Date(d.created_at).toLocaleString()} · {d.attempts} attempt(s){d.error ? ` · ${d.error}` : ""}</p>
                 </div>
-                <Badge variant={d.status === "success" ? "default" : "secondary"}>{d.status_code || d.status}</Badge>
+                <div className="flex shrink-0 items-center gap-1.5">
+                  <Badge variant={d.status === "success" ? "default" : "secondary"}>{d.status_code || d.status}</Badge>
+                  {d.status !== "success" && (
+                    <Button size="icon" variant="ghost" className="h-7 w-7" title="Resend" onClick={() => retry.mutate(d.id)} disabled={retry.isPending} data-testid={`delivery-retry-${d.id}`}>
+                      <RotateCw className={`h-3.5 w-3.5 ${retry.isPending ? "animate-spin" : ""}`} />
+                    </Button>
+                  )}
+                </div>
               </li>
             ))}
           </ul>

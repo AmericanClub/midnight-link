@@ -30,7 +30,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import api, { shortUrl, BACKEND } from "@/lib/api";
+import api, { shortUrl, brandedShortUrl, BACKEND } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
 
 function Stat({ icon: Icon, label, value }) {
@@ -214,8 +214,8 @@ export default function LinkDetail() {
 
   const copy = () => {
     if (link) {
-      navigator.clipboard.writeText(shortUrl(link.alias));
-      toast.success("Short URL copied");
+      navigator.clipboard.writeText(brandedShortUrl(link.alias, workspace?.primary_domain));
+      toast.success(workspace?.primary_domain ? "Branded URL copied" : "Short URL copied");
     }
   };
 
@@ -236,7 +236,7 @@ export default function LinkDetail() {
                 <Badge variant={link?.status === "active" ? "default" : "secondary"} className="capitalize">{link?.status}</Badge>
               </div>
               <button onClick={copy} className="mt-2 flex items-center gap-1.5 font-mono text-sm text-primary hover:underline">
-                /api/r/{link?.alias} <Copy className="h-3 w-3" />
+                {workspace?.primary_domain ? `${workspace.primary_domain}/${link?.alias}` : `/api/r/${link?.alias}`} <Copy className="h-3 w-3" />
               </button>
               <p className="mt-1 truncate text-sm text-muted-foreground">→ {link?.destination_url}</p>
             </div>

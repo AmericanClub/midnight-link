@@ -37,7 +37,7 @@ import {
   DropdownMenuItem,
 } from "@/components/ui/dropdown-menu";
 import { MoreVertical } from "lucide-react";
-import api, { formatApiError, shortUrl } from "@/lib/api";
+import api, { formatApiError, shortUrl, brandedShortUrl } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
 
 function CreateLinkDialog({ open, onOpenChange, onCreated }) {
@@ -144,8 +144,8 @@ export default function LinksPage() {
   });
 
   const copy = (alias) => {
-    navigator.clipboard.writeText(shortUrl(alias));
-    toast.success("Short URL copied");
+    navigator.clipboard.writeText(brandedShortUrl(alias, workspace?.primary_domain));
+    toast.success(workspace?.primary_domain ? "Branded URL copied" : "Short URL copied");
   };
 
   const items = data?.items || [];
@@ -203,7 +203,7 @@ export default function LinksPage() {
                     className="mt-1 flex items-center gap-1.5 font-mono text-sm text-primary hover:underline"
                     data-testid={`link-shorturl-${l.alias}`}
                   >
-                    /api/r/{l.alias} <Copy className="h-3 w-3" />
+                    {workspace?.primary_domain ? `${workspace.primary_domain}/${l.alias}` : `/api/r/${l.alias}`} <Copy className="h-3 w-3" />
                   </button>
                   <p className="mt-1 truncate text-xs text-muted-foreground">{l.destination_url}</p>
                 </div>

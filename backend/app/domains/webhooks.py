@@ -74,7 +74,7 @@ async def deliver(webhook: dict, event_type: str, data: dict) -> dict:
     record = {
         "id": delivery_id, "webhook_id": webhook["id"], "workspace_id": webhook["workspace_id"],
         "event_type": event_type, "status": status, "status_code": status_code,
-        "attempts": attempts, "error": error, "created_at": now_iso(),
+        "attempts": attempts, "error": error, "data": data, "created_at": now_iso(),
     }
     await db.webhook_deliveries.insert_one({**record})
     inc = {"success_count" if status == "success" else "failure_count": 1}
@@ -225,6 +225,17 @@ async def list_deliveries(webhook_id: str, ws=Depends(get_current_workspace)):
         {"webhook_id": webhook_id}, {"_id": 0}
     ).sort("created_at", -1).to_list(50)
     return {"items": rows}
+
+
+@router.post("/{webhook_id}/deliveries/{delivery_id}/retry")
+async def retry_delivery(webhook_id: str, delivery_id: str, ws=Depends(get_current_workspace)):
+    w = await _owned(webhook_id, ws)
+    d = await db.webhook_deliveries.find_one(
+        {"id": delivery_id, "webhook_id": webhook_id, "workspace_id": ws["id"]})
+    if not d:
+        raise HTTPException(status_code=404, detail="Not found")
+    result = await deliver(w, d["event_type"], d.get("data") or {})
+    return {"delivery": result}
 
 
 @router.delete("/{webhook_id}")

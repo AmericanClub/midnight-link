@@ -1,0 +1,29 @@
+{
+  "summary": "Iteration 8 verified end-to-end: (1) Team invitations — list/create/lookup/accept/revoke, role change/remove guards, RBAC 403 for non-managers, idempotent accept, email-mismatch 403, invalid role 400, duplicate 409. (2) Branded link preview — inserting verified is_primary custom_domain surfaces workspace.primary_domain via /api/auth/me, and both Smart Links and QR pages render 'go.midgate.test/{alias}' instead of '/api/r/{alias}'. (3) Webhook manual retry — failed delivery to httpbin/500 gets 3 attempts, deliveries dialog shows delivery-retry-{id} button, clicking creates a new delivery record. Backend pytest: 11/11 passing. Frontend Playwright: team invite dialog, invite success + copy link, invitations list w/ revoke, developers deliveries dialog + retry, branded URL, invalid /accept-invite token → invite-error — all pass.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "Dev environment", "issues": ["webpack-dev-server-client-overlay (about:blank) sometimes intercepts pointer events in preview iframe; removing the element unblocks clicks. Not a product bug but flaky for automated testing."]}
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iter8_team_webhooks_branded.py",
+    "/app/test_reports/pytest/iter8_results.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "team.py list_members lowercases sort by email but backend accepts EmailStr which normalizes case only on create — safe.",
+    "invitation accept endpoint enforces email match on user['email'] vs inv['email'] case-insensitively — good.",
+    "webhook retry endpoint reuses stored 'data' payload and creates a NEW delivery row (async, non-blocking) — correct.",
+    "workspace.list_user_workspaces merges primary_domain from custom_domains where status=verified AND is_primary — correct."
+  ],
+  "updated_files": ["/app/backend/tests/test_iter8_team_webhooks_branded.py"],
+  "success_rate": {"backend": "100%", "frontend": "100%"},
+  "test_credentials": "admin@midgate.io / Admin123! (workspace c5a21b8e-1fdc-4bc8-9265-5601095c4390); teammate@example.com / Teammate123!",
+  "seed_data_creation": "Test creates and cleans up ad-hoc invited users (test_invite_*@example.com, test_mem_*@ex.com) plus a temporary webhook + verified custom_domains doc — all removed after run.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Iteration 8 fully green. Backend suite at /app/backend/tests/test_iter8_team_webhooks_branded.py. Run with REACT_APP_BACKEND_URL, MONGO_URL, DB_NAME env vars. Webhook retry test needs ~20s (real httpbin call). For branded-URL UI testing, insert a custom_domains doc {workspace_id, domain, status:'verified', is_primary:true} then GET /api/auth/me and check the Links/QR pages."
+}

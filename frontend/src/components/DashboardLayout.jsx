@@ -5,6 +5,7 @@ import {
   Link2,
   QrCode,
   BarChart3,
+  CreditCard,
   Settings,
   LogOut,
   Menu,
@@ -33,6 +34,7 @@ const nav = [
   { to: "/app/links", key: "dash.links", icon: Link2, testid: "nav-links" },
   { to: "/app/qr", key: null, label: "QR Codes", icon: QrCode, testid: "nav-qr" },
   { to: "/app/protection", key: null, label: "Protection", icon: ShieldCheck, testid: "nav-protection" },
+  { to: "/app/billing", key: null, label: "Billing", icon: CreditCard, testid: "nav-billing" },
   { to: "/app/settings", key: "dash.settings", icon: Settings, testid: "nav-settings" },
 ];
 

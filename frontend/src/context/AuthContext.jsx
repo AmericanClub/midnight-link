@@ -54,9 +54,21 @@ export function AuthProvider({ children }) {
     setWorkspaceHeader(ws.id);
   };
 
+  const refreshSession = async () => {
+    try {
+      const { data } = await api.get("/auth/me");
+      setWorkspaces(data.workspaces || []);
+      const cur = (data.workspaces || []).find((w) => w.id === workspace?.id) || data.current_workspace;
+      if (cur) {
+        setWorkspace(cur);
+        setWorkspaceHeader(cur.id);
+      }
+    } catch {}
+  };
+
   return (
     <AuthContext.Provider
-      value={{ user, workspaces, workspace, login, register, logout, switchWorkspace }}
+      value={{ user, workspaces, workspace, login, register, logout, switchWorkspace, refreshSession }}
     >
       {children}
     </AuthContext.Provider>

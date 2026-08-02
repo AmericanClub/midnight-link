@@ -7,6 +7,7 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import api from "@/lib/api";
+import { useAuth } from "@/context/AuthContext";
 
 const fmt = (n, cur) =>
   n === 0 ? "Free" : n == null ? "Custom" : `${cur === "IDR" ? "Rp" : "$"}${n.toLocaleString()}`;
@@ -22,6 +23,8 @@ const featureList = (limits) => [
 
 export default function Pricing() {
   const navigate = useNavigate();
+  const { user } = useAuth();
+  const goPlan = () => navigate(user ? "/app/billing" : "/register");
   const { data } = useQuery({
     queryKey: ["plans"],
     queryFn: async () => (await api.get("/billing/plans")).data,
@@ -67,7 +70,7 @@ export default function Pricing() {
               </ul>
               <Button
                 variant={p.id === "pro" ? "default" : "outline"}
-                onClick={() => navigate("/register")}
+                onClick={goPlan}
                 data-testid={`plan-cta-${p.id}`}
               >
                 {p.price === 0 ? "Start for Free" : p.price == null ? "Contact sales" : "Choose plan"}

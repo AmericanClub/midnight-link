@@ -126,6 +126,20 @@ async def list_links(ws=Depends(get_current_workspace), search: str | None = Que
     total = await db.links.count_documents(flt)
     cur = db.links.find(flt).sort("created_at", -1).skip(skip).limit(limit)
     items = [_clean(x) async for x in cur]
+    ids = [i["id"] for i in items]
+    if ids:
+        agg = await db.analytics_events.aggregate([
+            {"$match": {"link_id": {"$in": ids}, "decision": {"$in": ["block", "challenge"]}}},
+            {"$group": {"_id": {"link_id": "$link_id", "decision": "$decision"}, "n": {"$sum": 1}}},
+        ]).to_list(2 * len(ids))
+        bmap: dict[str, dict] = {}
+        for r in agg:
+            lid = r["_id"]["link_id"]
+            bmap.setdefault(lid, {"block": 0, "challenge": 0})[r["_id"]["decision"]] = r["n"]
+        for i in items:
+            counts = bmap.get(i["id"], {})
+            i["blocked_count"] = counts.get("block", 0)
+            i["challenged_count"] = counts.get("challenge", 0)
     return {"items": items, "total": total}
 
 

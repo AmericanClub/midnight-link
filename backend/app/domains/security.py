@@ -323,6 +323,15 @@ async def evaluate_request(workspace_id: str, link: dict | None, ip: str, ua: st
 
     rules = await get_rules(workspace_id)
     res = evaluate(signals, rules)
+    # Gate the automatic risk-based decision by the link's preset. Custom workspace
+    # rules are always honored; but when no explicit rule matched, only "strict"
+    # (and legacy "custom") presets auto-block on risk. "off"/"moderate" let normal
+    # traffic through — they only apply the explicit block toggles handled above.
+    preset = prot.get("preset") or ("custom" if prot.get("enabled") else "off")
+    if res.get("matched_rule_id") is None and preset in ("off", "moderate"):
+        res = {"risk_score": res["risk_score"], "decision": "allow",
+               "reasons": [f"Allowed — '{preset}' preset permits normal traffic"],
+               "matched_rule_id": None, "policy_version": 1}
     action = "block_page" if res["decision"] == "block" else res["decision"]
     return {**res, "action": action, "signals": signals, "challenge_result": "n/a"}
 

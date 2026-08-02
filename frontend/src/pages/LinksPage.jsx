@@ -209,8 +209,18 @@ export default function LinksPage() {
                 </div>
                 <div className="flex items-center gap-2">
                   <div className="text-right">
-                    <p className="font-mono text-lg font-bold">{l.click_count}</p>
-                    <p className="text-xs text-muted-foreground">clicks</p>
+                    <p className="font-mono text-lg font-bold" data-testid={`link-clicks-${l.alias}`}>{l.click_count}</p>
+                    <p className="text-xs text-muted-foreground">
+                      clicks
+                      {l.blocked_count > 0 && (
+                        <>
+                          {" · "}
+                          <span className="font-medium text-destructive" data-testid={`link-blocked-${l.alias}`}>
+                            {l.blocked_count} blocked
+                          </span>
+                        </>
+                      )}
+                    </p>
                   </div>
                   <Button variant="ghost" size="icon" onClick={() => copy(l.alias)} data-testid={`copy-btn-${l.alias}`}>
                     <Copy className="h-4 w-4" />

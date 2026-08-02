@@ -1,0 +1,16 @@
+{
+  "summary": "Iteration 14: Verified (1) Smart Links list shows 'N clicks · M blocked' with data-testid link-blocked-{alias} for HP14cx (0 clicks · 4 blocked) and no blocked indicator for haRMSF (9 clicks). (2) 'moderate' preset (Gn2XuS) returns 302 for Chrome UA, blocks python-requests bot. (3) 'strict' preset (HP14cx) still blocks Chrome UA on proxy/datacenter egress. (4) GET /api/links as admin returns HP14cx with blocked_count and challenged_count fields, click_count=0. Frontend workspace-switch flow (teammate -> MidGate Admin's Workspace) works. No React console errors on Smart Links page.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {"ui_bugs": [], "integration_issues": [], "design_issues": []},
+  "test_report_links": ["/app/backend/tests/test_iteration_14.py", "/app/test_reports/pytest/iteration_14.xml"],
+  "action_items": [],
+  "critical_code_review_comments": [],
+  "updated_files": ["/app/backend/tests/test_iteration_14.py"],
+  "success_rate": {"backend": "100%", "frontend": "100%"},
+  "test_credentials": "admin@midgate.io/Admin123!, teammate@example.com/Teammate123!",
+  "seed_data_creation": "none; test_strict_blocks_chrome incremented HP14cx blocked_count from 3 to 4 (expected side-effect of the security test hitting /api/r/HP14cx with Chrome UA on proxy egress).",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "HP14cx blocked_count is now 4 (was 3 pre-iteration-14) because the strict-preset backend test hits /api/r/HP14cx once with a Chrome UA which is correctly blocked. Any future assertion should use >=3 rather than ==3, or reset analytics_events. Workspace-switch UI: log in teammate@example.com, click [data-testid=workspace-switcher-btn], choose [data-testid=workspace-option-c5a21b8e-1fdc-4bc8-9265-5601095c4390] (MidGate Admin's Workspace), then SPA-navigate to /app/links.",
+  "rca of the issue": "N/A — this was verification of already-fixed behavior. Both features (preset gating + blocked_count aggregation) work end-to-end."
+}

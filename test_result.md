@@ -196,6 +196,18 @@ agent_communication:
     - agent: "main"
       message: "Iteration 11: validate two new UI links (Contact navbar, Back-to-home on auth pages) + previously-implemented Admin Console and suspension logic (backend+frontend). Credentials in /app/memory/test_credentials.md: admin@midgate.io/Admin123!, teammate@example.com/Teammate123!. IMPORTANT: any suspend you toggle for verification must be restored to unsuspended afterwards; never leave admin or teammate accounts suspended."
 
+iter14_changes:
+  - task: "Blocked click count in Smart Links list"
+    file: "backend/app/domains/links.py (list_links), frontend/src/pages/LinksPage.jsx"
+    working: "NA"
+    needs_retesting: true
+    comment: "list_links now aggregates analytics_events per returned link -> adds blocked_count & challenged_count. LinksPage shows 'N clicks · M blocked' (red) when blocked_count>0. data-testid link-blocked-{alias}. Verified via curl: HP14cx blocked_count=3."
+  - task: "Preset gating: off/moderate no longer risk-block; strict does"
+    file: "backend/app/domains/security.py (evaluate_request tail)"
+    working: "NA"
+    needs_retesting: true
+    comment: "When no explicit custom rule matches, risk-based default_decision only applies for 'strict'/'custom' presets; 'off'/'moderate' allow normal traffic (only explicit block toggles apply). Verified via curl: Gn2XuS(moderate) human->302, bot->403; HP14cx(strict) human->403. Link Gn2XuS switched to moderate per user request."
+
 backend_iter12:
   - task: "proxycheck.io IP intelligence admin config + pipeline enrichment"
     implemented: true

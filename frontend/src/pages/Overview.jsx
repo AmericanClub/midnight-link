@@ -18,7 +18,7 @@ import { useAuth } from "@/context/AuthContext";
 function Delta({ current, previous }) {
   if (previous == null) return null;
   const diff = current - previous;
-  if (diff === 0) return <span className="text-xs text-muted-foreground">no change</span>;
+  if (diff === 0) return <span className="text-xs text-muted-foreground" data-testid="stat-delta">no change</span>;
   const up = diff > 0;
   const pct = previous === 0 ? 100 : Math.round((diff / previous) * 100);
   return (

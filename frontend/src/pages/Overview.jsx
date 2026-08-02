@@ -2,7 +2,7 @@ import React, { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
 import {
-  MousePointerClick, Users, ShieldAlert, Link2, TrendingUp, ArrowRight, ArrowUp, ArrowDown,
+  MousePointerClick, Users, ShieldAlert, Link2, TrendingUp, ArrowRight, ArrowUp, ArrowDown, Globe,
 } from "lucide-react";
 import {
   AreaChart, Area, ResponsiveContainer, Tooltip, XAxis, YAxis, CartesianGrid,
@@ -138,8 +138,10 @@ export default function Overview() {
         </Card>
       </div>
 
-      <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2">
-        <BreakdownCard title="Top countries" rows={data?.top_countries} testid="overview-countries-card" />
+      <div className="mt-6 grid grid-cols-1 gap-4 lg:grid-cols-3">
+        <div className="lg:col-span-2">
+          <CountryCard rows={data?.top_countries} testid="overview-countries-card" />
+        </div>
         <BreakdownCard title="Top devices" rows={data?.top_devices} testid="overview-devices-card" />
       </div>
 
@@ -176,6 +178,66 @@ function BreakdownCard({ title, rows, testid }) {
               </div>
             </li>
           ))}
+        </ul>
+      )}
+    </Card>
+  );
+}
+
+const REGION_NAMES = (() => {
+  try { return new Intl.DisplayNames(["en"], { type: "region" }); } catch { return null; }
+})();
+
+const flagEmoji = (cc) => {
+  const c = (cc || "").toUpperCase();
+  if (!/^[A-Z]{2}$/.test(c)) return "\uD83C\uDF10"; // globe
+  return String.fromCodePoint(...[...c].map((ch) => 0x1f1e6 + ch.charCodeAt(0) - 65));
+};
+
+const countryName = (cc) => {
+  if (!cc || cc.toUpperCase() === "UNKNOWN") return "Unknown";
+  try { return REGION_NAMES?.of(cc.toUpperCase()) || cc; } catch { return cc; }
+};
+
+function CountryCard({ rows, testid }) {
+  const list = rows || [];
+  const total = list.reduce((s, r) => s + r.count, 0);
+  const max = Math.max(1, ...list.map((r) => r.count));
+  return (
+    <Card className="p-6" data-testid={testid}>
+      <div className="mb-4 flex items-center gap-2">
+        <Globe className="h-4 w-4 text-primary" />
+        <h2 className="font-display font-semibold">Traffic by country</h2>
+      </div>
+      {list.length === 0 ? (
+        <div className="flex h-40 flex-col items-center justify-center gap-2 rounded-lg border border-dashed border-border text-center" data-testid="countries-empty">
+          <Globe className="h-8 w-8 text-muted-foreground/40" />
+          <p className="text-sm text-muted-foreground">No visitors yet. Countries appear here once traffic arrives.</p>
+        </div>
+      ) : (
+        <ul className="space-y-3.5">
+          {list.map((r) => {
+            const pct = total ? Math.round((r.count / total) * 100) : 0;
+            const unknown = (r.name || "").toUpperCase() === "UNKNOWN";
+            return (
+              <li key={r.name} data-testid={`country-row-${r.name}`}>
+                <div className="mb-1 flex items-center justify-between text-sm">
+                  <span className="flex min-w-0 items-center gap-2">
+                    <span className="text-lg leading-none">{flagEmoji(r.name)}</span>
+                    <span className="truncate font-medium">{countryName(r.name)}</span>
+                    {unknown && <span className="shrink-0 text-xs text-muted-foreground">(geo pending)</span>}
+                  </span>
+                  <span className="flex shrink-0 items-center gap-3">
+                    <span className="font-mono text-muted-foreground">{r.count}</span>
+                    <span className="w-9 text-right text-xs font-medium text-muted-foreground">{pct}%</span>
+                  </span>
+                </div>
+                <div className="h-2 overflow-hidden rounded-full bg-muted">
+                  <div className="h-full rounded-full bg-primary transition-[width] duration-500" style={{ width: `${(r.count / max) * 100}%` }} />
+                </div>
+              </li>
+            );
+          })}
         </ul>
       )}
     </Card>

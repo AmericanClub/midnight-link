@@ -85,7 +85,7 @@ const DEFAULT_STYLE = {
 
 function QRDialog({ open, onOpenChange, onSaved, existing }) {
   const editing = !!existing;
-  const [form, setForm] = useState({ name: "", destination_url: "", alias: "" });
+  const [form, setForm] = useState({ name: "", destination_url: "", alias: "", protection_preset: "off" });
   const [style, setStyle] = useState(DEFAULT_STYLE);
   const [loading, setLoading] = useState(false);
   const previewRef = useRef(null);
@@ -93,10 +93,10 @@ function QRDialog({ open, onOpenChange, onSaved, existing }) {
   React.useEffect(() => {
     if (open) {
       if (existing) {
-        setForm({ name: existing.name, destination_url: existing.destination_url, alias: existing.alias });
+        setForm({ name: existing.name, destination_url: existing.destination_url, alias: existing.alias, protection_preset: "off" });
         setStyle({ ...DEFAULT_STYLE, ...existing.style });
       } else {
-        setForm({ name: "", destination_url: "", alias: "" });
+        setForm({ name: "", destination_url: "", alias: "", protection_preset: "off" });
         setStyle(DEFAULT_STYLE);
       }
     }
@@ -110,7 +110,7 @@ function QRDialog({ open, onOpenChange, onSaved, existing }) {
         await api.patch(`/qr/${existing.id}`, { name: form.name, destination_url: form.destination_url, style });
         toast.success("QR updated — same code, new destination");
       } else {
-        const payload = { name: form.name, destination_url: form.destination_url, style };
+        const payload = { name: form.name, destination_url: form.destination_url, style, protection_preset: form.protection_preset };
         if (form.alias.trim()) payload.alias = form.alias.trim();
         await api.post("/qr", payload);
         toast.success("Dynamic QR created");
@@ -149,6 +149,20 @@ function QRDialog({ open, onOpenChange, onSaved, existing }) {
               <div className="space-y-2">
                 <Label>Custom alias <span className="text-muted-foreground">(optional)</span></Label>
                 <Input value={form.alias} onChange={(e) => setForm((f) => ({ ...f, alias: e.target.value }))} data-testid="qr-alias-input" className="font-mono" placeholder="menu24" />
+              </div>
+            )}
+            {!editing && (
+              <div className="space-y-2">
+                <Label>Protection preset</Label>
+                <Select value={form.protection_preset} onValueChange={(v) => setForm((f) => ({ ...f, protection_preset: v }))}>
+                  <SelectTrigger data-testid="qr-preset-select"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="off" data-testid="qr-preset-off">Off — log only, nothing blocked</SelectItem>
+                    <SelectItem value="moderate" data-testid="qr-preset-moderate">Moderate — block bots + Tor</SelectItem>
+                    <SelectItem value="strict" data-testid="qr-preset-strict">Strict — block bots, Tor, datacenter & proxy/VPN</SelectItem>
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground">One-click security. Fine-tune later from the QR's Stats page.</p>
               </div>
             )}
             <StyleControls style={style} setStyle={setStyle} />

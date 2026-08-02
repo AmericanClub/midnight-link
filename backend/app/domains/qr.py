@@ -10,6 +10,7 @@ from ..url_safety import validate_destination, UnsafeURLError
 from .workspace import get_current_workspace
 from .links import ALIAS_RE
 from .billing import enforce_quota
+from .security import DEFAULT_PROTECTION, PROTECTION_PRESETS
 
 router = APIRouter(prefix="/api/qr", tags=["qr"])
 
@@ -40,6 +41,7 @@ class QRCreate(BaseModel):
     alias: str | None = None
     qr_type: str = "url"
     style: QRStyle = Field(default_factory=QRStyle)
+    protection_preset: str | None = None
 
 
 class QRUpdate(BaseModel):
@@ -73,6 +75,14 @@ async def create_qr(payload: QRCreate, ws=Depends(get_current_workspace), user=D
         while await db.links.find_one({"alias": alias}):
             alias = gen_alias()
 
+    protection = {**DEFAULT_PROTECTION}
+    preset = payload.protection_preset
+    if preset and preset != "off":
+        if preset not in PROTECTION_PRESETS:
+            raise HTTPException(status_code=400, detail=f"Unknown protection preset '{preset}'")
+        protection.update(PROTECTION_PRESETS[preset])
+        protection["preset"] = preset
+
     qr = {
         "id": str(uuid.uuid4()),
         "workspace_id": ws["id"],
@@ -85,6 +95,7 @@ async def create_qr(payload: QRCreate, ws=Depends(get_current_workspace), user=D
         "redirect_type": 302,
         "is_qr": True,
         "click_count": 0,
+        "protection": protection,
         "created_by": user["id"],
         "created_at": now_iso(),
         "updated_at": now_iso(),

@@ -80,7 +80,7 @@ async def overview(
         "total_links": total_links,
         "active_qr": active_qr,
         "timeseries": await analytics_store.timeseries(flt),
-        "top_countries": await analytics_store.breakdown(flt, "country", 5),
+        "top_countries": await analytics_store.breakdown(flt, "country", 8),
         "top_devices": await analytics_store.breakdown(flt, "device", 5),
         "top_links": top_links,
     }

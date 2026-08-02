@@ -20,6 +20,7 @@ import ProtectionPage from "@/pages/ProtectionPage";
 import DevelopersPage from "@/pages/DevelopersPage";
 import AdminPage from "@/pages/AdminPage";
 import BillingPage from "@/pages/BillingPage";
+import DomainsPage from "@/pages/DomainsPage";
 import SettingsPage from "@/pages/SettingsPage";
 import NotFound from "@/pages/NotFound";
 
@@ -45,6 +46,7 @@ function App() {
               <Route path="/app/developers" element={<ProtectedRoute><DevelopersPage /></ProtectedRoute>} />
               <Route path="/app/admin" element={<ProtectedRoute><AdminPage /></ProtectedRoute>} />
               <Route path="/app/billing" element={<ProtectedRoute><BillingPage /></ProtectedRoute>} />
+              <Route path="/app/domains" element={<ProtectedRoute><DomainsPage /></ProtectedRoute>} />
               <Route path="/app/settings" element={<ProtectedRoute><SettingsPage /></ProtectedRoute>} />
               <Route path="*" element={<NotFound />} />
             </Routes>

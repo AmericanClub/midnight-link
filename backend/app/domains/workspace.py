@@ -36,8 +36,14 @@ async def list_user_workspaces(user_id: str) -> list:
     ws_ids = [m["workspace_id"] for m in members]
     role_map = {m["workspace_id"]: m["role"] for m in members}
     workspaces = await db.workspaces.find({"id": {"$in": ws_ids}}, {"_id": 0}).to_list(100)
+    primaries = await db.custom_domains.find(
+        {"workspace_id": {"$in": ws_ids}, "is_primary": True, "status": "verified"},
+        {"_id": 0, "workspace_id": 1, "domain": 1},
+    ).to_list(100)
+    primary_map = {p["workspace_id"]: p["domain"] for p in primaries}
     for w in workspaces:
         w["role"] = role_map.get(w["id"], "member")
+        w["primary_domain"] = primary_map.get(w["id"])
     return workspaces
 
 

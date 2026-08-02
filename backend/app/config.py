@@ -17,6 +17,8 @@ class Settings:
     ADMIN_EMAIL = os.environ.get("ADMIN_EMAIL", "admin@midgate.io")
     ADMIN_PASSWORD = os.environ.get("ADMIN_PASSWORD", "Admin123!")
     CORS_ORIGINS = os.environ.get("CORS_ORIGINS", "*")
+    EDGE_HOST = os.environ.get("EDGE_HOST", "edge.midgate.io")
+    DOMAIN_VERIFY_PREFIX = os.environ.get("DOMAIN_VERIFY_PREFIX", "_midgate-challenge")
 
 
 settings = Settings()

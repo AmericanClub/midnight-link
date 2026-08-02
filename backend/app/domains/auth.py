@@ -10,10 +10,9 @@ from ..security import (
     hash_password, verify_password, create_access_token, create_refresh_token,
     decode_token, get_current_user, set_auth_cookies, clear_auth_cookies,
 )
-from ..utils import now_iso
+from ..utils import now_iso, client_ip
 from ..providers import email_provider
 from .workspace import create_default_workspace, list_user_workspaces
-
 router = APIRouter(prefix="/api/auth", tags=["auth"])
 
 MAX_ATTEMPTS = 5
@@ -89,7 +88,7 @@ async def register(payload: RegisterInput, response: Response):
 @router.post("/login")
 async def login(payload: LoginInput, request: Request, response: Response):
     email = payload.email.lower().strip()
-    identifier = f"{request.client.host if request.client else 'x'}:{email}"
+    identifier = f"{client_ip(request)}:{email}"
     await _check_lockout(identifier)
     user = await db.users.find_one({"email": email})
     if not user or not verify_password(payload.password, user["password_hash"]):
@@ -129,7 +128,11 @@ async def refresh(request: Request, response: Response):
         raise HTTPException(status_code=401, detail="Invalid token type")
     user_id = payload["sub"]
     from bson import ObjectId
-    user = await db.users.find_one({"_id": ObjectId(user_id)})
+    from bson.errors import InvalidId
+    try:
+        user = await db.users.find_one({"_id": ObjectId(user_id)})
+    except InvalidId:
+        raise HTTPException(status_code=401, detail="Invalid refresh token")
     if not user:
         raise HTTPException(status_code=401, detail="User not found")
     set_auth_cookies(response, create_access_token(user_id, user["email"]), create_refresh_token(user_id))
@@ -168,7 +171,11 @@ async def reset_password(payload: ResetInput):
     if expires < datetime.now(timezone.utc):
         raise HTTPException(status_code=400, detail="Invalid or expired reset token")
     from bson import ObjectId
-    await db.users.update_one({"_id": ObjectId(doc["user_id"])},
-                              {"$set": {"password_hash": hash_password(payload.password)}})
+    from bson.errors import InvalidId
+    try:
+        await db.users.update_one({"_id": ObjectId(doc["user_id"])},
+                                  {"$set": {"password_hash": hash_password(payload.password)}})
+    except InvalidId:
+        raise HTTPException(status_code=400, detail="Invalid or expired reset token")
     await db.password_reset_tokens.update_one({"token": payload.token}, {"$set": {"used": True}})
     return {"ok": True, "message": "Password updated successfully"}

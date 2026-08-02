@@ -26,6 +26,7 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
+  DialogDescription,
   DialogFooter,
 } from "@/components/ui/dialog";
 import {
@@ -68,6 +69,7 @@ function CreateLinkDialog({ open, onOpenChange, onCreated }) {
       <DialogContent data-testid="create-link-dialog">
         <DialogHeader>
           <DialogTitle className="font-display">New Smart Link</DialogTitle>
+          <DialogDescription>Create a short, protected link with real-time analytics.</DialogDescription>
         </DialogHeader>
         <form onSubmit={submit} className="space-y-4">
           <div className="space-y-2">

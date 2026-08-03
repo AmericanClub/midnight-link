@@ -8,8 +8,8 @@ export default function PrivacyPage() {
   return (
     <LegalLayout title="Privacy Policy" updated={UPDATED} testid="privacy-page">
       <p>
-        This Privacy Policy explains how MidGate ("we", "us", or "our"), operated by an
-        independent sole proprietor based in Indonesia, collects, uses, and protects your
+        This Privacy Policy explains how MidGate ("we", "us", or "our"), a service
+        operated from Siak, Indonesia, collects, uses, and protects your
         information when you use midgate.co and the MidGate service (the "Service"). By using
         the Service you agree to this Policy.
       </p>

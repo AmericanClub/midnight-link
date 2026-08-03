@@ -9,8 +9,8 @@ export default function RefundPage() {
     <LegalLayout title="Refund & Cancellation Policy" updated={UPDATED} testid="refund-page">
       <p>
         This Refund &amp; Cancellation Policy explains how subscriptions to MidGate
-        (midgate.co) are billed, cancelled, and refunded. MidGate is operated by an independent
-        sole proprietor based in Indonesia. This Policy forms part of our{" "}
+        (midgate.co) are billed, cancelled, and refunded. MidGate is a service operated
+        from Siak, Indonesia. This Policy forms part of our{" "}
         <Link to="/terms">Terms of Service</Link>.
       </p>
 

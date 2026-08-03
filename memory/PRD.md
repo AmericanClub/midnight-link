@@ -1,5 +1,13 @@
 # MidGate — Product Requirements & Progress
 
+## Implemented — Iteration 16: Midtrans merchant-readiness (contact + legal notice) (2026-08-03)
+- **Business contact (Midtrans requirement)**: added clickable WhatsApp **+62 851-1121-9661** (wa.me/6285111219661) + email on the Contact page (Email/WhatsApp cards) and in the Landing footer.
+- **Legal Notice / operator identity**: privacy-safe public identity chosen by user — "MidGate — operated from Siak, Indonesia" (NO personal name, NO street address; full KYC goes privately to Midtrans). Applied to Terms/Privacy/Refund intros, LegalLayout footer (with email + WhatsApp), and Landing footer.
+- **Digital service delivery clause** added to Terms §1 (access provisioned automatically & immediately after payment; no physical shipment) — satisfies Midtrans delivery/fulfillment expectation for digital services.
+- Assessment vs Midtrans T&C template: MET — Terms, Privacy, Refund, product/service description, Pricing, business contact (email+WhatsApp), copyright, digital delivery, acceptable-use (anti phishing/malware). Remaining is off-site KYC (KTP/NPWP/bank) submitted directly to Midtrans.
+- Verified via screenshots (Contact cards, Terms intro shows Siak + delivery clause). Text/content changes; structural components previously tested in iteration_15.
+
+
 ## Implemented — Iteration 15: Payment-gateway readiness + security hardening + branding (2026-08-03)
 - **Legal pages** (`LegalLayout.jsx` + `TermsPage/PrivacyPage/RefundPage`): /terms, /privacy, /refund with professional content (sole-proprietor / Indonesia, contact support@midgate.co, 7-day refund). Linked in Landing footer (Terms/Privacy/Refund/Contact/Pricing) + register legal note. `.legal-prose` styling in index.css.
 - **Branding**: favicon.svg (indigo shield-M) + tab title "MidGate — Every Click. Protected." + description/OG meta in public/index.html (was "Emergent | Fullstack App").

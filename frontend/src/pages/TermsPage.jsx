@@ -10,8 +10,8 @@ export default function TermsPage() {
       <p>
         These Terms of Service ("Terms") govern your access to and use of MidGate (the
         "Service"), a link management and traffic-protection platform available at
-        midgate.co. MidGate is operated by an independent sole proprietor based in
-        Indonesia ("MidGate", "we", "us", or "our"). By creating an account or using the
+        midgate.co. MidGate is a service operated from Siak, Indonesia
+        ("MidGate", "we", "us", or "our"). By creating an account or using the
         Service, you agree to be bound by these Terms. If you do not agree, do not use the
         Service.
       </p>

@@ -39,7 +39,7 @@ export default function Pricing() {
           <p className="mb-3 text-xs font-semibold uppercase tracking-[0.2em] text-primary">Pricing</p>
           <h1 className="font-display text-4xl font-bold tracking-tight">Simple plans that scale</h1>
           <p className="mt-4 text-muted-foreground">
-            Start free. Billing (QRIS) is prepared and activates in the billing milestone.
+            Start free and upgrade whenever you're ready — secure payments, cancel anytime.
           </p>
         </div>
 

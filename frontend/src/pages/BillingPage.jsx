@@ -213,7 +213,7 @@ export default function BillingPage() {
                 <Button
                   variant={c.variant}
                   disabled={c.disabled || checkout.isPending}
-                  onClick={() => c.contact ? toast.info("Our team will reach out — contact sales@midgate.io") : checkout.mutate(p.id)}
+                  onClick={() => c.contact ? toast.info("Our team will reach out — contact sales@midgate.co") : checkout.mutate(p.id)}
                   data-testid={`billing-cta-${p.id}`}
                   className="gap-2"
                 >

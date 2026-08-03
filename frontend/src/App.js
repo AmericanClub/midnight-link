@@ -26,6 +26,9 @@ import TeamPage from "@/pages/TeamPage";
 import AcceptInvitePage from "@/pages/AcceptInvitePage";
 import SupportPage from "@/pages/SupportPage";
 import ContactPage from "@/pages/ContactPage";
+import TermsPage from "@/pages/TermsPage";
+import PrivacyPage from "@/pages/PrivacyPage";
+import RefundPage from "@/pages/RefundPage";
 import SettingsPage from "@/pages/SettingsPage";
 import NotFound from "@/pages/NotFound";
 
@@ -45,6 +48,9 @@ function App() {
               <Route path="/reset-password" element={<ResetPassword />} />
               <Route path="/accept-invite" element={<AcceptInvitePage />} />
               <Route path="/contact" element={<ContactPage />} />
+              <Route path="/terms" element={<TermsPage />} />
+              <Route path="/privacy" element={<PrivacyPage />} />
+              <Route path="/refund" element={<RefundPage />} />
               <Route path="/app" element={<ProtectedRoute><Overview /></ProtectedRoute>} />
               <Route path="/app/links" element={<ProtectedRoute><LinksPage /></ProtectedRoute>} />
               <Route path="/app/links/:id" element={<ProtectedRoute><LinkDetail /></ProtectedRoute>} />

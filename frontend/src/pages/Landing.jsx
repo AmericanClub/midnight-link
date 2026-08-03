@@ -183,7 +183,11 @@ export default function Landing() {
         <div className="mx-auto flex max-w-7xl flex-col items-center justify-between gap-4 px-4 py-8 sm:flex-row sm:px-6 lg:px-8">
           <Logo />
           <div className="flex flex-col items-center gap-2 sm:items-end">
-            <div className="flex items-center gap-4 text-sm">
+            <div className="flex flex-wrap items-center justify-center gap-x-4 gap-y-2 text-sm">
+              <Link to="/pricing" className="text-muted-foreground transition-colors hover:text-foreground" data-testid="footer-pricing-link">Pricing</Link>
+              <Link to="/terms" className="text-muted-foreground transition-colors hover:text-foreground" data-testid="footer-terms-link">Terms</Link>
+              <Link to="/privacy" className="text-muted-foreground transition-colors hover:text-foreground" data-testid="footer-privacy-link">Privacy</Link>
+              <Link to="/refund" className="text-muted-foreground transition-colors hover:text-foreground" data-testid="footer-refund-link">Refund</Link>
               <Link to="/contact" className="text-muted-foreground transition-colors hover:text-foreground" data-testid="footer-contact-link">Contact</Link>
               <a href="mailto:support@midgate.co" className="text-muted-foreground transition-colors hover:text-foreground" data-testid="footer-support-email">support@midgate.co</a>
             </div>

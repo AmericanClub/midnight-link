@@ -76,6 +76,11 @@ export default function Register() {
         <Button type="submit" className="w-full" disabled={loading} data-testid="register-submit-btn">
           {loading ? "Creating…" : t("auth.register")}
         </Button>
+        <p className="text-center text-xs text-muted-foreground" data-testid="register-legal-note">
+          By creating an account, you agree to our{" "}
+          <Link to="/terms" className="text-primary hover:underline">Terms of Service</Link>{" "}and{" "}
+          <Link to="/privacy" className="text-primary hover:underline">Privacy Policy</Link>.
+        </p>
       </form>
       <p className="mt-6 text-center text-sm text-muted-foreground">
         {t("auth.haveAccount")}{" "}

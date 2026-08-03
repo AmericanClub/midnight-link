@@ -190,6 +190,7 @@ export default function Landing() {
               <Link to="/refund" className="text-muted-foreground transition-colors hover:text-foreground" data-testid="footer-refund-link">Refund</Link>
               <Link to="/contact" className="text-muted-foreground transition-colors hover:text-foreground" data-testid="footer-contact-link">Contact</Link>
               <a href="mailto:support@midgate.co" className="text-muted-foreground transition-colors hover:text-foreground" data-testid="footer-support-email">support@midgate.co</a>
+              <a href="https://wa.me/6285111219661" target="_blank" rel="noreferrer" className="text-muted-foreground transition-colors hover:text-foreground" data-testid="footer-whatsapp">WhatsApp +62 851-1121-9661</a>
             </div>
             <p className="text-sm text-muted-foreground">
               © {new Date().getFullYear()} MidGate. Every Click. Protected.

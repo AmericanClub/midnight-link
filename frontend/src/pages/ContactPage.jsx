@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import { Link } from "react-router-dom";
 import { toast } from "sonner";
-import { ArrowLeft, Mail, CheckCircle2, Send } from "lucide-react";
+import { ArrowLeft, Mail, CheckCircle2, Send, MessageCircle } from "lucide-react";
 import Logo from "@/components/Logo";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -13,6 +13,8 @@ import api, { formatApiError } from "@/lib/api";
 import { CATEGORIES } from "@/components/TicketThread";
 
 const SUPPORT_EMAIL = "support@midgate.co";
+const WHATSAPP_DISPLAY = "+62 851-1121-9661";
+const WHATSAPP_LINK = "https://wa.me/6285111219661?text=" + encodeURIComponent("Halo MidGate, saya ingin bertanya.");
 
 export default function ContactPage() {
   const [form, setForm] = useState({ name: "", email: "", subject: "", category: "other", message: "" });
@@ -43,9 +45,39 @@ export default function ContactPage() {
         <div className="mb-8 text-center">
           <h1 className="font-display text-3xl font-bold tracking-tight sm:text-4xl">Contact us</h1>
           <p className="mt-3 text-muted-foreground">
-            Questions, bugs, or abuse reports? Send us a message — or email{" "}
-            <a href={`mailto:${SUPPORT_EMAIL}`} className="text-primary hover:underline" data-testid="contact-email">{SUPPORT_EMAIL}</a>.
+            Questions, bugs, or abuse reports? Reach us by email or WhatsApp — or send a message below.
           </p>
+        </div>
+
+        <div className="mb-8 grid gap-4 sm:grid-cols-2">
+          <a
+            href={`mailto:${SUPPORT_EMAIL}`}
+            data-testid="contact-email-card"
+            className="group flex items-center gap-4 rounded-xl border border-border bg-card p-4 transition-colors hover:border-primary/50"
+          >
+            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+              <Mail className="h-5 w-5" />
+            </div>
+            <div className="min-w-0">
+              <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Email</p>
+              <p className="truncate font-medium text-foreground group-hover:text-primary" data-testid="contact-email">{SUPPORT_EMAIL}</p>
+            </div>
+          </a>
+          <a
+            href={WHATSAPP_LINK}
+            target="_blank"
+            rel="noreferrer"
+            data-testid="contact-whatsapp-card"
+            className="group flex items-center gap-4 rounded-xl border border-border bg-card p-4 transition-colors hover:border-emerald-500/50"
+          >
+            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
+              <MessageCircle className="h-5 w-5" />
+            </div>
+            <div className="min-w-0">
+              <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">WhatsApp</p>
+              <p className="truncate font-medium text-foreground group-hover:text-emerald-600" data-testid="contact-whatsapp">{WHATSAPP_DISPLAY}</p>
+            </div>
+          </a>
         </div>
 
         <Card className="p-6 sm:p-8">

@@ -23,6 +23,12 @@ export default function TermsPage() {
         webhooks, and team workspaces. Features available to you depend on your subscription
         plan.
       </p>
+      <p>
+        MidGate is a digital, subscription-based software service. Access to paid features is
+        provisioned <strong>automatically and immediately</strong> after a successful payment —
+        there is no physical product or shipment. You access the Service online at any time
+        through your account at midgate.co.
+      </p>
 
       <h2>2. Accounts</h2>
       <ul>

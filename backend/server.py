@@ -61,18 +61,33 @@ app.add_middleware(
 )
 
 
+LEGACY_ADMIN_EMAILS = ["admin@midgate.io"]
+
+
 async def seed_admin():
-    existing = await db.users.find_one({"email": settings.ADMIN_EMAIL})
+    email = settings.ADMIN_EMAIL
+    existing = await db.users.find_one({"email": email})
+    if existing is None:
+        # Migrate a legacy admin account to the new email (keeps password/role/workspace).
+        for legacy in LEGACY_ADMIN_EMAILS:
+            if legacy == email:
+                continue
+            legacy_admin = await db.users.find_one({"email": legacy, "role": "admin"})
+            if legacy_admin:
+                await db.users.update_one({"_id": legacy_admin["_id"]}, {"$set": {"email": email}})
+                logger.info("Renamed admin %s -> %s", legacy, email)
+                existing = await db.users.find_one({"email": email})
+                break
     if existing is None:
         res = await db.users.insert_one({
-            "name": "MidGate Admin", "email": settings.ADMIN_EMAIL,
+            "name": "MidGate Admin", "email": email,
             "password_hash": hash_password(settings.ADMIN_PASSWORD),
             "role": "admin", "created_at": now_iso(),
         })
         await create_default_workspace(str(res.inserted_id), "MidGate Admin")
-        logger.info("Seeded admin user %s", settings.ADMIN_EMAIL)
+        logger.info("Seeded admin user %s", email)
     elif not verify_password(settings.ADMIN_PASSWORD, existing["password_hash"]):
-        await db.users.update_one({"email": settings.ADMIN_EMAIL},
+        await db.users.update_one({"email": email},
                                   {"$set": {"password_hash": hash_password(settings.ADMIN_PASSWORD)}})
 
 

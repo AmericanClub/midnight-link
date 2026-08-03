@@ -13,6 +13,7 @@ from pydantic import BaseModel, EmailStr, Field
 from ..db import db
 from ..utils import now_iso
 from ..security import get_current_user
+from ..intel import rate_limiter
 from .notifications import create_notification
 
 router = APIRouter(prefix="/api/support", tags=["support"])
@@ -72,7 +73,11 @@ class PublicTicket(BaseModel):
 
 
 @router.post("/public")
-async def create_public_ticket(payload: PublicTicket):
+async def create_public_ticket(payload: PublicTicket, request: Request):
+    ip = (request.headers.get("x-forwarded-for", "").split(",")[0].strip()
+          or (request.client.host if request.client else "unknown"))
+    if not rate_limiter.allow(f"contact:{ip}", 5):
+        raise HTTPException(status_code=429, detail="Too many requests. Please try again in a minute.")
     category = payload.category if payload.category in CATEGORIES else "other"
     doc = {
         "id": str(uuid.uuid4()), "subject": payload.subject.strip(), "category": category,

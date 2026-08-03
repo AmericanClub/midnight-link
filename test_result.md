@@ -194,7 +194,7 @@ test_plan:
 
 agent_communication:
     - agent: "main"
-      message: "Iteration 11: validate two new UI links (Contact navbar, Back-to-home on auth pages) + previously-implemented Admin Console and suspension logic (backend+frontend). Credentials in /app/memory/test_credentials.md: admin@midgate.io/Admin123!, teammate@example.com/Teammate123!. IMPORTANT: any suspend you toggle for verification must be restored to unsuspended afterwards; never leave admin or teammate accounts suspended."
+      message: "Iteration 15 (payment-gateway readiness + security hardening). Changes to test: (1) NEW legal pages /terms /privacy /refund (LegalLayout) + footer links + register legal note; (2) favicon.svg + tab title 'MidGate — Every Click. Protected.'; (3) SECURITY FIXES: CORS now allowlist (backend echoes only trusted origins, rejects others), webhook SSRF (reject URLs resolving to private IPs at create + re-check at delivery via validate_public_url), public contact form rate-limited (5/min/IP -> 429), regex search inputs re.escape'd (links.py, admin.py). Verify none of these broke existing flows. Credentials: admin@midgate.co/Admin123!, teammate@example.com/Teammate123! (NOTE: admin email is now .co not .io). Public contact endpoint: POST /api/support/public. Webhook create: POST /api/webhooks (needs workspace)."
 
 iter14_changes:
   - task: "Blocked click count in Smart Links list"

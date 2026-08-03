@@ -17,7 +17,7 @@ from pydantic import BaseModel, Field
 
 from ..db import db
 from ..utils import now_iso
-from ..url_safety import validate_destination, UnsafeURLError
+from ..url_safety import validate_destination, validate_public_url, UnsafeURLError
 from .workspace import get_current_workspace
 
 router = APIRouter(prefix="/api/webhooks", tags=["webhooks"])
@@ -57,19 +57,28 @@ async def deliver(webhook: dict, event_type: str, data: dict) -> dict:
         "X-MidGate-Signature": f"t={ts},v1={sign(webhook['secret'], ts, body)}",
     }
     attempts, status, status_code, error = 0, "failed", None, None
-    for delay in _RETRY_DELAYS:
-        if delay:
-            await asyncio.sleep(delay)
-        attempts += 1
-        try:
-            resp = await _post(webhook["url"], body, headers)
-            status_code = resp.status_code
-            if 200 <= resp.status_code < 300:
-                status, error = "success", None
-                break
-            error = f"HTTP {resp.status_code}"
-        except Exception as e:
-            error = str(e)[:300]
+    # SSRF guard: re-check that the target still resolves to a public address
+    try:
+        await asyncio.to_thread(validate_public_url, webhook["url"])
+        blocked = None
+    except UnsafeURLError as e:
+        blocked = str(e)
+    if blocked:
+        error = f"Blocked: {blocked}"
+    else:
+        for delay in _RETRY_DELAYS:
+            if delay:
+                await asyncio.sleep(delay)
+            attempts += 1
+            try:
+                resp = await _post(webhook["url"], body, headers)
+                status_code = resp.status_code
+                if 200 <= resp.status_code < 300:
+                    status, error = "success", None
+                    break
+                error = f"HTTP {resp.status_code}"
+            except Exception as e:
+                error = str(e)[:300]
 
     record = {
         "id": delivery_id, "webhook_id": webhook["id"], "workspace_id": webhook["workspace_id"],
@@ -151,7 +160,7 @@ def _validate_events(events: list[str]):
 
 def _validate_url(url: str) -> str:
     try:
-        return validate_destination(url)
+        return validate_public_url(url)
     except UnsafeURLError as e:
         raise HTTPException(status_code=400, detail=str(e))
 

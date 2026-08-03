@@ -120,9 +120,10 @@ async def list_links(ws=Depends(get_current_workspace), search: str | None = Que
     if status:
         flt["status"] = status
     if search:
-        flt["$or"] = [{"name": {"$regex": search, "$options": "i"}},
-                      {"alias": {"$regex": search, "$options": "i"}},
-                      {"destination_url": {"$regex": search, "$options": "i"}}]
+        esc = re.escape(search.strip()[:100])
+        flt["$or"] = [{"name": {"$regex": esc, "$options": "i"}},
+                      {"alias": {"$regex": esc, "$options": "i"}},
+                      {"destination_url": {"$regex": esc, "$options": "i"}}]
     total = await db.links.count_documents(flt)
     cur = db.links.find(flt).sort("created_at", -1).skip(skip).limit(limit)
     items = [_clean(x) async for x in cur]

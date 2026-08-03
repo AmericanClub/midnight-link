@@ -1,4 +1,5 @@
 import ipaddress
+import socket
 from urllib.parse import urlparse, urlunparse
 
 BLOCKED_SCHEMES = {"javascript", "data", "file", "vbscript", "blob", "about"}
@@ -47,4 +48,32 @@ def validate_destination(url: str) -> str:
     normalized = urlunparse(
         (scheme, parsed.netloc, parsed.path or "/", parsed.params, parsed.query, parsed.fragment)
     )
+    return normalized
+
+
+def _host_resolves_to_blocked(host: str) -> bool:
+    """Resolve a hostname and report whether ANY resolved address is private/reserved.
+
+    Used to defend server-side requests (webhooks) against SSRF via a public
+    hostname that resolves to an internal IP. Resolution failures do not block
+    (there is no internal target to reach).
+    """
+    try:
+        infos = socket.getaddrinfo(host, None)
+    except (socket.gaierror, UnicodeError, OSError):
+        return False
+    for info in infos:
+        ip = str(info[4][0]).split("%")[0]
+        if _is_blocked_ip(ip):
+            return True
+    return False
+
+
+def validate_public_url(url: str) -> str:
+    """Like validate_destination, but also rejects hostnames that resolve to a
+    private/loopback/link-local/reserved address (SSRF hardening for webhooks)."""
+    normalized = validate_destination(url)
+    host = (urlparse(normalized).hostname or "").lower()
+    if _host_resolves_to_blocked(host):
+        raise UnsafeURLError("Destination resolves to a private or blocked address")
     return normalized

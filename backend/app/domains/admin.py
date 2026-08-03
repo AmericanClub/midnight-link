@@ -1,4 +1,5 @@
 import ipaddress
+import re
 import uuid
 from datetime import datetime, timezone, timedelta
 
@@ -156,8 +157,9 @@ async def del_global(entry_id: str, admin=Depends(require_admin)):
 async def users(admin=Depends(require_admin), search: str | None = Query(None), limit: int = Query(50, le=200)):
     flt = {}
     if search:
-        flt = {"$or": [{"email": {"$regex": search, "$options": "i"}},
-                       {"name": {"$regex": search, "$options": "i"}}]}
+        esc = re.escape(search.strip()[:100])
+        flt = {"$or": [{"email": {"$regex": esc, "$options": "i"}},
+                       {"name": {"$regex": esc, "$options": "i"}}]}
     rows = await db.users.find(flt, {"_id": 1, "name": 1, "email": 1, "role": 1, "created_at": 1, "suspended": 1}).sort("created_at", -1).limit(limit).to_list(limit)
     for r in rows:
         r["id"] = str(r.pop("_id"))

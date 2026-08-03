@@ -52,10 +52,12 @@ app.include_router(team.router)
 app.include_router(notifications.router)
 app.include_router(support.router)
 
+_cors_origins = [o.strip() for o in settings.CORS_ORIGINS.split(",") if o.strip()]
+_cors_wildcard = _cors_origins == ["*"]
 app.add_middleware(
     CORSMiddleware,
-    allow_credentials=True,
-    allow_origins=(["*"] if settings.CORS_ORIGINS == "*" else settings.CORS_ORIGINS.split(",")),
+    allow_credentials=not _cors_wildcard,
+    allow_origins=_cors_origins,
     allow_methods=["*"],
     allow_headers=["*"],
 )

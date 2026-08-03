@@ -1,0 +1,21 @@
+{
+  "summary": "Iteration 15: Verified legal pages (/terms /privacy /refund) render with data-testid terms-page/privacy-page/refund-page, h1 headings and multiple h2 sections (Terms=13, Privacy=11, Refund=7). Header logo (legal-logo-link) and Home button (legal-back-home) both navigate back to /. Landing footer contains footer-pricing/terms/privacy/refund/contact links; footer-terms/privacy/refund navigate to correct pages. /register shows register-legal-note with working /terms and /privacy links. document.title='MidGate — Every Click. Protected.' and /favicon.svg returns 200 image/svg+xml. Backend security fixes verified: (a) CORS - FastAPI direct on localhost:8001 does NOT echo Access-Control-Allow-Origin for evil.example.com, echoes trusted preview origin correctly. (b) Webhook SSRF - POST /api/webhooks rejects http://127.0.0.1, http://169.254.169.254, http://localhost/x with 400; accepts https://example.com/webhook (201) and DELETE succeeds. (c) Contact rate limit - POST /api/support/public returns {ok:true} then 429 after 5 within a minute. (d) Search regressions - /api/links?search=test and /api/admin/users?search=admin return 200; special regex inputs '.*', '(a+)+', '[' return 200 quickly (<5s). (e) Auth regression - admin@midgate.co and teammate@example.com login via API and UI both work; admin reaches /admin (redirects there directly on login). Pytest: 18/18 passed.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {"ui_bugs": [], "integration_issues": [], "design_issues": []},
+  "test_report_links": ["/app/backend/tests/test_iteration_15.py", "/app/test_reports/pytest/iteration_15.xml"],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "CORS allowlist explicit with allow_credentials=True (server.py L58-64) — correct hardening.",
+    "url_safety.validate_public_url + webhooks._validate_url + deliver re-check gives defense-in-depth against SSRF including DNS rebinding.",
+    "rate_limiter 5/60s on /api/support/public prevents contact spam.",
+    "re.escape on search inputs in links.py and admin.py prevents ReDoS and regex-injection."
+  ],
+  "updated_files": ["/app/backend/tests/test_iteration_15.py"],
+  "success_rate": {"backend": "100% (18/18)", "frontend": "100%"},
+  "test_credentials": "admin@midgate.co/Admin123!, teammate@example.com/Teammate123!",
+  "seed_data_creation": "Created & deleted one webhook (https://example.com/webhook) as part of SSRF-allow test. Created ~7 public support tickets with TEST_ prefix subjects (some 429'd) — cannot be cleaned up via public API but rate-limit test ensures no future spam.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Admin login redirects directly to /admin (not /app) — if writing UI tests, wait_for_url should accept either **/app** or **/admin**. Public /api/support/public created several TEST_ tickets that will be visible to admin under Support Tickets — main agent may want to clean via /api/admin/support if desired.",
+  "rca of the issue": "N/A — all remediated security features verified working end-to-end."
+}

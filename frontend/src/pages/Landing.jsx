@@ -185,7 +185,7 @@ export default function Landing() {
           <div className="flex flex-col items-center gap-2 sm:items-end">
             <div className="flex items-center gap-4 text-sm">
               <Link to="/contact" className="text-muted-foreground transition-colors hover:text-foreground" data-testid="footer-contact-link">Contact</Link>
-              <a href="mailto:support@midgate.app" className="text-muted-foreground transition-colors hover:text-foreground" data-testid="footer-support-email">support@midgate.app</a>
+              <a href="mailto:support@midgate.co" className="text-muted-foreground transition-colors hover:text-foreground" data-testid="footer-support-email">support@midgate.co</a>
             </div>
             <p className="text-sm text-muted-foreground">
               © {new Date().getFullYear()} MidGate. Every Click. Protected.

@@ -12,7 +12,7 @@ import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@
 import api, { formatApiError } from "@/lib/api";
 import { CATEGORIES } from "@/components/TicketThread";
 
-const SUPPORT_EMAIL = "support@midgate.app";
+const SUPPORT_EMAIL = "support@midgate.co";
 
 export default function ContactPage() {
   const [form, setForm] = useState({ name: "", email: "", subject: "", category: "other", message: "" });

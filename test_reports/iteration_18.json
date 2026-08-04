@@ -1,0 +1,38 @@
+{
+  "summary": "Iteration 18 — Payment Partners REDESIGN regression. Backend: 24/24 pytest passing in test_iteration_18_partners_redesign.py — new detail shape {partner,stats} only (no embedded charges/deliveries), new paginated /charges and /deliveries endpoints (limit=15/page, page/pages/total shape), status filter (paid/pending/expired ; success/failed), reference regex search with $regex-escape (literal '.*' returns 0), sanitization fix VERIFIED (short customer.name='A' + mobile='0812' now returns 200 with a real Mayar link instead of the iteration_17 minor 502), min/max amount (400), missing/blank reference (422), inactive/bad/missing key on /api/pay/* (401), teammate RBAC (403 on /api/admin/partners), spoofed public Mayar webhook does NOT flip pending→paid (server re-verifies), rotate-key/rotate-secret/patch-webhook. Frontend: /admin/partners full flow verified — list section renders, New partner dialog creates partner and shows credentials-once (partner-new-apikey/partner-new-secret), row appears, clicking Manage opens full-width PartnerDetail (verified NOT inside role=dialog), partner-back returns to list, tabs (charges/deliveries/settings) all switch, Charges filter chips + reference search + server-side pagination verified with 18 seeded charges (page 1 = 15 rows, '18 total · page 1 of 2', prev disabled, next enabled → page 2 = 3 rows; filter-paid → 6 rows each with partner-resend-<id>; search 'UIREF-00' → 10 rows), Deliveries tab renders empty state 'No deliveries match', Settings tab edits webhook (Save shows Updated toast), rotate-key reveals partner-rotated-key, toggle-active flips state, delete removes the partner and returns to the list. Final partner list is EMPTY (verified via API + Mongo count = 0) — operator can safely create real 'midnight' partner.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iteration_18_partners_redesign.py",
+    "/app/test_reports/pytest/iteration_18.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "partner_pay._paginate correctly caps limit at 100, sorts by created_at desc, and returns the standard {items,total,page,pages} shape reused for both charges and deliveries — good.",
+    "partner_charges search uses re.escape on the q string before building the $regex, so regex metacharacters cannot DoS the backend (verified with q='.*' returning 0 hits, not a scan-all).",
+    "partner_deliveries endpoint projects out the full payload from the list response — payload can be very large per delivery, so this is the correct choice; individual delivery inspection would require a separate endpoint if ever needed.",
+    "partner_detail no longer embeds charges/deliveries — the two paginated sub-endpoints handle that, which fixes the O(n) growth of the detail response and lets the UI paginate lazily.",
+    "Short customer.name/mobile sanitization at partner_pay.py L223-228 mirrors the existing email fallback pattern. Verified end-to-end: a request with name='A' and mobile='0812' now succeeds where iteration_17 returned 502.",
+    "AdminConsole.jsx PartnerDetail correctly gates queries on partnerId and uses React-Query invalidation on parent list when returning via onBack — no stale row lingering after deletes in real usage.",
+    "Suggestion (non-blocking): Pager component hides itself when total===0, but for the empty search case the user might briefly wonder if pagination exists. Not a real bug — the 'No charges match' empty state is clear.",
+    "Suggestion (non-blocking): partner-delete currently has no confirmation dialog. For a first-party admin console this is acceptable, but adding a confirm() or shadcn AlertDialog would prevent accidental cascade deletes."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iteration_18_partners_redesign.py"
+  ],
+  "success_rate": {"backend": "100% (24/24)", "frontend": "100% (all UI flows verified: create → detail → tabs → filter → search → pagination → rotate → toggle → delete)"},
+  "test_credentials": "admin@midgate.co / Admin123!  ; teammate@example.com / Teammate123!",
+  "seed_data_creation": "Test-only seeding: (a) backend test class TestPaginatedCharges/TestPaginatedDeliveries insert docs prefixed 'qa-seed-'/'qa-dlv-' bound to a temporary QA partner and delete them in fixture teardown; (b) one UI-pagination test seeded 18 partner_charges + 1 partner (qa-ui-pag-*) directly in Mongo, then deleted via UI + a final admin cascade sweep. Verified after run: /api/admin/partners returns [], Mongo partners=0, partner_charges qa-* prefix=0, partner_webhook_deliveries qa-* prefix=0. Real 'midnight' partner can be created in a clean state.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "test_iteration_18_partners_redesign.py is the current regression suite for the Payment Partners feature (supersedes iter17's coverage for the endpoints that changed shape). Run WITHOUT xdist parallelism (pytest -n0) — the classic /charges create tests hit real Mayar prod and are sensitive to Cloudflare rate-limits; a single-worker run in ~20s is reliable. The iter17 test_iteration_17_partners.py still exists but its TestPartnerCRUD.test_detail_has_stats_charges_deliveries expects the OLD detail shape (charges/deliveries arrays embedded) and will now FAIL — it can be deleted or updated to match the new {partner,stats} contract. Everything else in iter17 remains valid.",
+  "rca of the issue": "N/A — no bugs found this iteration. The iteration_17 minor issue (short customer.name/mobile → 502) is now fixed and covered by TestSanitizationFix::test_short_name_and_mobile_no_longer_502."
+}

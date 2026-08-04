@@ -11,6 +11,7 @@ from reportlab.lib.units import mm
 from reportlab.pdfgen import canvas
 
 from ..db import db
+from ..config import settings
 from ..utils import now_iso
 from ..security import get_current_user
 from ..providers import payment_provider, event_bus, email_provider
@@ -217,6 +218,9 @@ async def receipt(invoice_id: str, ws=Depends(get_billing_workspace)):
 
 @router.post("/checkout")
 async def checkout(payload: CheckoutInput, ws=Depends(get_billing_workspace)):
+    if not settings.ALLOW_MOCK_PAYMENTS:
+        raise HTTPException(status_code=403,
+                            detail="Direct checkout is disabled. Top up your wallet and activate a plan with credits.")
     plan = PLAN_MAP.get(payload.plan_id)
     if not plan:
         raise HTTPException(status_code=404, detail="Unknown plan")
@@ -272,9 +276,35 @@ async def _activate(invoice: dict, workspace_name: str):
     await event_bus.publish("subscription.activated", {"workspace_id": invoice["workspace_id"], "plan": plan["id"]})
 
 
+async def activate_plan_for_workspace(workspace_id: str, plan_id: str, *,
+                                      paid_via: str, amount: int, ref: str | None = None) -> str:
+    """Activate/extend a subscription for a workspace (used by credit-wallet purchases)."""
+    plan = PLAN_MAP[plan_id]
+    now = now_iso()
+    period_end = (datetime.now(timezone.utc) + timedelta(days=30)).isoformat()
+    await db.subscriptions.update_one(
+        {"workspace_id": workspace_id},
+        {"$set": {
+            "id": str(uuid.uuid4()), "workspace_id": workspace_id, "plan_id": plan["id"],
+            "status": "active", "limits": plan["limits"], "current_period_end": period_end,
+            "paid_via": paid_via, "updated_at": now,
+        }}, upsert=True,
+    )
+    await db.workspaces.update_one({"id": workspace_id}, {"$set": {"plan": plan["id"]}})
+    await db.audit_logs.insert_one({
+        "id": str(uuid.uuid4()), "workspace_id": workspace_id, "action": "subscription.activated",
+        "target": ref or plan["id"], "before": None,
+        "after": {"plan": plan["id"], "paid_via": paid_via, "amount": amount}, "at": now,
+    })
+    await event_bus.publish("subscription.activated", {"workspace_id": workspace_id, "plan": plan["id"]})
+    return period_end
+
+
 @router.post("/invoices/{invoice_id}/simulate-payment")
 async def simulate_payment(invoice_id: str, ws=Depends(get_billing_workspace)):
-    """DEMO ONLY — stands in for a signed QRIS provider webhook. Idempotent."""
+    """DEMO ONLY — stands in for a signed QRIS provider webhook. Idempotent. Disabled by default."""
+    if not settings.ALLOW_MOCK_PAYMENTS:
+        raise HTTPException(status_code=403, detail="Mock payments are disabled.")
     inv = await db.invoices.find_one({"id": invoice_id, "workspace_id": ws["id"]})
     if not inv:
         raise HTTPException(status_code=404, detail="Not found")

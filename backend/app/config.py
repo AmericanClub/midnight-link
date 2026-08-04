@@ -20,6 +20,10 @@ class Settings:
     EDGE_HOST = os.environ.get("EDGE_HOST", "edge.midgate.io")
     DOMAIN_VERIFY_PREFIX = os.environ.get("DOMAIN_VERIFY_PREFIX", "_midgate-challenge")
     IPINTEL_SECRET = os.environ["IPINTEL_SECRET"]
+    MAYAR_BASE_URL = os.environ.get("MAYAR_BASE_URL", "https://api.mayar.id/hl/v1")
+    MAYAR_API_KEY = os.environ.get("MAYAR_API_KEY", "")
+    MAYAR_WEBHOOK_TOKEN = os.environ.get("MAYAR_WEBHOOK_TOKEN", "")
+    ALLOW_MOCK_PAYMENTS = os.environ.get("ALLOW_MOCK_PAYMENTS", "false").lower() == "true"
 
 
 settings = Settings()

@@ -1,0 +1,43 @@
+{
+  "summary": "Comprehensive backend + frontend testing of the new Mayar-backed credit wallet feature. Wrote /app/backend/tests/test_iteration_16_wallet.py covering 12 scenarios (wallet summary, real Mayar invoice creation, pending status, webhook token security against unpaid invoice, unmatched/ignored webhook events, insufficient credits 402, admin adjust + purchase-plan happy path, RBAC 403 for non-admin adjust, and mock checkout/simulate-payment disabled). All 12 pytest cases PASS against the public REACT_APP_BACKEND_URL. UI verified on /app/billing as teammate@example.com: wallet-card, wallet-balance, current-plan-card, usage-card, plan cards (free/starter/pro/business/enterprise), ledger-card render; topup dialog opens, quick-chip fills amount, submit creates a real Mayar invoice link (https://midgate.myr.id/invoices/...) opened in a new tab, and the topup-waiting state is shown. Fixed 1 UI overlay bug that blocked wallet-topup-btn clicks.",
+  "backend_issues": { "critical": [], "minor": [] },
+  "frontend_issues": {
+    "ui_bugs": [
+      {
+        "component": "BillingPage wallet-card decorative circle",
+        "issue": "Decorative absolute-positioned div intercepted pointer events, blocking clicks on wallet-topup-btn. Fixed by adding pointer-events-none.",
+        "selector": "[data-testid=\"wallet-card\"] > div.absolute",
+        "priority": "MEDIUM (fixed)"
+      }
+    ],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iteration_16_wallet.py",
+    "/app/test_reports/pytest/iter16.xml"
+  ],
+  "action_items": [
+    "None blocking. UI fix already applied by testing agent.",
+    "Note: teammate workspace now has Starter plan active + Rp500,000 seeded credits (401,000 remaining after purchase test) and multiple ledger entries — useful seed data for future demos.",
+    "A single real Mayar invoice was created per topup test (unpaid; expires 24h; harmless)."
+  ],
+  "critical_code_review_comments": [
+    "backend/app/domains/wallet.py is clean, uses async, atomic $inc + ledger append, and _verify_paid always re-queries Mayar — solid design.",
+    "Webhook endpoint intentionally does not fail on missing/invalid token because the crediting path re-verifies with Mayar. This is correct but consider logging token_ok=False more loudly / rate-limiting the endpoint.",
+    "MAX_TOPUP=100,000,000 is reasonable; consider also validating amount % 1000 == 0 to match UI step.",
+    "purchase-plan does not check whether the workspace is already on the same plan (double-charging possible if user clicks Activate twice on the current plan). Recommend guard.",
+    "list_transactions is scanned in _verify_paid without filtering by invoice; on high volume this is O(page_size). Acceptable for now."
+  ],
+  "updated_files": [
+    "/app/frontend/src/pages/BillingPage.jsx (added pointer-events-none to decorative circle)",
+    "/app/backend/tests/test_iteration_16_wallet.py (new)"
+  ],
+  "success_rate": { "backend": "100% (12/12)", "frontend": "100% (all critical flows)" },
+  "test_credentials": "admin@midgate.co / Admin123!  |  teammate@example.com / Teammate123!",
+  "seed_data_creation": "Admin credited teammate workspace by Rp500,000 via /api/wallet/admin/adjust and purchased Starter (Rp99,000). Remaining balance 401,000 credits. Ledger contains 'spend' + 'refund' entries. A pending Mayar top-up invoice (unpaid, 24h TTL) exists per test run.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Backend Mayar credit wallet is fully working against the real Mayar production API. Do NOT attempt to complete payments. Webhook security is validated: forged webhook with valid token but UNPAID invoice does not credit. Mock checkout/simulate-payment are 403 as expected. UI ledger displays IDR-formatted amounts. If retesting, be aware teammate workspace is already on Starter plan with 401k credits from this run.",
+  "rca of the issue": "Only issue found was a decorative absolute-positioned circle inside wallet-card that had no pointer-events:none, causing it to swallow clicks on the top-up button when hovered near its area. Fix: add pointer-events-none to the decorative div."
+}

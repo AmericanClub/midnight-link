@@ -15,3 +15,7 @@ async def ensure_indexes():
     await db.links.create_index([("workspace_id", 1), ("created_at", -1)])
     await db.analytics_events.create_index([("link_id", 1), ("occurred_at", -1)])
     await db.analytics_events.create_index([("workspace_id", 1), ("occurred_at", -1)])
+    await db.wallets.create_index("workspace_id", unique=True)
+    await db.wallet_ledger.create_index([("workspace_id", 1), ("created_at", -1)])
+    await db.mayar_payments.create_index("id", unique=True)
+    await db.mayar_payments.create_index("mayar_invoice_id")

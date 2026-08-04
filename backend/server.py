@@ -8,7 +8,7 @@ from app.db import db, ensure_indexes
 from app.security import hash_password, verify_password
 from app.utils import now_iso
 from app.providers import wire_event_bus
-from app.domains import auth, workspace, links, analytics, redirect, billing, qr, security, apikeys, blocker, admin, webhooks, custom_domains, team, notifications, support, wallet
+from app.domains import auth, workspace, links, analytics, redirect, billing, qr, security, apikeys, blocker, admin, webhooks, custom_domains, team, notifications, support, wallet, partner_pay
 from app.domains.workspace import create_default_workspace
 from app.intel import refresh_tor
 from app.geoip import warm as warm_geoip
@@ -52,6 +52,8 @@ app.include_router(team.router)
 app.include_router(notifications.router)
 app.include_router(support.router)
 app.include_router(wallet.router)
+app.include_router(partner_pay.router)
+app.include_router(partner_pay.admin_router)
 
 _cors_origins = [o.strip() for o in settings.CORS_ORIGINS.split(",") if o.strip()]
 _cors_wildcard = _cors_origins == ["*"]

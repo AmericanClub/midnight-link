@@ -19,3 +19,8 @@ async def ensure_indexes():
     await db.wallet_ledger.create_index([("workspace_id", 1), ("created_at", -1)])
     await db.mayar_payments.create_index("id", unique=True)
     await db.mayar_payments.create_index("mayar_invoice_id")
+    await db.partners.create_index("key_hash", unique=True)
+    await db.partner_charges.create_index([("partner_id", 1), ("reference_id", 1)], unique=True)
+    await db.partner_charges.create_index("id", unique=True)
+    await db.partner_charges.create_index("mayar_invoice_id")
+    await db.partner_webhook_deliveries.create_index([("partner_id", 1), ("created_at", -1)])

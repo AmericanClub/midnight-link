@@ -6,7 +6,7 @@ import {
   LayoutDashboard, Users, Building2, DollarSign, ShieldAlert, Ban, LifeBuoy, KeyRound,
   RefreshCw, LogOut, Search, Trash2, Plus, TrendingUp, MousePointerClick, LinkIcon,
   QrCode, Ticket, ShieldCheck, Plug, ExternalLink, CheckCircle2, XCircle, Loader2,
-  Wallet, ArrowDownLeft, ArrowUpRight, Clock,
+  Wallet, ArrowDownLeft, ArrowUpRight, Clock, Store, Copy, RotateCw, Send, Power,
 } from "lucide-react";
 import { AreaChart, Area, ResponsiveContainer, Tooltip, XAxis, CartesianGrid } from "recharts";
 import Logo from "@/components/Logo";
@@ -33,6 +33,7 @@ const NAV = [
   { key: "workspaces", label: "Workspaces", icon: Building2 },
   { key: "revenue", label: "Revenue", icon: DollarSign },
   { key: "wallets", label: "Wallets", icon: Wallet },
+  { key: "partners", label: "Payment Partners", icon: Store },
   { key: "security", label: "Security Events", icon: ShieldAlert },
   { key: "blocklist", label: "Blocklist & Feeds", icon: Ban },
   { key: "tickets", label: "Support Tickets", icon: LifeBuoy },
@@ -712,12 +713,223 @@ function WalletsSection() {
   );
 }
 
+/* -------------------------- Payment Partners ---------------------------- */
+const copyText = (t) => { navigator.clipboard?.writeText(t); toast.success("Copied to clipboard"); };
+
+function SecretReveal({ label, value, testid }) {
+  return (
+    <div className="rounded-lg border border-amber-500/30 bg-amber-500/5 p-3">
+      <p className="mb-1 text-xs font-medium text-amber-600">{label} — shown once, copy it now</p>
+      <div className="flex items-center gap-2">
+        <code className="flex-1 truncate rounded bg-background px-2 py-1 font-mono text-xs" data-testid={testid}>{value}</code>
+        <Button size="sm" variant="outline" className="gap-1" onClick={() => copyText(value)}><Copy className="h-3.5 w-3.5" /> Copy</Button>
+      </div>
+    </div>
+  );
+}
+
+function NewPartnerDialog({ onClose, onCreated }) {
+  const [name, setName] = useState("");
+  const [tag, setTag] = useState("");
+  const [hook, setHook] = useState("");
+  const [creds, setCreds] = useState(null);
+  const mut = useMutation({
+    mutationFn: async () => (await api.post("/admin/partners", {
+      name, source_tag: tag || undefined, webhook_url: hook || undefined,
+    })).data,
+    onSuccess: (d) => { setCreds(d); onCreated(); },
+    onError: (err) => toast.error(formatApiError(err.response?.data?.detail) || err.message),
+  });
+  return (
+    <Dialog open onOpenChange={(o) => { if (!o) onClose(); }}>
+      <DialogContent className="max-w-lg" data-testid="new-partner-dialog">
+        <DialogHeader>
+          <DialogTitle className="font-display">{creds ? "Partner created" : "New payment partner"}</DialogTitle>
+          <DialogDescription>{creds ? "Store these credentials in the partner app now." : "Create a partner app (e.g. midnight) that can collect payments through MidGate."}</DialogDescription>
+        </DialogHeader>
+        {!creds ? (
+          <div className="space-y-4">
+            <div className="space-y-1.5"><label className="text-sm">Name</label>
+              <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="midnight" data-testid="partner-name-input" /></div>
+            <div className="space-y-1.5"><label className="text-sm">Source tag (optional)</label>
+              <Input value={tag} onChange={(e) => setTag(e.target.value)} placeholder="midnight" /></div>
+            <div className="space-y-1.5"><label className="text-sm">Webhook URL (where MidGate sends charge.paid)</label>
+              <Input value={hook} onChange={(e) => setHook(e.target.value)} placeholder="https://midnight.app/api/midgate/webhook" data-testid="partner-hook-input" /></div>
+            <DialogFooter>
+              <Button variant="outline" onClick={onClose}>Cancel</Button>
+              <Button onClick={() => name.length >= 2 && mut.mutate()} disabled={name.length < 2 || mut.isPending} data-testid="partner-create-submit" className="gap-2">
+                {mut.isPending && <Loader2 className="h-4 w-4 animate-spin" />} Create partner
+              </Button>
+            </DialogFooter>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            <SecretReveal label="Partner API Key (Authorization: Bearer …)" value={creds.api_key} testid="partner-new-apikey" />
+            <SecretReveal label="Webhook Signing Secret (verify X-MidGate-Signature)" value={creds.webhook_secret} testid="partner-new-secret" />
+            <DialogFooter><Button onClick={onClose} data-testid="partner-creds-done">Done</Button></DialogFooter>
+          </div>
+        )}
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function PartnerManageDialog({ partnerId, onClose, onChanged }) {
+  const qc = useQueryClient();
+  const [hook, setHook] = useState(null);
+  const [reveal, setReveal] = useState(null); // {label,value,testid}
+  const { data, isLoading, refetch } = useQuery({
+    queryKey: ["admin-partner", partnerId],
+    queryFn: async () => (await api.get(`/admin/partners/${partnerId}`)).data,
+  });
+  const p = data?.partner;
+  const hookValue = hook ?? (p?.webhook_url || "");
+  const after = () => { refetch(); onChanged(); };
+  const run = (fn, ok) => async () => { try { const r = await fn(); if (ok) ok(r); after(); } catch (e) { toast.error(formatApiError(e.response?.data?.detail) || e.message); } };
+
+  const saveHook = run(() => api.patch(`/admin/partners/${partnerId}`, { webhook_url: hookValue }), () => toast.success("Webhook saved"));
+  const toggle = run(() => api.patch(`/admin/partners/${partnerId}`, { active: !p.active }), () => toast.success("Updated"));
+  const rotK = run(() => api.post(`/admin/partners/${partnerId}/rotate-key`), (r) => setReveal({ label: "New API Key", value: r.data.api_key, testid: "partner-rotated-key" }));
+  const rotS = run(() => api.post(`/admin/partners/${partnerId}/rotate-secret`), (r) => setReveal({ label: "New Webhook Secret", value: r.data.webhook_secret, testid: "partner-rotated-secret" }));
+  const del = run(() => api.delete(`/admin/partners/${partnerId}`), () => { toast.success("Partner deleted"); onClose(); });
+  const resend = (cid) => run(() => api.post(`/admin/partners/${partnerId}/charges/${cid}/resend`), () => toast.success("Webhook resent"));
+
+  return (
+    <Dialog open onOpenChange={(o) => { if (!o) onClose(); }}>
+      <DialogContent className="max-w-3xl" data-testid="partner-manage-dialog">
+        <DialogHeader>
+          <DialogTitle className="font-display flex items-center gap-2">
+            {p?.name || "Partner"}
+            {p && <Badge variant={p.active ? "default" : "secondary"}>{p.active ? "active" : "inactive"}</Badge>}
+          </DialogTitle>
+          <DialogDescription>API key <code className="font-mono">{p?.key_prefix}…{p?.key_last4}</code> · manage config, charges and webhook deliveries.</DialogDescription>
+        </DialogHeader>
+        {isLoading ? <Skeleton className="h-72 w-full" /> : (
+          <div className="max-h-[65vh] space-y-6 overflow-auto pr-1">
+            <div className="space-y-3 rounded-lg border p-4">
+              <p className="text-sm font-semibold">Configuration</p>
+              <div className="space-y-1.5">
+                <label className="text-xs text-muted-foreground">Webhook URL</label>
+                <div className="flex gap-2">
+                  <Input value={hookValue} onChange={(e) => setHook(e.target.value)} placeholder="https://midnight.app/api/midgate/webhook" data-testid="partner-hook-edit" />
+                  <Button variant="outline" onClick={saveHook} data-testid="partner-hook-save">Save</Button>
+                </div>
+              </div>
+              {reveal && <SecretReveal {...reveal} />}
+              <div className="flex flex-wrap gap-2 pt-1">
+                <Button size="sm" variant="outline" className="gap-1" onClick={rotK} data-testid="partner-rotate-key"><RotateCw className="h-3.5 w-3.5" /> Rotate API key</Button>
+                <Button size="sm" variant="outline" className="gap-1" onClick={rotS}><RotateCw className="h-3.5 w-3.5" /> Rotate secret</Button>
+                <Button size="sm" variant="outline" className="gap-1" onClick={toggle} data-testid="partner-toggle-active"><Power className="h-3.5 w-3.5" /> {p?.active ? "Deactivate" : "Activate"}</Button>
+                <Button size="sm" variant="destructive" className="gap-1 ml-auto" onClick={del} data-testid="partner-delete"><Trash2 className="h-3.5 w-3.5" /> Delete</Button>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-3 gap-3 text-center">
+              <div className="rounded-lg border p-3"><p className="text-xs text-muted-foreground">Charges</p><p className="font-display text-lg font-bold">{data.stats.charges}</p></div>
+              <div className="rounded-lg border p-3"><p className="text-xs text-muted-foreground">Paid</p><p className="font-display text-lg font-bold">{data.stats.paid_count}</p></div>
+              <div className="rounded-lg border p-3"><p className="text-xs text-muted-foreground">Collected</p><p className="font-display text-lg font-bold">{money(data.stats.paid_amount)}</p></div>
+            </div>
+
+            <div>
+              <p className="mb-2 text-sm font-semibold">Charges</p>
+              {data.charges.length === 0 ? <p className="text-sm text-muted-foreground">No charges yet.</p> : (
+                <Table>
+                  <TableHeader><TableRow><TableHead>Reference</TableHead><TableHead className="text-right">Amount</TableHead><TableHead>Status</TableHead><TableHead>Notified</TableHead><TableHead>Created</TableHead><TableHead></TableHead></TableRow></TableHeader>
+                  <TableBody>
+                    {data.charges.map((c) => (
+                      <TableRow key={c.id} data-testid={`partner-charge-${c.id}`}>
+                        <TableCell className="font-mono text-xs">{c.reference_id}</TableCell>
+                        <TableCell className="text-right font-mono">{money(c.amount)}</TableCell>
+                        <TableCell><Badge variant={c.status === "paid" ? "default" : "secondary"}>{c.status}</Badge></TableCell>
+                        <TableCell>{c.notified ? <CheckCircle2 className="h-4 w-4 text-emerald-500" /> : <XCircle className="h-4 w-4 text-muted-foreground/40" />}</TableCell>
+                        <TableCell className="whitespace-nowrap text-xs text-muted-foreground">{c.created_at ? new Date(c.created_at).toLocaleString("id-ID") : "—"}</TableCell>
+                        <TableCell className="text-right">{c.status === "paid" && <Button size="sm" variant="ghost" className="gap-1" onClick={resend(c.id)} data-testid={`partner-resend-${c.id}`}><Send className="h-3.5 w-3.5" /> Resend</Button>}</TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              )}
+            </div>
+
+            <div>
+              <p className="mb-2 text-sm font-semibold">Webhook deliveries</p>
+              {data.deliveries.length === 0 ? <p className="text-sm text-muted-foreground">No deliveries yet.</p> : (
+                <Table>
+                  <TableHeader><TableRow><TableHead>Event</TableHead><TableHead>Status</TableHead><TableHead>Code</TableHead><TableHead>Attempts</TableHead><TableHead>When</TableHead></TableRow></TableHeader>
+                  <TableBody>
+                    {data.deliveries.map((d) => (
+                      <TableRow key={d.id}>
+                        <TableCell className="font-mono text-xs">{d.event}</TableCell>
+                        <TableCell><Badge variant={d.status === "success" ? "default" : "destructive"}>{d.status}</Badge></TableCell>
+                        <TableCell className="font-mono text-xs">{d.status_code ?? "—"}</TableCell>
+                        <TableCell>{d.attempts}</TableCell>
+                        <TableCell className="whitespace-nowrap text-xs text-muted-foreground">{d.created_at ? new Date(d.created_at).toLocaleString("id-ID") : "—"}</TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              )}
+            </div>
+          </div>
+        )}
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function PartnersSection() {
+  const qc = useQueryClient();
+  const [showNew, setShowNew] = useState(false);
+  const [manageId, setManageId] = useState(null);
+  const { data, isLoading } = useQuery({
+    queryKey: ["admin-partners"],
+    queryFn: async () => (await api.get("/admin/partners")).data,
+  });
+  const rows = data?.items || [];
+  const invalidate = () => qc.invalidateQueries({ queryKey: ["admin-partners"] });
+  return (
+    <div className="space-y-6" data-testid="admin-partners-section">
+      <div className="flex items-center justify-between">
+        <p className="text-sm text-muted-foreground">Apps (e.g. midnight) that collect payments through MidGate's Mayar gateway.</p>
+        <Button className="gap-2" onClick={() => setShowNew(true)} data-testid="new-partner-btn"><Plus className="h-4 w-4" /> New partner</Button>
+      </div>
+      <Card className="p-6">
+        {isLoading ? <Skeleton className="h-56 w-full" /> : rows.length === 0 ? (
+          <div className="flex flex-col items-center gap-2 py-10 text-center">
+            <Store className="h-7 w-7 text-muted-foreground/40" />
+            <p className="text-sm text-muted-foreground">No payment partners yet. Create one for midnight.</p>
+          </div>
+        ) : (
+          <Table>
+            <TableHeader><TableRow><TableHead>Partner</TableHead><TableHead>API key</TableHead><TableHead>Webhook</TableHead><TableHead className="text-right">Collected</TableHead><TableHead>Status</TableHead><TableHead></TableHead></TableRow></TableHeader>
+            <TableBody>
+              {rows.map((p) => (
+                <TableRow key={p.id} data-testid={`partner-row-${p.id}`}>
+                  <TableCell className="font-medium">{p.name}</TableCell>
+                  <TableCell className="font-mono text-xs">{p.key_prefix}…{p.key_last4}</TableCell>
+                  <TableCell className="max-w-[200px] truncate text-xs text-muted-foreground">{p.webhook_url || "—"}</TableCell>
+                  <TableCell className="text-right font-mono">{money(p.paid_amount)} <span className="text-xs text-muted-foreground">· {p.paid_count}/{p.charges}</span></TableCell>
+                  <TableCell><Badge variant={p.active ? "default" : "secondary"}>{p.active ? "active" : "inactive"}</Badge></TableCell>
+                  <TableCell className="text-right"><Button size="sm" variant="outline" onClick={() => setManageId(p.id)} data-testid={`partner-manage-${p.id}`}>Manage</Button></TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        )}
+      </Card>
+      {showNew && <NewPartnerDialog onClose={() => setShowNew(false)} onCreated={invalidate} />}
+      {manageId && <PartnerManageDialog partnerId={manageId} onClose={() => setManageId(null)} onChanged={invalidate} />}
+    </div>
+  );
+}
+
 const SECTIONS = {
   overview: OverviewSection,
   users: UsersSection,
   workspaces: WorkspacesSection,
   revenue: RevenueSection,
   wallets: WalletsSection,
+  partners: PartnersSection,
   security: SecuritySection,
   blocklist: BlocklistSection,
   tickets: SupportTicketsAdmin,

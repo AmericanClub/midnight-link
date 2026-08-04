@@ -261,7 +261,10 @@ async def mayar_webhook(request: Request):
                 {"$or": [{"mayar_invoice_id": {"$in": cand}},
                          {"mayar_transaction_id": {"$in": cand}}]}, {"_id": 0})
     if not rec:
-        logger.warning("Mayar webhook: no matching top-up record (event=%s)", event)
+        from .partner_pay import handle_mayar_event
+        if await handle_mayar_event(event, data):
+            return {"ok": True, "partner": True}
+        logger.warning("Mayar webhook: no matching top-up/charge record (event=%s)", event)
         return {"ok": True, "unmatched": True}
 
     result = await _try_credit_topup(rec)

@@ -1,0 +1,43 @@
+{
+  "summary": "Iteration 17 — Partner Payment Gateway (MidGate as PG for first-party 'midnight' app). Backend: 19/19 pytest passing covering admin partner CRUD, list/detail with stats+charges+deliveries, PATCH webhook_url, rotate-key, rotate-secret, deactivate/reactivate, Bearer auth on /api/pay/* (missing/bad/inactive → 401), RBAC (teammate 403 on /api/admin/partners), charge create returns real Mayar checkout link (myr.id), idempotency on same reference_id, amount min/max (400) and blank/missing reference_id (422), spoofed public Mayar webhook does NOT flip pending→paid (server re-verifies with Mayar), and DELETE partner cascades. Frontend: admin console → /admin/partners → New partner dialog → credentials-once view (mgpay_live_/mgwhsec_ visible) → row appears → Manage dialog (Configuration+Save, Rotate API key reveals new key, Deactivate/Activate toggle, stats + Charges + Webhook deliveries sections) → Delete removes row. No console page errors. All QA-created partners cleaned up (list empty).",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {
+        "endpoint": "POST /api/pay/charges",
+        "issue": "Partner-supplied customer.name (min 3 chars) and customer.mobile (min 10 chars) are forwarded to Mayar unmodified. Reasonable-looking-but-short inputs (e.g. name='A', mobile='0812' from the review spec) trigger a Mayar 400 which we surface as a 502 to the partner. Recommend either (a) padding/defaulting when the field is too short (like email fallback already does) or (b) validating in the Pydantic ChargeCreate model so partners get a clear 422 instead of a 502."
+      }
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iteration_17_partners.py",
+    "/app/test_reports/pytest/iteration_17.xml"
+  ],
+  "action_items": [
+    "Pad or validate short customer.name/mobile in /api/pay/charges so partners never see a 502 from Mayar's min-length validation."
+  ],
+  "critical_code_review_comments": [
+    "partner_pay._settle uses find_one_and_update with a status filter to atomically claim the paid transition — good; prevents double-delivery.",
+    "webhook_secret is stored in plaintext in the partners collection (not hashed). Rotate flow works but if the DB is dumped, secrets leak. Consider hashing (bcrypt/scrypt) and verifying via HMAC helper that fetches at delivery time — acceptable for first-party only but worth noting.",
+    "Public /api/wallet/mayar/webhook handler forwards unmatched events to partner_pay.handle_mayar_event which re-verifies with Mayar before flipping paid — verified safe against spoofed events.",
+    "Idempotency is enforced by unique (partner_id, reference_id) index + application-level early return; a burst of duplicate POSTs will race on Mayar invoice creation before the unique index catches — consider guarding with an insert-first pattern to avoid orphaned Mayar invoices on rapid duplicates.",
+    "get_partner accepts key via Authorization: Bearer OR X-Partner-Key header — documented behavior, fine.",
+    "resend endpoint correctly gates on status=='paid' to prevent leaking unpaid webhooks."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iteration_17_partners.py"
+  ],
+  "success_rate": {"backend": "100%", "frontend": "100%"},
+  "test_credentials": "admin@midgate.co / Admin123! ; teammate@example.com / Teammate123!",
+  "seed_data_creation": "None persistent — all QA partners created during tests were deleted (verified list empty after run). Operator can safely create the real 'midnight' partner.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "iter 17 covers partner payment gateway only. Wallet/top-up (iter 16) not retested. Paid→signed-webhook→delivery-log path was pre-verified manually by main agent (charge flipped in DB, resend to httpbin returned 200 and logged). test_iteration_17_partners.py is now a stable regression suite — runs in ~15s and uses real Mayar production invoice creation (harmless unpaid invoices). If Mayar throttles or is unreachable, the create/idempotent/webhook-safety tests will fail with 502; the rest are independent.",
+  "rca of the issue": "Minor 502 on short customer fields: mayar.create_invoice returns 400 Validation Error for name<3 chars / mobile<10 chars. partner_pay.create_charge catches MayarError and returns HTTPException(502, 'Could not create payment'). Fix: add min_length constraints on Customer.name/mobile in ChargeCreate or pad values before calling mayar (mirrors existing email fallback)."
+}

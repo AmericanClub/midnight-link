@@ -71,13 +71,15 @@ class TestPartnerCRUD:
         p = next(p for p in items if p["id"] == partner["id"])
         assert "api_key" not in p
 
-    def test_detail_has_stats_charges_deliveries(self, admin, partner):
+    def test_detail_returns_partner_and_stats(self, admin, partner):
+        # Redesign (iter 18): detail returns {partner, stats} only; charges/deliveries
+        # moved to dedicated paginated sub-endpoints.
         r = admin.get(f"{BASE_URL}/api/admin/partners/{partner['id']}", timeout=15)
         assert r.status_code == 200
         d = r.json()
         assert d["partner"]["id"] == partner["id"]
-        assert "stats" in d and "charges" in d and "deliveries" in d
-        assert isinstance(d["charges"], list) and isinstance(d["deliveries"], list)
+        assert "stats" in d and "charges" in d["stats"]
+        assert "charges" not in d and "deliveries" not in d
 
     def test_patch_webhook_url(self, admin, partner):
         r = admin.patch(f"{BASE_URL}/api/admin/partners/{partner['id']}",

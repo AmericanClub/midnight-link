@@ -360,9 +360,12 @@ async def partner_charges(partner_id: str, admin=Depends(require_admin),
     if status in ("paid", "pending", "expired"):
         flt["status"] = status
     if q and q.strip():
-        flt["reference_id"] = {"$regex": re.escape(q.strip()[:120]), "$options": "i"}
+        rx = {"$regex": re.escape(q.strip()[:120]), "$options": "i"}
+        flt["$or"] = [{"reference_id": rx}, {"customer.name": rx},
+                      {"customer.email": rx}, {"customer.mobile": rx}]
     res = await _paginate(db.partner_charges, flt, page, limit)
-    res["items"] = [_charge_public(c) | {"notified": c.get("notified", False)} for c in res["items"]]
+    res["items"] = [_charge_public(c) | {"notified": c.get("notified", False),
+                                         "customer": c.get("customer") or {}} for c in res["items"]]
     return res
 
 

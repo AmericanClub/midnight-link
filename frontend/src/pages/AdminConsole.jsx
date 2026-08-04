@@ -824,7 +824,7 @@ function PaginatedCharges({ partnerId, refreshParent }) {
           { value: "all", label: "All" }, { value: "paid", label: "Paid" },
           { value: "pending", label: "Pending" }, { value: "expired", label: "Expired" }]} />
         <div className="ml-auto flex items-center gap-2">
-          <Input value={qInput} onChange={(e) => setQInput(e.target.value)} onKeyDown={(e) => e.key === "Enter" && apply()} placeholder="Search reference…" className="h-9 w-52" data-testid="charge-search" />
+          <Input value={qInput} onChange={(e) => setQInput(e.target.value)} onKeyDown={(e) => e.key === "Enter" && apply()} placeholder="Search reference or customer…" className="h-9 w-60" data-testid="charge-search" />
           <Button size="sm" variant="outline" onClick={apply}>Search</Button>
         </div>
       </div>
@@ -832,11 +832,15 @@ function PaginatedCharges({ partnerId, refreshParent }) {
         <p className="py-8 text-center text-sm text-muted-foreground">No charges match.</p>
       ) : (
         <Table>
-          <TableHeader><TableRow><TableHead>Reference</TableHead><TableHead className="text-right">Amount</TableHead><TableHead>Status</TableHead><TableHead>Notified</TableHead><TableHead>Created</TableHead><TableHead></TableHead></TableRow></TableHeader>
+          <TableHeader><TableRow><TableHead>Reference</TableHead><TableHead>Customer</TableHead><TableHead className="text-right">Amount</TableHead><TableHead>Status</TableHead><TableHead>Notified</TableHead><TableHead>Created</TableHead><TableHead></TableHead></TableRow></TableHeader>
           <TableBody>
             {items.map((c) => (
               <TableRow key={c.id} data-testid={`partner-charge-${c.id}`}>
                 <TableCell className="font-mono text-xs">{c.reference_id}</TableCell>
+                <TableCell className="text-xs" data-testid={`partner-charge-customer-${c.id}`}>
+                  <div className="font-medium text-foreground">{c.customer?.name || "—"}</div>
+                  {c.customer?.email && <div className="text-muted-foreground">{c.customer.email}</div>}
+                </TableCell>
                 <TableCell className="text-right font-mono">{money(c.amount)}</TableCell>
                 <TableCell><Badge variant={c.status === "paid" ? "default" : "secondary"}>{c.status}</Badge></TableCell>
                 <TableCell>{c.notified ? <CheckCircle2 className="h-4 w-4 text-emerald-500" /> : <XCircle className="h-4 w-4 text-muted-foreground/40" />}</TableCell>

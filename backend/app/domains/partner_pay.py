@@ -211,12 +211,18 @@ async def create_charge(payload: ChargeCreate, partner=Depends(get_partner)):
 
     charge_id = str(uuid.uuid4())
     cust = payload.customer
-    email = cust.email or f"pay-{payload.reference_id}@{partner.get('source_tag', 'partner')}.midgate"
+    email = (cust.email or "").strip() or "noreply@midgate.co"
+    name = (cust.name or "").strip()
+    if len(name) < 3:
+        name = "Customer"
+    mobile = "".join(ch for ch in (cust.mobile or "") if ch.isdigit())
+    if len(mobile) < 10:
+        mobile = "081200000000"
     try:
         inv = await mayar.create_invoice(
-            name=cust.name or "Customer",
+            name=name,
             email=email,
-            mobile=cust.mobile or "081200000000",
+            mobile=mobile,
             amount=amount,
             description=payload.description or f"{partner['name']} payment {payload.reference_id}",
             redirect_url=payload.redirect_url or "https://midgate.co",

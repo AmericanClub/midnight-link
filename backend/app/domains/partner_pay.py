@@ -194,6 +194,13 @@ class ChargeCreate(BaseModel):
     redirect_url: str | None = None
 
 
+@router.get("/ping")
+async def ping(partner=Depends(get_partner)):
+    """Lightweight key check for a partner's 'Test Connection' button."""
+    return {"ok": True, "partner": partner["name"],
+            "min_amount": MIN_AMOUNT, "max_amount": MAX_AMOUNT, "currency": "IDR"}
+
+
 @router.post("/charges")
 async def create_charge(payload: ChargeCreate, partner=Depends(get_partner)):
     amount = int(payload.amount)

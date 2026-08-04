@@ -1,5 +1,13 @@
 # MidGate — Product Requirements & Progress
 
+## Implemented — Login lockout self-healing + admin recovery (2026-06)
+- **Problem:** brute-force lockout (`auth.py`, 5 fails / 15 min, per `ip:email` in `db.login_attempts`) only reset the counter on a SUCCESSFUL login. After the first lockout `count` stayed ≥5, so once the window expired a single wrong password re-locked for another 15 min → felt like a permanent lockout ("Too many attempts. Try again later.").
+- **Fix (`auth.py::_check_lockout`):** when the lock window has elapsed, the attempt doc is deleted → user gets a fresh set of 5 attempts (no one-strike re-lock). The 429 now returns a remaining-time message ("Please try again in about N minute(s).") + `Retry-After` header.
+- **Admin recovery (`server.py::seed_admin`):** on every startup/redeploy, all `login_attempts` for the admin email are cleared (`delete_many` on `:{ADMIN_EMAIL}$`), and the admin password is (already) reset to `ADMIN_PASSWORD`. So a redeploy always unlocks + repins the admin login — operator can never be permanently locked out.
+- **Prod note:** `ADMIN_EMAIL`/`ADMIN_PASSWORD` come from deployment env (defaults `admin@midgate.io` / weak). Production admin is `admin@midgate.co` per user. Redeploy = admin unlocked + password reset to the env value.
+- Verified in preview via curl: 6th attempt → 429 with minutes; expiring `locked_until` → next attempt self-heals (401, counter reset to 1, not 429); simulated admin lock cleared after backend restart; admin login still 200. Auth pattern confirmed with integration_expert. NOT yet user-confirmed in production (redeploy required).
+
+
 ## Implemented — Iteration 18: MidGate as Payment Gateway API for first-party app "midnight" (2026-06)
 - **Goal:** midnight (operator's own app) lets its members top up via QRIS → MidGate creates the Mayar payment, confirms it, and notifies midnight via signed webhook → midnight credits its own member. First-party only (no third-party aggregation).
 - **Backend `backend/app/domains/partner_pay.py`:**

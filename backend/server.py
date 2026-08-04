@@ -94,6 +94,11 @@ async def seed_admin():
     elif not verify_password(settings.ADMIN_PASSWORD, existing["password_hash"]):
         await db.users.update_one({"email": email},
                                   {"$set": {"password_hash": hash_password(settings.ADMIN_PASSWORD)}})
+    # Recovery: a redeploy/restart always clears any brute-force lockout on the
+    # admin account so the operator can never be permanently locked out.
+    import re as _re
+    await db.login_attempts.delete_many(
+        {"identifier": {"$regex": f":{_re.escape(email)}$"}})
 
 
 @app.on_event("startup")

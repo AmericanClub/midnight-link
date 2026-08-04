@@ -41,10 +41,23 @@ class ResetInput(BaseModel):
 
 async def _check_lockout(identifier: str):
     doc = await db.login_attempts.find_one({"identifier": identifier})
-    if doc and doc.get("count", 0) >= MAX_ATTEMPTS:
-        locked_until = doc.get("locked_until")
-        if locked_until and datetime.fromisoformat(locked_until) > datetime.now(timezone.utc):
-            raise HTTPException(status_code=429, detail="Too many attempts. Try again later.")
+    if not doc or doc.get("count", 0) < MAX_ATTEMPTS:
+        return
+    locked_until = doc.get("locked_until")
+    if locked_until:
+        lu = datetime.fromisoformat(locked_until)
+        now = datetime.now(timezone.utc)
+        if lu > now:
+            secs = int((lu - now).total_seconds())
+            mins = max(1, (secs + 59) // 60)
+            raise HTTPException(
+                status_code=429,
+                detail=f"Too many failed attempts. Please try again in about {mins} minute(s).",
+                headers={"Retry-After": str(secs)},
+            )
+    # Lock window elapsed → reset so the user gets a fresh set of attempts
+    # instead of being one-strike re-locked.
+    await db.login_attempts.delete_one({"identifier": identifier})
 
 
 async def _record_failure(identifier: str):

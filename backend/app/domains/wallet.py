@@ -213,6 +213,9 @@ async def purchase_plan(payload: PurchaseInput, ws=Depends(get_billing_workspace
         raise HTTPException(status_code=400, detail="Enterprise plans are handled by sales")
 
     price = int(plan["price"])
+    w_doc = await db.workspaces.find_one({"id": ws["id"]}, {"_id": 0, "plan": 1})
+    if (w_doc or {}).get("plan") == plan["id"]:
+        raise HTTPException(status_code=400, detail=f"You're already on the {plan['name']} plan.")
     w = await _get_wallet(ws["id"])
     balance = int(w.get("balance", 0))
     if balance < price:

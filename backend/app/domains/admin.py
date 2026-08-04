@@ -284,3 +284,90 @@ async def ip_intel_remove(admin=Depends(require_admin)):
     await remove_key()
     return await get_status()
 
+
+# --------------------------- wallets (credit) ---------------------------- #
+class WalletAdjust(BaseModel):
+    amount: int
+    reason: str | None = None
+
+
+@router.get("/wallets")
+async def wallets_overview(admin=Depends(require_admin), search: str | None = Query(None),
+                           limit: int = Query(100, le=500)):
+    if search:
+        esc = re.escape(search.strip()[:100])
+        workspaces = await db.workspaces.find(
+            {"name": {"$regex": esc, "$options": "i"}},
+            {"_id": 0, "id": 1, "name": 1, "plan": 1}).limit(limit).to_list(limit)
+        ws_ids = [w["id"] for w in workspaces]
+        wallets = {x["workspace_id"]: x for x in
+                   await db.wallets.find({"workspace_id": {"$in": ws_ids}}, {"_id": 0}).to_list(10000)}
+        ws_docs = workspaces
+    else:
+        # Default: only workspaces that actually have a wallet, highest balance first.
+        wallet_rows = await db.wallets.find({}, {"_id": 0}).sort("balance", -1).limit(limit).to_list(limit)
+        wallets = {w["workspace_id"]: w for w in wallet_rows}
+        ws_ids = list(wallets.keys())
+        ws_docs = await db.workspaces.find(
+            {"id": {"$in": ws_ids}}, {"_id": 0, "id": 1, "name": 1, "plan": 1}).to_list(10000)
+        order = {wid: i for i, wid in enumerate(ws_ids)}
+        ws_docs.sort(key=lambda w: order.get(w["id"], 1e9))
+
+    topup_rows = await db.mayar_payments.aggregate([
+        {"$match": {"workspace_id": {"$in": ws_ids}, "credited": True}},
+        {"$group": {"_id": "$workspace_id", "total": {"$sum": "$credits"}, "count": {"$sum": 1}}},
+    ]).to_list(10000)
+    topup_map = {r["_id"]: r for r in topup_rows}
+    items = []
+    for w in ws_docs:
+        wal = wallets.get(w["id"], {})
+        tp = topup_map.get(w["id"], {})
+        items.append({"workspace_id": w["id"], "name": w["name"], "plan": w.get("plan", "free"),
+                      "balance": int(wal.get("balance", 0)),
+                      "topup_total": int(tp.get("total", 0)), "topup_count": int(tp.get("count", 0))})
+    if search:
+        items.sort(key=lambda x: (x["balance"], x["topup_total"]), reverse=True)
+
+    tot = await db.wallets.aggregate([{"$group": {"_id": None, "total": {"$sum": "$balance"}}}]).to_list(1)
+    tp_all = await db.mayar_payments.aggregate([
+        {"$match": {"credited": True}},
+        {"$group": {"_id": None, "total": {"$sum": "$credits"}, "count": {"$sum": 1}}}]).to_list(1)
+    pending = await db.mayar_payments.count_documents({"credited": {"$ne": True}, "status": "pending"})
+    return {"items": items,
+            "total_balance": int(tot[0]["total"]) if tot else 0,
+            "total_topup": int(tp_all[0]["total"]) if tp_all else 0,
+            "total_topup_count": int(tp_all[0]["count"]) if tp_all else 0,
+            "pending_topups": pending}
+
+
+@router.get("/wallets/{workspace_id}")
+async def wallet_detail(workspace_id: str, admin=Depends(require_admin)):
+    ws = await db.workspaces.find_one({"id": workspace_id}, {"_id": 0, "id": 1, "name": 1, "plan": 1})
+    if not ws:
+        raise HTTPException(status_code=404, detail="Workspace not found")
+    wal = await db.wallets.find_one({"workspace_id": workspace_id}, {"_id": 0})
+    ledger = await db.wallet_ledger.find(
+        {"workspace_id": workspace_id}, {"_id": 0}).sort("created_at", -1).limit(200).to_list(200)
+    topups = await db.mayar_payments.find(
+        {"workspace_id": workspace_id}, {"_id": 0}).sort("created_at", -1).limit(100).to_list(100)
+    return {"workspace": ws, "balance": int((wal or {}).get("balance", 0)),
+            "ledger": ledger, "topups": topups}
+
+
+@router.post("/wallets/{workspace_id}/adjust")
+async def wallet_adjust(workspace_id: str, payload: WalletAdjust, admin=Depends(require_admin)):
+    from .wallet import _apply, _get_wallet
+    if payload.amount == 0:
+        raise HTTPException(status_code=400, detail="Amount cannot be zero")
+    ws = await db.workspaces.find_one({"id": workspace_id}, {"_id": 0, "id": 1})
+    if not ws:
+        raise HTTPException(status_code=404, detail="Workspace not found")
+    w = await _get_wallet(workspace_id)
+    if payload.amount < 0 and int(w.get("balance", 0)) + payload.amount < 0:
+        raise HTTPException(status_code=400, detail="Adjustment would make the balance negative")
+    ttype = "refund" if payload.amount > 0 else "adjustment"
+    default_reason = "Manual credit by admin" if payload.amount > 0 else "Manual adjustment by admin"
+    balance_after, entry = await _apply(
+        workspace_id, int(payload.amount), ttype, payload.reason or default_reason, actor=admin["email"])
+    return {"ok": True, "balance": balance_after, "entry": entry}
+

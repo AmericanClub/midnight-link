@@ -6,6 +6,7 @@ import {
   LayoutDashboard, Users, Building2, DollarSign, ShieldAlert, Ban, LifeBuoy, KeyRound,
   RefreshCw, LogOut, Search, Trash2, Plus, TrendingUp, MousePointerClick, LinkIcon,
   QrCode, Ticket, ShieldCheck, Plug, ExternalLink, CheckCircle2, XCircle, Loader2,
+  Wallet, ArrowDownLeft, ArrowUpRight, Clock,
 } from "lucide-react";
 import { AreaChart, Area, ResponsiveContainer, Tooltip, XAxis, CartesianGrid } from "recharts";
 import Logo from "@/components/Logo";
@@ -19,6 +20,9 @@ import { Switch } from "@/components/ui/switch";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import {
+  Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter,
+} from "@/components/ui/dialog";
 import api, { formatApiError } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
 import SupportTicketsAdmin from "@/components/SupportTicketsAdmin";
@@ -28,6 +32,7 @@ const NAV = [
   { key: "users", label: "Users", icon: Users },
   { key: "workspaces", label: "Workspaces", icon: Building2 },
   { key: "revenue", label: "Revenue", icon: DollarSign },
+  { key: "wallets", label: "Wallets", icon: Wallet },
   { key: "security", label: "Security Events", icon: ShieldAlert },
   { key: "blocklist", label: "Blocklist & Feeds", icon: Ban },
   { key: "tickets", label: "Support Tickets", icon: LifeBuoy },
@@ -537,11 +542,182 @@ function IntegrationsSection() {
   );
 }
 
+/* ------------------------------- Wallets -------------------------------- */
+const creditNum = (n) => Number(n || 0).toLocaleString("id-ID");
+
+function WalletDetailDialog({ workspaceId, onClose }) {
+  const { data, isLoading } = useQuery({
+    queryKey: ["admin-wallet-detail", workspaceId],
+    queryFn: async () => (await api.get(`/admin/wallets/${workspaceId}`)).data,
+    enabled: !!workspaceId,
+  });
+  return (
+    <Dialog open onOpenChange={(o) => { if (!o) onClose(); }}>
+      <DialogContent className="max-w-2xl" data-testid="wallet-detail-dialog">
+        <DialogHeader>
+          <DialogTitle className="font-display">
+            {data?.workspace?.name || "Wallet"} · <span className="font-mono">{creditNum(data?.balance)} credits</span>
+          </DialogTitle>
+          <DialogDescription>Credit ledger and Mayar top-up history for this workspace.</DialogDescription>
+        </DialogHeader>
+        {isLoading ? <Skeleton className="h-64 w-full" /> : (
+          <div className="max-h-[60vh] space-y-6 overflow-auto pr-1">
+            <div>
+              <h4 className="mb-2 text-sm font-semibold">Ledger</h4>
+              {(data?.ledger?.length ?? 0) === 0 ? <p className="text-sm text-muted-foreground">No entries.</p> : (
+                <Table>
+                  <TableHeader><TableRow><TableHead>Type</TableHead><TableHead>Description</TableHead><TableHead className="text-right">Amount</TableHead><TableHead className="text-right">Balance</TableHead><TableHead>Date</TableHead></TableRow></TableHeader>
+                  <TableBody>
+                    {data.ledger.map((e) => {
+                      const pos = e.amount >= 0;
+                      return (
+                        <TableRow key={e.id} data-testid={`wallet-ledger-${e.id}`}>
+                          <TableCell className="capitalize">{e.type}</TableCell>
+                          <TableCell className="max-w-[220px] truncate text-xs text-muted-foreground">{e.description}</TableCell>
+                          <TableCell className={`text-right font-mono ${pos ? "text-emerald-600" : "text-destructive"}`}>{pos ? "+" : ""}{creditNum(e.amount)}</TableCell>
+                          <TableCell className="text-right font-mono text-xs">{creditNum(e.balance_after)}</TableCell>
+                          <TableCell className="whitespace-nowrap text-xs text-muted-foreground">{e.created_at ? new Date(e.created_at).toLocaleString("id-ID") : "—"}</TableCell>
+                        </TableRow>
+                      );
+                    })}
+                  </TableBody>
+                </Table>
+              )}
+            </div>
+            <div>
+              <h4 className="mb-2 text-sm font-semibold">Top-ups (Mayar)</h4>
+              {(data?.topups?.length ?? 0) === 0 ? <p className="text-sm text-muted-foreground">No top-ups yet.</p> : (
+                <Table>
+                  <TableHeader><TableRow><TableHead>Amount</TableHead><TableHead>Status</TableHead><TableHead>Invoice</TableHead><TableHead>Date</TableHead></TableRow></TableHeader>
+                  <TableBody>
+                    {data.topups.map((t) => (
+                      <TableRow key={t.id}>
+                        <TableCell className="font-mono">{money(t.amount)}</TableCell>
+                        <TableCell><Badge variant={t.credited ? "default" : "secondary"} className="capitalize">{t.credited ? "paid" : t.status}</Badge></TableCell>
+                        <TableCell className="font-mono text-xs">{t.mayar_invoice_id ? String(t.mayar_invoice_id).slice(0, 8) : "—"}</TableCell>
+                        <TableCell className="whitespace-nowrap text-xs text-muted-foreground">{t.created_at ? new Date(t.created_at).toLocaleString("id-ID") : "—"}</TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              )}
+            </div>
+          </div>
+        )}
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function WalletAdjustDialog({ ws, onClose, onDone }) {
+  const [mode, setMode] = useState("credit");
+  const [amount, setAmount] = useState("");
+  const [reason, setReason] = useState("");
+  const mut = useMutation({
+    mutationFn: async () => {
+      const signed = (mode === "debit" ? -1 : 1) * Math.abs(Number(amount) || 0);
+      return (await api.post(`/admin/wallets/${ws.workspace_id}/adjust`, { amount: signed, reason: reason || undefined })).data;
+    },
+    onSuccess: () => { toast.success(mode === "credit" ? "Credits added" : "Credits deducted"); onDone(); onClose(); },
+    onError: (err) => toast.error(formatApiError(err.response?.data?.detail) || err.message),
+  });
+  const amt = Math.abs(Number(amount) || 0);
+  return (
+    <Dialog open onOpenChange={(o) => { if (!o) onClose(); }}>
+      <DialogContent className="max-w-md" data-testid="wallet-adjust-dialog">
+        <DialogHeader>
+          <DialogTitle className="font-display">Adjust wallet — {ws.name}</DialogTitle>
+          <DialogDescription>Manually credit (refund) or deduct credits. 1 credit = Rp1. Logged to the ledger.</DialogDescription>
+        </DialogHeader>
+        <div className="space-y-4">
+          <div className="grid grid-cols-2 gap-2">
+            <button type="button" onClick={() => setMode("credit")} className={`rounded-lg border p-3 text-sm font-medium transition-colors ${mode === "credit" ? "border-emerald-500 bg-emerald-500/10 text-emerald-600" : "border-border text-muted-foreground hover:border-emerald-500/50"}`} data-testid="wallet-adjust-mode-credit">
+              <ArrowDownLeft className="mb-1 h-4 w-4" /> Credit / Refund
+            </button>
+            <button type="button" onClick={() => setMode("debit")} className={`rounded-lg border p-3 text-sm font-medium transition-colors ${mode === "debit" ? "border-destructive bg-destructive/10 text-destructive" : "border-border text-muted-foreground hover:border-destructive/50"}`} data-testid="wallet-adjust-mode-debit">
+              <ArrowUpRight className="mb-1 h-4 w-4" /> Deduct
+            </button>
+          </div>
+          <div className="space-y-1.5">
+            <label className="text-sm">Amount (credits)</label>
+            <Input type="number" min={1} value={amount} onChange={(e) => setAmount(e.target.value)} className="font-mono" placeholder="e.g. 50000" data-testid="wallet-adjust-amount" />
+            {amt > 0 && <p className="text-xs text-muted-foreground">{mode === "credit" ? "Add" : "Deduct"} {creditNum(amt)} credits (≈ {money(amt)})</p>}
+          </div>
+          <div className="space-y-1.5">
+            <label className="text-sm">Reason (optional)</label>
+            <Input value={reason} onChange={(e) => setReason(e.target.value)} placeholder="e.g. Goodwill refund for ticket #123" data-testid="wallet-adjust-reason" />
+          </div>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose}>Cancel</Button>
+          <Button onClick={() => amt > 0 && mut.mutate()} disabled={amt <= 0 || mut.isPending} data-testid="wallet-adjust-submit" className="gap-2">
+            {mut.isPending && <Loader2 className="h-4 w-4 animate-spin" />}
+            {mode === "credit" ? "Add credits" : "Deduct credits"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function WalletsSection() {
+  const qc = useQueryClient();
+  const [search, setSearch] = useState("");
+  const [detailWs, setDetailWs] = useState(null);
+  const [adjustWs, setAdjustWs] = useState(null);
+  const { data, isLoading } = useQuery({
+    queryKey: ["admin-wallets", search],
+    queryFn: async () => (await api.get("/admin/wallets", { params: search ? { search } : {} })).data,
+  });
+  const rows = data?.items || [];
+  return (
+    <div className="space-y-6" data-testid="admin-wallets-section">
+      <div className="grid gap-4 sm:grid-cols-3">
+        <Stat icon={Wallet} label="Credits in circulation" value={creditNum(data?.total_balance)} />
+        <Stat icon={DollarSign} label="Total topped up" value={money(data?.total_topup)} accent="bg-emerald-500/10 text-emerald-500" />
+        <Stat icon={Clock} label="Pending top-ups" value={data?.pending_topups ?? 0} accent="bg-amber-500/10 text-amber-500" />
+      </div>
+      <Card className="p-6">
+        <div className="mb-4 flex items-center gap-2">
+          <Search className="h-4 w-4 text-muted-foreground" />
+          <Input placeholder="Search workspace…" value={search} onChange={(e) => setSearch(e.target.value)} className="max-w-xs" data-testid="admin-wallet-search" />
+        </div>
+        {isLoading ? <Skeleton className="h-64 w-full" /> : rows.length === 0 ? (
+          <p className="py-8 text-center text-sm text-muted-foreground">No workspaces found.</p>
+        ) : (
+          <Table>
+            <TableHeader><TableRow><TableHead>Workspace</TableHead><TableHead>Plan</TableHead><TableHead className="text-right">Balance</TableHead><TableHead className="text-right">Topped up</TableHead><TableHead></TableHead></TableRow></TableHeader>
+            <TableBody>
+              {rows.map((w) => (
+                <TableRow key={w.workspace_id} data-testid={`wallet-row-${w.workspace_id}`}>
+                  <TableCell className="font-medium">{w.name}</TableCell>
+                  <TableCell><Badge variant="secondary" className="capitalize">{w.plan}</Badge></TableCell>
+                  <TableCell className="text-right font-mono" data-testid={`wallet-balance-${w.workspace_id}`}>{creditNum(w.balance)}</TableCell>
+                  <TableCell className="text-right font-mono text-xs text-muted-foreground">{money(w.topup_total)} · {w.topup_count}x</TableCell>
+                  <TableCell className="text-right">
+                    <div className="flex justify-end gap-2">
+                      <Button size="sm" variant="ghost" onClick={() => setDetailWs(w.workspace_id)} data-testid={`wallet-view-${w.workspace_id}`}>View</Button>
+                      <Button size="sm" variant="outline" onClick={() => setAdjustWs(w)} data-testid={`wallet-adjust-${w.workspace_id}`}>Adjust</Button>
+                    </div>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        )}
+      </Card>
+      {detailWs && <WalletDetailDialog workspaceId={detailWs} onClose={() => setDetailWs(null)} />}
+      {adjustWs && <WalletAdjustDialog ws={adjustWs} onClose={() => setAdjustWs(null)} onDone={() => qc.invalidateQueries({ queryKey: ["admin-wallets"] })} />}
+    </div>
+  );
+}
+
 const SECTIONS = {
   overview: OverviewSection,
   users: UsersSection,
   workspaces: WorkspacesSection,
   revenue: RevenueSection,
+  wallets: WalletsSection,
   security: SecuritySection,
   blocklist: BlocklistSection,
   tickets: SupportTicketsAdmin,

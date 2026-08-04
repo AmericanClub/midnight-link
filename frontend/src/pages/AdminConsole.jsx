@@ -6,7 +6,7 @@ import {
   LayoutDashboard, Users, Building2, DollarSign, ShieldAlert, Ban, LifeBuoy, KeyRound,
   RefreshCw, LogOut, Search, Trash2, Plus, TrendingUp, MousePointerClick, LinkIcon,
   QrCode, Ticket, ShieldCheck, Plug, ExternalLink, CheckCircle2, XCircle, Loader2,
-  Wallet, ArrowDownLeft, ArrowUpRight, Clock, Store, Copy, RotateCw, Send, Power,
+  Wallet, ArrowDownLeft, ArrowUpRight, Clock, Store, Copy, RotateCw, Send, Power, ArrowLeft,
 } from "lucide-react";
 import { AreaChart, Area, ResponsiveContainer, Tooltip, XAxis, CartesianGrid } from "recharts";
 import Logo from "@/components/Logo";
@@ -23,6 +23,7 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter,
 } from "@/components/ui/dialog";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import api, { formatApiError } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
 import SupportTicketsAdmin from "@/components/SupportTicketsAdmin";
@@ -774,125 +775,209 @@ function NewPartnerDialog({ onClose, onCreated }) {
   );
 }
 
-function PartnerManageDialog({ partnerId, onClose, onChanged }) {
+function FilterChips({ value, onChange, options }) {
+  return (
+    <div className="flex flex-wrap gap-2">
+      {options.map((o) => (
+        <button key={o.value} type="button" onClick={() => onChange(o.value)} data-testid={`filter-${o.value}`}
+          className={`rounded-full border px-3 py-1 text-xs transition-colors ${value === o.value ? "border-primary bg-primary/10 text-primary" : "border-border text-muted-foreground hover:border-primary/50"}`}>{o.label}</button>
+      ))}
+    </div>
+  );
+}
+
+function Pager({ data, onPage }) {
+  if (!data || (data.total ?? 0) === 0) return null;
+  const { page, pages, total } = data;
+  return (
+    <div className="flex items-center justify-between pt-3 text-sm text-muted-foreground">
+      <span>{total} total · page {page} of {pages}</span>
+      <div className="flex gap-2">
+        <Button size="sm" variant="outline" disabled={page <= 1} onClick={() => onPage(page - 1)} data-testid="pager-prev">Prev</Button>
+        <Button size="sm" variant="outline" disabled={page >= pages} onClick={() => onPage(page + 1)} data-testid="pager-next">Next</Button>
+      </div>
+    </div>
+  );
+}
+
+function PaginatedCharges({ partnerId, refreshParent }) {
+  const [status, setStatus] = useState("all");
+  const [qInput, setQInput] = useState("");
+  const [q, setQ] = useState("");
+  const [page, setPage] = useState(1);
+  const { data, isLoading, refetch } = useQuery({
+    queryKey: ["partner-charges", partnerId, status, q, page],
+    queryFn: async () => (await api.get(`/admin/partners/${partnerId}/charges`, {
+      params: { status: status === "all" ? undefined : status, q: q || undefined, page, limit: 15 },
+    })).data,
+  });
+  const apply = () => { setQ(qInput.trim()); setPage(1); };
+  const resend = async (cid) => {
+    try { await api.post(`/admin/partners/${partnerId}/charges/${cid}/resend`); toast.success("Webhook resent"); refetch(); refreshParent?.(); }
+    catch (e) { toast.error(formatApiError(e.response?.data?.detail) || e.message); }
+  };
+  const items = data?.items || [];
+  return (
+    <div className="space-y-4">
+      <div className="flex flex-wrap items-center gap-3">
+        <FilterChips value={status} onChange={(v) => { setStatus(v); setPage(1); }} options={[
+          { value: "all", label: "All" }, { value: "paid", label: "Paid" },
+          { value: "pending", label: "Pending" }, { value: "expired", label: "Expired" }]} />
+        <div className="ml-auto flex items-center gap-2">
+          <Input value={qInput} onChange={(e) => setQInput(e.target.value)} onKeyDown={(e) => e.key === "Enter" && apply()} placeholder="Search reference…" className="h-9 w-52" data-testid="charge-search" />
+          <Button size="sm" variant="outline" onClick={apply}>Search</Button>
+        </div>
+      </div>
+      {isLoading ? <Skeleton className="h-56 w-full" /> : items.length === 0 ? (
+        <p className="py-8 text-center text-sm text-muted-foreground">No charges match.</p>
+      ) : (
+        <Table>
+          <TableHeader><TableRow><TableHead>Reference</TableHead><TableHead className="text-right">Amount</TableHead><TableHead>Status</TableHead><TableHead>Notified</TableHead><TableHead>Created</TableHead><TableHead></TableHead></TableRow></TableHeader>
+          <TableBody>
+            {items.map((c) => (
+              <TableRow key={c.id} data-testid={`partner-charge-${c.id}`}>
+                <TableCell className="font-mono text-xs">{c.reference_id}</TableCell>
+                <TableCell className="text-right font-mono">{money(c.amount)}</TableCell>
+                <TableCell><Badge variant={c.status === "paid" ? "default" : "secondary"}>{c.status}</Badge></TableCell>
+                <TableCell>{c.notified ? <CheckCircle2 className="h-4 w-4 text-emerald-500" /> : <XCircle className="h-4 w-4 text-muted-foreground/40" />}</TableCell>
+                <TableCell className="whitespace-nowrap text-xs text-muted-foreground">{c.created_at ? new Date(c.created_at).toLocaleString("id-ID") : "—"}</TableCell>
+                <TableCell className="text-right">{c.status === "paid" && <Button size="sm" variant="ghost" className="gap-1" onClick={() => resend(c.id)} data-testid={`partner-resend-${c.id}`}><Send className="h-3.5 w-3.5" /> Resend</Button>}</TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      )}
+      <Pager data={data} onPage={setPage} />
+    </div>
+  );
+}
+
+function PaginatedDeliveries({ partnerId }) {
+  const [status, setStatus] = useState("all");
+  const [page, setPage] = useState(1);
+  const { data, isLoading } = useQuery({
+    queryKey: ["partner-deliveries", partnerId, status, page],
+    queryFn: async () => (await api.get(`/admin/partners/${partnerId}/deliveries`, {
+      params: { status: status === "all" ? undefined : status, page, limit: 15 },
+    })).data,
+  });
+  const items = data?.items || [];
+  return (
+    <div className="space-y-4">
+      <FilterChips value={status} onChange={(v) => { setStatus(v); setPage(1); }} options={[
+        { value: "all", label: "All" }, { value: "success", label: "Success" }, { value: "failed", label: "Failed" }]} />
+      {isLoading ? <Skeleton className="h-56 w-full" /> : items.length === 0 ? (
+        <p className="py-8 text-center text-sm text-muted-foreground">No deliveries match.</p>
+      ) : (
+        <Table>
+          <TableHeader><TableRow><TableHead>Event</TableHead><TableHead>Status</TableHead><TableHead>Code</TableHead><TableHead>Attempts</TableHead><TableHead>Error</TableHead><TableHead>When</TableHead></TableRow></TableHeader>
+          <TableBody>
+            {items.map((d) => (
+              <TableRow key={d.id}>
+                <TableCell className="font-mono text-xs">{d.event}</TableCell>
+                <TableCell><Badge variant={d.status === "success" ? "default" : "destructive"}>{d.status}</Badge></TableCell>
+                <TableCell className="font-mono text-xs">{d.status_code ?? "—"}</TableCell>
+                <TableCell>{d.attempts}</TableCell>
+                <TableCell className="max-w-[180px] truncate text-xs text-muted-foreground">{d.error || "—"}</TableCell>
+                <TableCell className="whitespace-nowrap text-xs text-muted-foreground">{d.created_at ? new Date(d.created_at).toLocaleString("id-ID") : "—"}</TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      )}
+      <Pager data={data} onPage={setPage} />
+    </div>
+  );
+}
+
+function PartnerDetail({ partnerId, onBack }) {
   const qc = useQueryClient();
   const [hook, setHook] = useState(null);
-  const [reveal, setReveal] = useState(null); // {label,value,testid}
-  const { data, isLoading, refetch } = useQuery({
+  const [reveal, setReveal] = useState(null);
+  const { data, refetch } = useQuery({
     queryKey: ["admin-partner", partnerId],
     queryFn: async () => (await api.get(`/admin/partners/${partnerId}`)).data,
   });
   const p = data?.partner;
   const hookValue = hook ?? (p?.webhook_url || "");
-  const after = () => { refetch(); onChanged(); };
-  const run = (fn, ok) => async () => { try { const r = await fn(); if (ok) ok(r); after(); } catch (e) { toast.error(formatApiError(e.response?.data?.detail) || e.message); } };
-
+  const run = (fn, ok) => async () => { try { const r = await fn(); if (ok) ok(r); refetch(); qc.invalidateQueries({ queryKey: ["admin-partners"] }); } catch (e) { toast.error(formatApiError(e.response?.data?.detail) || e.message); } };
   const saveHook = run(() => api.patch(`/admin/partners/${partnerId}`, { webhook_url: hookValue }), () => toast.success("Webhook saved"));
   const toggle = run(() => api.patch(`/admin/partners/${partnerId}`, { active: !p.active }), () => toast.success("Updated"));
   const rotK = run(() => api.post(`/admin/partners/${partnerId}/rotate-key`), (r) => setReveal({ label: "New API Key", value: r.data.api_key, testid: "partner-rotated-key" }));
   const rotS = run(() => api.post(`/admin/partners/${partnerId}/rotate-secret`), (r) => setReveal({ label: "New Webhook Secret", value: r.data.webhook_secret, testid: "partner-rotated-secret" }));
-  const del = run(() => api.delete(`/admin/partners/${partnerId}`), () => { toast.success("Partner deleted"); onClose(); });
-  const resend = (cid) => run(() => api.post(`/admin/partners/${partnerId}/charges/${cid}/resend`), () => toast.success("Webhook resent"));
+  const del = run(() => api.delete(`/admin/partners/${partnerId}`), () => { toast.success("Partner deleted"); onBack(); });
 
   return (
-    <Dialog open onOpenChange={(o) => { if (!o) onClose(); }}>
-      <DialogContent className="max-w-3xl" data-testid="partner-manage-dialog">
-        <DialogHeader>
-          <DialogTitle className="font-display flex items-center gap-2">
-            {p?.name || "Partner"}
-            {p && <Badge variant={p.active ? "default" : "secondary"}>{p.active ? "active" : "inactive"}</Badge>}
-          </DialogTitle>
-          <DialogDescription>API key <code className="font-mono">{p?.key_prefix}…{p?.key_last4}</code> · manage config, charges and webhook deliveries.</DialogDescription>
-        </DialogHeader>
-        {isLoading ? <Skeleton className="h-72 w-full" /> : (
-          <div className="max-h-[65vh] space-y-6 overflow-auto pr-1">
-            <div className="space-y-3 rounded-lg border p-4">
-              <p className="text-sm font-semibold">Configuration</p>
-              <div className="space-y-1.5">
-                <label className="text-xs text-muted-foreground">Webhook URL</label>
-                <div className="flex gap-2">
-                  <Input value={hookValue} onChange={(e) => setHook(e.target.value)} placeholder="https://midnight.app/api/midgate/webhook" data-testid="partner-hook-edit" />
-                  <Button variant="outline" onClick={saveHook} data-testid="partner-hook-save">Save</Button>
-                </div>
+    <div className="space-y-6" data-testid="partner-detail">
+      <button onClick={onBack} className="flex items-center gap-1 text-sm text-muted-foreground transition-colors hover:text-foreground" data-testid="partner-back"><ArrowLeft className="h-4 w-4" /> Back to partners</button>
+      <div className="flex flex-wrap items-center gap-3">
+        <h2 className="font-display text-xl font-bold">{p?.name || "Partner"}</h2>
+        {p && <Badge variant={p.active ? "default" : "secondary"}>{p.active ? "active" : "inactive"}</Badge>}
+        <code className="font-mono text-xs text-muted-foreground">{p?.key_prefix}…{p?.key_last4}</code>
+      </div>
+      <div className="grid gap-4 sm:grid-cols-3">
+        <Stat icon={QrCode} label="Charges" value={data?.stats?.charges ?? 0} />
+        <Stat icon={CheckCircle2} label="Paid" value={data?.stats?.paid_count ?? 0} accent="bg-emerald-500/10 text-emerald-500" />
+        <Stat icon={DollarSign} label="Collected" value={money(data?.stats?.paid_amount)} />
+      </div>
+      <Tabs defaultValue="charges" className="w-full">
+        <TabsList data-testid="partner-tabs">
+          <TabsTrigger value="charges" data-testid="tab-charges">Charges</TabsTrigger>
+          <TabsTrigger value="deliveries" data-testid="tab-deliveries">Deliveries</TabsTrigger>
+          <TabsTrigger value="settings" data-testid="tab-settings">Settings</TabsTrigger>
+        </TabsList>
+        <TabsContent value="charges"><Card className="mt-4 p-6"><PaginatedCharges partnerId={partnerId} refreshParent={refetch} /></Card></TabsContent>
+        <TabsContent value="deliveries"><Card className="mt-4 p-6"><PaginatedDeliveries partnerId={partnerId} /></Card></TabsContent>
+        <TabsContent value="settings">
+          <Card className="mt-4 space-y-4 p-6">
+            <div className="space-y-1.5">
+              <label className="text-sm font-medium">Webhook URL <span className="text-xs text-muted-foreground">— where MidGate sends charge.paid</span></label>
+              <div className="flex gap-2">
+                <Input value={hookValue} onChange={(e) => setHook(e.target.value)} placeholder="https://midnight.app/api/midgate/webhook" data-testid="partner-hook-edit" />
+                <Button variant="outline" onClick={saveHook} data-testid="partner-hook-save">Save</Button>
               </div>
-              {reveal && <SecretReveal {...reveal} />}
-              <div className="flex flex-wrap gap-2 pt-1">
-                <Button size="sm" variant="outline" className="gap-1" onClick={rotK} data-testid="partner-rotate-key"><RotateCw className="h-3.5 w-3.5" /> Rotate API key</Button>
-                <Button size="sm" variant="outline" className="gap-1" onClick={rotS}><RotateCw className="h-3.5 w-3.5" /> Rotate secret</Button>
-                <Button size="sm" variant="outline" className="gap-1" onClick={toggle} data-testid="partner-toggle-active"><Power className="h-3.5 w-3.5" /> {p?.active ? "Deactivate" : "Activate"}</Button>
-                <Button size="sm" variant="destructive" className="gap-1 ml-auto" onClick={del} data-testid="partner-delete"><Trash2 className="h-3.5 w-3.5" /> Delete</Button>
-              </div>
             </div>
-
-            <div className="grid grid-cols-3 gap-3 text-center">
-              <div className="rounded-lg border p-3"><p className="text-xs text-muted-foreground">Charges</p><p className="font-display text-lg font-bold">{data.stats.charges}</p></div>
-              <div className="rounded-lg border p-3"><p className="text-xs text-muted-foreground">Paid</p><p className="font-display text-lg font-bold">{data.stats.paid_count}</p></div>
-              <div className="rounded-lg border p-3"><p className="text-xs text-muted-foreground">Collected</p><p className="font-display text-lg font-bold">{money(data.stats.paid_amount)}</p></div>
+            {reveal && <SecretReveal {...reveal} />}
+            <div className="flex flex-wrap gap-2 border-t pt-4">
+              <Button size="sm" variant="outline" className="gap-1" onClick={rotK} data-testid="partner-rotate-key"><RotateCw className="h-3.5 w-3.5" /> Rotate API key</Button>
+              <Button size="sm" variant="outline" className="gap-1" onClick={rotS}><RotateCw className="h-3.5 w-3.5" /> Rotate secret</Button>
+              <Button size="sm" variant="outline" className="gap-1" onClick={toggle} data-testid="partner-toggle-active"><Power className="h-3.5 w-3.5" /> {p?.active ? "Deactivate" : "Activate"}</Button>
+              <Button size="sm" variant="destructive" className="ml-auto gap-1" onClick={del} data-testid="partner-delete"><Trash2 className="h-3.5 w-3.5" /> Delete partner</Button>
             </div>
-
-            <div>
-              <p className="mb-2 text-sm font-semibold">Charges</p>
-              {data.charges.length === 0 ? <p className="text-sm text-muted-foreground">No charges yet.</p> : (
-                <Table>
-                  <TableHeader><TableRow><TableHead>Reference</TableHead><TableHead className="text-right">Amount</TableHead><TableHead>Status</TableHead><TableHead>Notified</TableHead><TableHead>Created</TableHead><TableHead></TableHead></TableRow></TableHeader>
-                  <TableBody>
-                    {data.charges.map((c) => (
-                      <TableRow key={c.id} data-testid={`partner-charge-${c.id}`}>
-                        <TableCell className="font-mono text-xs">{c.reference_id}</TableCell>
-                        <TableCell className="text-right font-mono">{money(c.amount)}</TableCell>
-                        <TableCell><Badge variant={c.status === "paid" ? "default" : "secondary"}>{c.status}</Badge></TableCell>
-                        <TableCell>{c.notified ? <CheckCircle2 className="h-4 w-4 text-emerald-500" /> : <XCircle className="h-4 w-4 text-muted-foreground/40" />}</TableCell>
-                        <TableCell className="whitespace-nowrap text-xs text-muted-foreground">{c.created_at ? new Date(c.created_at).toLocaleString("id-ID") : "—"}</TableCell>
-                        <TableCell className="text-right">{c.status === "paid" && <Button size="sm" variant="ghost" className="gap-1" onClick={resend(c.id)} data-testid={`partner-resend-${c.id}`}><Send className="h-3.5 w-3.5" /> Resend</Button>}</TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              )}
-            </div>
-
-            <div>
-              <p className="mb-2 text-sm font-semibold">Webhook deliveries</p>
-              {data.deliveries.length === 0 ? <p className="text-sm text-muted-foreground">No deliveries yet.</p> : (
-                <Table>
-                  <TableHeader><TableRow><TableHead>Event</TableHead><TableHead>Status</TableHead><TableHead>Code</TableHead><TableHead>Attempts</TableHead><TableHead>When</TableHead></TableRow></TableHeader>
-                  <TableBody>
-                    {data.deliveries.map((d) => (
-                      <TableRow key={d.id}>
-                        <TableCell className="font-mono text-xs">{d.event}</TableCell>
-                        <TableCell><Badge variant={d.status === "success" ? "default" : "destructive"}>{d.status}</Badge></TableCell>
-                        <TableCell className="font-mono text-xs">{d.status_code ?? "—"}</TableCell>
-                        <TableCell>{d.attempts}</TableCell>
-                        <TableCell className="whitespace-nowrap text-xs text-muted-foreground">{d.created_at ? new Date(d.created_at).toLocaleString("id-ID") : "—"}</TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              )}
-            </div>
-          </div>
-        )}
-      </DialogContent>
-    </Dialog>
+          </Card>
+        </TabsContent>
+      </Tabs>
+    </div>
   );
 }
 
 function PartnersSection() {
   const qc = useQueryClient();
   const [showNew, setShowNew] = useState(false);
-  const [manageId, setManageId] = useState(null);
+  const [selected, setSelected] = useState(null);
   const { data, isLoading } = useQuery({
     queryKey: ["admin-partners"],
     queryFn: async () => (await api.get("/admin/partners")).data,
   });
   const rows = data?.items || [];
   const invalidate = () => qc.invalidateQueries({ queryKey: ["admin-partners"] });
+  const totals = rows.reduce((a, p) => ({ collected: a.collected + (p.paid_amount || 0), charges: a.charges + (p.charges || 0) }), { collected: 0, charges: 0 });
+
+  if (selected) return <PartnerDetail partnerId={selected} onBack={() => { setSelected(null); invalidate(); }} />;
+
   return (
     <div className="space-y-6" data-testid="admin-partners-section">
       <div className="flex items-center justify-between">
         <p className="text-sm text-muted-foreground">Apps (e.g. midnight) that collect payments through MidGate's Mayar gateway.</p>
         <Button className="gap-2" onClick={() => setShowNew(true)} data-testid="new-partner-btn"><Plus className="h-4 w-4" /> New partner</Button>
       </div>
+      {rows.length > 0 && (
+        <div className="grid gap-4 sm:grid-cols-3">
+          <Stat icon={Store} label="Partners" value={rows.length} />
+          <Stat icon={QrCode} label="Total charges" value={totals.charges} />
+          <Stat icon={DollarSign} label="Total collected" value={money(totals.collected)} accent="bg-emerald-500/10 text-emerald-500" />
+        </div>
+      )}
       <Card className="p-6">
         {isLoading ? <Skeleton className="h-56 w-full" /> : rows.length === 0 ? (
           <div className="flex flex-col items-center gap-2 py-10 text-center">
@@ -904,13 +989,13 @@ function PartnersSection() {
             <TableHeader><TableRow><TableHead>Partner</TableHead><TableHead>API key</TableHead><TableHead>Webhook</TableHead><TableHead className="text-right">Collected</TableHead><TableHead>Status</TableHead><TableHead></TableHead></TableRow></TableHeader>
             <TableBody>
               {rows.map((p) => (
-                <TableRow key={p.id} data-testid={`partner-row-${p.id}`}>
+                <TableRow key={p.id} data-testid={`partner-row-${p.id}`} className="cursor-pointer" onClick={() => setSelected(p.id)}>
                   <TableCell className="font-medium">{p.name}</TableCell>
                   <TableCell className="font-mono text-xs">{p.key_prefix}…{p.key_last4}</TableCell>
                   <TableCell className="max-w-[200px] truncate text-xs text-muted-foreground">{p.webhook_url || "—"}</TableCell>
                   <TableCell className="text-right font-mono">{money(p.paid_amount)} <span className="text-xs text-muted-foreground">· {p.paid_count}/{p.charges}</span></TableCell>
                   <TableCell><Badge variant={p.active ? "default" : "secondary"}>{p.active ? "active" : "inactive"}</Badge></TableCell>
-                  <TableCell className="text-right"><Button size="sm" variant="outline" onClick={() => setManageId(p.id)} data-testid={`partner-manage-${p.id}`}>Manage</Button></TableCell>
+                  <TableCell className="text-right"><Button size="sm" variant="outline" onClick={(e) => { e.stopPropagation(); setSelected(p.id); }} data-testid={`partner-manage-${p.id}`}>Manage</Button></TableCell>
                 </TableRow>
               ))}
             </TableBody>
@@ -918,7 +1003,6 @@ function PartnersSection() {
         )}
       </Card>
       {showNew && <NewPartnerDialog onClose={() => setShowNew(false)} onCreated={invalidate} />}
-      {manageId && <PartnerManageDialog partnerId={manageId} onClose={() => setManageId(null)} onChanged={invalidate} />}
     </div>
   );
 }

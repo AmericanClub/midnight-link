@@ -14,6 +14,7 @@ import asyncio
 import hashlib
 import json
 import logging
+import re
 import secrets
 import time
 import uuid
@@ -337,14 +338,43 @@ async def partner_detail(partner_id: str, admin=Depends(require_admin)):
     p = await db.partners.find_one({"id": partner_id}, {"_id": 0})
     if not p:
         raise HTTPException(status_code=404, detail="Partner not found")
-    charges = await db.partner_charges.find(
-        {"partner_id": partner_id}, {"_id": 0}).sort("created_at", -1).limit(100).to_list(100)
-    deliveries = await db.partner_webhook_deliveries.find(
-        {"partner_id": partner_id}, {"_id": 0, "payload": 0}).sort("created_at", -1).limit(100).to_list(100)
     return {"partner": {**_partner_public(p), "webhook_secret_set": bool(p.get("webhook_secret"))},
-            "stats": await _partner_stats(partner_id),
-            "charges": [_charge_public(c) | {"notified": c.get("notified", False)} for c in charges],
-            "deliveries": deliveries}
+            "stats": await _partner_stats(partner_id)}
+
+
+async def _paginate(coll, flt, page, limit, projection=None):
+    page = max(1, int(page))
+    limit = min(max(1, int(limit)), 100)
+    total = await coll.count_documents(flt)
+    items = await coll.find(flt, projection or {"_id": 0}).sort("created_at", -1) \
+        .skip((page - 1) * limit).limit(limit).to_list(limit)
+    return {"items": items, "total": total, "page": page,
+            "pages": max(1, (total + limit - 1) // limit)}
+
+
+@admin_router.get("/{partner_id}/charges")
+async def partner_charges(partner_id: str, admin=Depends(require_admin),
+                          status: str | None = Query(None), q: str | None = Query(None),
+                          page: int = Query(1), limit: int = Query(20)):
+    flt = {"partner_id": partner_id}
+    if status in ("paid", "pending", "expired"):
+        flt["status"] = status
+    if q and q.strip():
+        flt["reference_id"] = {"$regex": re.escape(q.strip()[:120]), "$options": "i"}
+    res = await _paginate(db.partner_charges, flt, page, limit)
+    res["items"] = [_charge_public(c) | {"notified": c.get("notified", False)} for c in res["items"]]
+    return res
+
+
+@admin_router.get("/{partner_id}/deliveries")
+async def partner_deliveries(partner_id: str, admin=Depends(require_admin),
+                             status: str | None = Query(None),
+                             page: int = Query(1), limit: int = Query(20)):
+    flt = {"partner_id": partner_id}
+    if status in ("success", "failed"):
+        flt["status"] = status
+    return await _paginate(db.partner_webhook_deliveries, flt, page, limit,
+                           projection={"_id": 0, "payload": 0})
 
 
 @admin_router.patch("/{partner_id}")

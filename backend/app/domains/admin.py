@@ -285,6 +285,28 @@ async def ip_intel_remove(admin=Depends(require_admin)):
     return await get_status()
 
 
+# --------------------- payment (top-up) master switch -------------------- #
+class PaymentSettingsUpdate(BaseModel):
+    topup_enabled: bool | None = None
+    topup_disabled_message: str | None = None
+
+
+@router.get("/payment-settings")
+async def payment_settings_get(admin=Depends(require_admin)):
+    from .wallet import get_payment_settings
+    return await get_payment_settings()
+
+
+@router.put("/payment-settings")
+async def payment_settings_put(payload: PaymentSettingsUpdate, admin=Depends(require_admin)):
+    from .wallet import set_payment_settings
+    return await set_payment_settings(
+        topup_enabled=payload.topup_enabled,
+        topup_disabled_message=payload.topup_disabled_message,
+        admin_email=admin["email"],
+    )
+
+
 # --------------------------- wallets (credit) ---------------------------- #
 class WalletAdjust(BaseModel):
     amount: int

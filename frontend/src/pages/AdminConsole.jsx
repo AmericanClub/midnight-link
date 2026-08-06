@@ -662,6 +662,52 @@ function WalletAdjustDialog({ ws, onClose, onDone }) {
   );
 }
 
+function PaymentSwitchCard() {
+  const qc = useQueryClient();
+  const [msg, setMsg] = useState(null);
+  const { data } = useQuery({
+    queryKey: ["payment-settings"],
+    queryFn: async () => (await api.get("/admin/payment-settings")).data,
+  });
+  const enabled = data?.topup_enabled ?? true;
+  const message = msg ?? data?.topup_disabled_message ?? "";
+  const save = async (patch) => {
+    try {
+      await api.put("/admin/payment-settings", patch);
+      toast.success("Payment settings updated");
+      qc.invalidateQueries({ queryKey: ["payment-settings"] });
+    } catch (e) { toast.error(formatApiError(e.response?.data?.detail) || e.message); }
+  };
+  return (
+    <Card className="p-6" data-testid="payment-switch-card">
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <div>
+          <div className="flex items-center gap-2">
+            <h3 className="font-display text-base font-semibold">Wallet top-up payments</h3>
+            <Badge variant={enabled ? "default" : "destructive"} data-testid="payment-status-badge">{enabled ? "Enabled" : "Disabled"}</Badge>
+          </div>
+          <p className="mt-1 max-w-xl text-sm text-muted-foreground">
+            Master switch for customer wallet top-ups (Mayar QRIS). Turn it <strong>off</strong> to stop
+            all top-ups so no Mayar fees are incurred until your cheaper gateways are approved.
+            Partner “midnight” charges are <strong>not</strong> affected.
+          </p>
+        </div>
+        <div className="flex items-center gap-3">
+          <span className="text-sm font-medium text-muted-foreground">{enabled ? "On" : "Off"}</span>
+          <Switch checked={enabled} onCheckedChange={(v) => save({ topup_enabled: v })} data-testid="payment-topup-toggle" />
+        </div>
+      </div>
+      <div className="mt-4 space-y-2">
+        <label className="text-xs font-medium text-muted-foreground">Message shown to customers when off</label>
+        <div className="flex flex-col gap-2 sm:flex-row">
+          <Input value={message} onChange={(e) => setMsg(e.target.value)} placeholder="Pembayaran sedang tidak tersedia untuk sementara. Silakan coba lagi nanti." data-testid="payment-message-input" />
+          <Button variant="outline" onClick={() => save({ topup_disabled_message: message })} data-testid="payment-message-save">Save message</Button>
+        </div>
+      </div>
+    </Card>
+  );
+}
+
 function WalletsSection() {
   const qc = useQueryClient();
   const [search, setSearch] = useState("");
@@ -674,6 +720,7 @@ function WalletsSection() {
   const rows = data?.items || [];
   return (
     <div className="space-y-6" data-testid="admin-wallets-section">
+      <PaymentSwitchCard />
       <div className="grid gap-4 sm:grid-cols-3">
         <Stat icon={Wallet} label="Credits in circulation" value={creditNum(data?.total_balance)} />
         <Stat icon={DollarSign} label="Total topped up" value={money(data?.total_topup)} accent="bg-emerald-500/10 text-emerald-500" />

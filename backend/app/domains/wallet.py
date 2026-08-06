@@ -28,6 +28,32 @@ logger = logging.getLogger("midgate.wallet")
 MIN_TOPUP = 10_000            # Rp
 MAX_TOPUP = 100_000_000       # Rp — sane upper bound to catch typos/abuse
 PAID_STATUSES = {"paid", "settled", "success"}
+DEFAULT_TOPUP_DISABLED_MSG = "Pembayaran sedang tidak tersedia untuk sementara. Silakan coba lagi nanti."
+
+
+# --------------------- payment (top-up) master switch -------------------- #
+async def get_payment_settings() -> dict:
+    doc = await db.platform_settings.find_one({"_id": "payments"}) or {}
+    return {
+        "topup_enabled": doc.get("topup_enabled", True),
+        "topup_disabled_message": doc.get("topup_disabled_message") or DEFAULT_TOPUP_DISABLED_MSG,
+        "updated_at": doc.get("updated_at"),
+        "updated_by": doc.get("updated_by"),
+    }
+
+
+async def set_payment_settings(*, topup_enabled=None, topup_disabled_message=None,
+                               admin_email=None) -> dict:
+    updates = {"updated_at": now_iso()}
+    if topup_enabled is not None:
+        updates["topup_enabled"] = bool(topup_enabled)
+    if topup_disabled_message is not None:
+        updates["topup_disabled_message"] = (topup_disabled_message.strip()[:300]
+                                             or DEFAULT_TOPUP_DISABLED_MSG)
+    if admin_email:
+        updates["updated_by"] = admin_email
+    await db.platform_settings.update_one({"_id": "payments"}, {"$set": updates}, upsert=True)
+    return await get_payment_settings()
 
 
 # --------------------------- helpers ------------------------------------- #
@@ -141,8 +167,11 @@ async def summary(ws=Depends(get_billing_workspace)):
     ledger = await db.wallet_ledger.find(
         {"workspace_id": ws["id"]}, {"_id": 0}
     ).sort("created_at", -1).limit(20).to_list(20)
+    ps = await get_payment_settings()
     return {"balance": int(w.get("balance", 0)), "currency": "credit",
-            "min_topup": MIN_TOPUP, "gateway_ready": mayar.configured(), "ledger": ledger}
+            "min_topup": MIN_TOPUP, "gateway_ready": mayar.configured(),
+            "topup_enabled": ps["topup_enabled"],
+            "topup_disabled_message": ps["topup_disabled_message"], "ledger": ledger}
 
 
 @router.get("/ledger")
@@ -156,6 +185,9 @@ async def ledger(ws=Depends(get_billing_workspace), limit: int = 100):
 @router.post("/topup")
 async def topup(payload: TopupInput, ws=Depends(get_billing_workspace),
                 user=Depends(get_current_user)):
+    ps = await get_payment_settings()
+    if not ps["topup_enabled"]:
+        raise HTTPException(status_code=503, detail=ps["topup_disabled_message"])
     if not mayar.configured():
         raise HTTPException(status_code=503, detail="Payment gateway is not configured yet.")
     amount = int(payload.amount)

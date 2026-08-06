@@ -187,6 +187,9 @@ export default function BillingPage() {
   const currentPlanId = subQ.data?.plan?.id || workspace?.plan || "free";
   const plans = plansQ.data?.plans || [];
   const balance = walletQ.data?.balance ?? 0;
+  const topupEnabled = walletQ.data?.topup_enabled ?? true;
+  const topupMsg = walletQ.data?.topup_disabled_message
+    || "Pembayaran sedang tidak tersedia untuk sementara. Silakan coba lagi nanti.";
 
   const refreshAll = useCallback(async () => {
     await refreshSession();
@@ -223,14 +226,17 @@ export default function BillingPage() {
     onError: (err) => toast.error(formatApiError(err.response?.data?.detail) || err.message),
   });
 
-  const openTopup = (amount = 0) => { setPresetAmount(amount); setTopupOpen(true); };
+  const openTopup = (amount = 0) => {
+    if (!topupEnabled) { toast.info(topupMsg); return; }
+    setPresetAmount(amount); setTopupOpen(true);
+  };
 
   const planCta = (p) => {
     if (p.id === currentPlanId) return { label: "Current plan", disabled: true, variant: "outline" };
     if (p.id === "free") return { label: "Free", disabled: true, variant: "outline" };
     if (p.price == null) return { label: "Contact sales", variant: "outline", action: () => toast.info("Our team will reach out — sales@midgate.co") };
     const short = p.price - balance;
-    if (short > 0) return { label: `Top up ${rp(short)}`, variant: "default", topup: true, action: () => openTopup(short) };
+    if (short > 0) return { label: topupEnabled ? `Top up ${rp(short)}` : "Top up unavailable", variant: "default", topup: true, disabled: !topupEnabled, action: () => openTopup(short) };
     return { label: `Activate — ${p.price.toLocaleString("id-ID")} credits`, variant: "default", action: () => purchase.mutate(p.id) };
   };
 
@@ -266,10 +272,15 @@ export default function BillingPage() {
               </p>
               <p className="mt-1 text-sm text-muted-foreground">≈ {rp(balance)} · 1 credit = Rp1</p>
             </div>
-            <Button className="gap-2" onClick={() => openTopup(0)} data-testid="wallet-topup-btn">
+            <Button className="gap-2" onClick={() => openTopup(0)} disabled={!topupEnabled} data-testid="wallet-topup-btn">
               <Plus className="h-4 w-4" /> Top up
             </Button>
           </div>
+          {!topupEnabled && (
+            <div className="mt-4 rounded-lg border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-700 dark:text-amber-400" data-testid="topup-disabled-banner">
+              {topupMsg}
+            </div>
+          )}
         </Card>
 
         <Card className="flex flex-col justify-between p-6" data-testid="current-plan-card">

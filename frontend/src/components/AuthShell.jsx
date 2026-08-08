@@ -4,6 +4,7 @@ import { ShieldCheck, BarChart3, Bot, ArrowLeft } from "lucide-react";
 import Logo from "@/components/Logo";
 import ThemeToggle from "@/components/ThemeToggle";
 import LanguageToggle from "@/components/LanguageToggle";
+import SoundToggle from "@/components/SoundToggle";
 import { useI18n } from "@/context/I18nContext";
 
 export default function AuthShell({ title, subtitle, children }) {
@@ -61,6 +62,7 @@ export default function AuthShell({ title, subtitle, children }) {
           <div className="ml-auto flex items-center gap-1">
             <LanguageToggle />
             <ThemeToggle />
+            <SoundToggle />
           </div>
         </div>
         <div className="flex flex-1 items-center justify-center px-6 pb-16">

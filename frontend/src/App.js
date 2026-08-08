@@ -4,6 +4,7 @@ import { Toaster } from "sonner";
 import { ThemeProvider } from "@/context/ThemeContext";
 import { I18nProvider } from "@/context/I18nContext";
 import { AuthProvider } from "@/context/AuthContext";
+import { SoundProvider } from "@/context/SoundContext";
 import ProtectedRoute from "@/components/ProtectedRoute";
 import AdminRoute from "@/components/AdminRoute";
 
@@ -38,7 +39,19 @@ function App() {
       <I18nProvider>
         <BrowserRouter>
           <AuthProvider>
-            <Toaster richColors position="top-right" />
+            <SoundProvider>
+            <Toaster
+              richColors
+              position="top-right"
+              toastOptions={{
+                classNames: {
+                  toast:
+                    "!rounded-[5px] !border-[3px] !border-[hsl(var(--nb-border))] !shadow-[5px_5px_0_0_hsl(var(--nb-shadow))] !font-display",
+                  title: "!font-display !font-bold !uppercase !tracking-wide",
+                  description: "!normal-case !font-sans",
+                },
+              }}
+            />
             <Routes>
               <Route path="/" element={<Landing />} />
               <Route path="/pricing" element={<Pricing />} />
@@ -66,6 +79,7 @@ function App() {
               <Route path="/app/settings" element={<ProtectedRoute><SettingsPage /></ProtectedRoute>} />
               <Route path="*" element={<NotFound />} />
             </Routes>
+            </SoundProvider>
           </AuthProvider>
         </BrowserRouter>
       </I18nProvider>

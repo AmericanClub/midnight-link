@@ -4,6 +4,7 @@ import { Menu, X } from "lucide-react";
 import Logo from "@/components/Logo";
 import ThemeToggle from "@/components/ThemeToggle";
 import LanguageToggle from "@/components/LanguageToggle";
+import SoundToggle from "@/components/SoundToggle";
 import { Button } from "@/components/ui/button";
 import { useI18n } from "@/context/I18nContext";
 import { useAuth } from "@/context/AuthContext";

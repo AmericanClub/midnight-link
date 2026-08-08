@@ -21,6 +21,7 @@ import {
 import Logo from "@/components/Logo";
 import ThemeToggle from "@/components/ThemeToggle";
 import LanguageToggle from "@/components/LanguageToggle";
+import SoundToggle from "@/components/SoundToggle";
 import NotificationBell from "@/components/NotificationBell";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -133,6 +134,7 @@ export default function DashboardLayout({ children }) {
         <div className="flex items-center gap-2 text-xs text-muted-foreground">
           <LanguageToggle />
           <ThemeToggle />
+          <SoundToggle />
         </div>
       </div>
     </div>

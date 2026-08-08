@@ -203,3 +203,34 @@
 .legal-prose li { margin-bottom: 0.4rem; }
 .legal-prose a { color: hsl(var(--primary)); text-decoration: underline; text-underline-offset: 2px; }
 .legal-prose strong { color: hsl(var(--foreground)); font-weight: 600; }
+
+/* Pixel/stepped shimmer for loading skeletons */
+.nb-skeleton { position: relative; overflow: hidden; }
+.nb-skeleton::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  transform: translateX(-100%);
+  background: linear-gradient(90deg, transparent, hsl(var(--primary) / 0.22), transparent);
+  animation: nbShimmer 1.3s steps(9) infinite;
+}
+@keyframes nbShimmer {
+  to { transform: translateX(100%); }
+}
+
+/* Neobrutalist Sonner toasts */
+[data-sonner-toast] {
+  border: 3px solid hsl(var(--nb-border)) !important;
+  border-radius: 5px !important;
+  box-shadow: 5px 5px 0 0 hsl(var(--nb-shadow)) !important;
+  font-family: 'Space Grotesk', system-ui, sans-serif !important;
+}
+[data-sonner-toast] [data-title] {
+  font-weight: 700 !important;
+  text-transform: uppercase !important;
+  letter-spacing: 0.02em !important;
+  font-size: 0.82rem !important;
+}
+[data-sonner-toast] [data-description] {
+  text-transform: none !important;
+}

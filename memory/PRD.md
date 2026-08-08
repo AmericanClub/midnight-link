@@ -1,6 +1,17 @@
 # Midnight Link — Product Requirements & Progress
 _(formerly "MidGate" — rebranded 2026-08)_
 
+## DEPLOYED — Live on DigitalOcean VPS (2026-08)
+- **Status: LIVE** at `https://midnightlink.link` (+ `www`). Verified: homepage 200 (serves React build), `/api/health` → `{status:ok}`, `/api/ready` → `{database:ok}`, screenshot of live retro landing page confirmed.
+- **Infra:** DigitalOcean droplet (Ubuntu 24.04, 1 vCPU / **2 GB RAM** after resize / 70 GB, IP `157.230.51.87`), project at `/opt/midnight-link/{frontend,backend}`.
+  - **Swap:** added 2 GB `/swapfile` (in `/etc/fstab`) — REQUIRED, the original 1 GB RAM could not complete `yarn install`/`craco build` (thrashed at "Linking dependencies 0/1568").
+  - **Frontend:** `frontend/.env` `REACT_APP_BACKEND_URL=https://midnightlink.link`; built with `yarn install --network-timeout 600000 && yarn build` (use `NODE_OPTIONS=--max-old-space-size=3072`; run inside `tmux`). Output `/opt/midnight-link/frontend/build`.
+  - **Backend:** systemd `midnightlink-api.service` runs uvicorn (venv) on `127.0.0.1:8001`. MongoDB `mongod` local on 27017. NOTE: `emergentintegrations` + `litellm` were stripped from the VPS `requirements.txt` (dependency conflict, AI not used here) — repo still contains them.
+  - **Nginx** (`/etc/nginx/sites-available/default`): serves `build/`, `location /api` → proxy `127.0.0.1:8001` (with X-Forwarded-For for real visitor IP), SPA `try_files $uri /index.html`, static cache. HTTP→HTTPS 301.
+  - **SSL:** Let's Encrypt via `certbot --nginx` (v2.9.0), cert `/etc/letsencrypt/live/midnightlink.link/`. Cloudflare kept "DNS only" (grey) during issuance.
+- **Gotcha:** pasting a multi-line `tee << EOF` heredoc into the Windows terminal mangled the display (but content wrote fine); a base64 single-line `echo ... | base64 -d | sudo tee` fallback avoids this.
+
+
 ## Implemented — Admin Payments Console + Configurable Credit Conversion (2026-08)
 - **Goal (user):** a setup menu in the Admin Console for the Mayar payment gateway (API key etc.) + a setting for how many credits a member gets per top-up (e.g. Rp100k → 100 credits).
 - **Admin Console → "Payments"** (new nav section, `AdminConsole.jsx` `PaymentsSection`, testid `payments-section`): (1) **Payment Gateway — Mayar**: edit API key / webhook token / base URL from the UI (stored in `platform_settings _id="gateway"`, overrides `.env`); key shown MASKED (`•••• 1234`), never returned in full; shows source (db/env) + the webhook URL to paste in Mayar; **Test connection** button. (2) **Credit Conversion**: `rupiah_per_credit` (default **1000** → Rp100k = 100 credits), `bonus_percent`, `min_topup`, with live preview; plan Rp prices auto-convert to credits. (3) **Top-up availability** switch + custom message.

@@ -191,9 +191,33 @@ metadata:
   test_sequence: 12
   run_ui: true
 
+frontend:
+  - task: "Admin Payments UI section"
+    implemented: true
+    working: true
+    file: "frontend/src/pages/AdminConsole.jsx (PaymentsSection)"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+        - working: true
+          agent: "testing"
+          comment: "COMPREHENSIVE UI TESTING COMPLETE (7/7 steps passed). Verified: (1) Admin login (admin@midgate.co/Admin123!) successful, navigated to /admin/payments, section rendered (data-testid=payments-section); (2) Payment Gateway card: Status badge shows 'TERKONFIGURASI', masked API key '•••• Ei4g' displayed (security verified, full key NOT exposed), all inputs present (gw-apikey-input, gw-webhook-input, gw-baseurl-input), buttons present (gw-save-btn, gw-test-btn), Webhook URL line shown; (3) Test connection button (gw-test-btn) clicked -> SUCCESS toast 'Koneksi ke Mayar berhasil.' appeared (Mayar connection working); (4) Credit Conversion card: Set rupiah_per_credit=1000, bonus_percent=10 -> preview (data-testid=credit-preview) correctly showed 'Rp 100.000 = 110 kredit (termasuk bonus 10%) · Rp 1.000 = 1 kredit' (math correct: 100 base + 10% bonus), clicked 'Simpan konversi' (credit-save-btn) -> success toast 'Pengaturan disimpan'; (5) Top-up availability card: Toggled payment-topup-toggle OFF -> message input (payment-message-input) appeared as expected, toggled back ON, clicked 'Simpan' (payment-save-btn) -> success toast 'Pengaturan disimpan'; (6) CLEANUP: Reset bonus_percent to 0 (rpc=1000, bonus=0, min=10000), clicked save -> success. ALL CRITICAL SAFETY GUARDRAILS FOLLOWED: Did NOT type into gw-apikey-input or gw-webhook-input (would overwrite real Mayar key), did NOT click 'Simpan gateway' with new values, credit settings reset to defaults at end. All UI elements rendering correctly, all toasts appearing, no console errors. Feature is production-ready."
+  - task: "Member Billing page with credit conversion"
+    implemented: true
+    working: true
+    file: "frontend/src/pages/BillingPage.jsx"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+        - working: true
+          agent: "testing"
+          comment: "COMPREHENSIVE UI TESTING COMPLETE (4/4 steps passed). Verified: (1) Registered fresh normal user (test+1786159684@example.com / Passw0rd!) successfully, landed on /app; (2) Navigated to /app/billing -> header subtitle shows '1 credit = Rp1.000' (new rate reflected), wallet card (data-testid=wallet-card) shows '0 credits', '≈ Rp0 · 1 credit = Rp1.000' (conversion rate displayed correctly); (3) Plan cards: Pro plan card (data-testid=billing-plan-pro) shows '= 299 credits' (credit conversion working), CTA button shows 'TOP UP RP299.000' (correct amount for 299 credits at 1000 Rp/credit, since balance is 0); (4) Wallet top-up dialog: Clicked wallet-topup-btn -> dialog opened (data-testid=topup-dialog), changed amount to 100000 -> preview (data-testid=topup-credit-preview) correctly showed 'You'll receive 100 credits for Rp100.000' (math correct: 100000/1000=100 credits, no bonus since bonus_percent=0), closed dialog WITHOUT clicking 'Continue to payment' (topup-submit-btn). CRITICAL SAFETY GUARDRAIL FOLLOWED: Did NOT click 'Continue to payment' button (would create REAL Mayar invoice). All credit conversion math working correctly (rupiah_per_credit=1000, bonus_percent=0, min_topup=10000), UI reflects admin settings properly, no console errors. Feature is production-ready."
+
 test_plan:
   current_focus:
-    - "Admin Payments feature testing complete"
+    - "Admin Payments UI + Member Billing testing complete"
   stuck_tasks: []
   test_all: false
   test_priority: "high_first"
@@ -294,6 +318,9 @@ regression_test_rebrand:
   - task: "Custom domain verification token prefix"
     implemented: true
     working: true
+    - agent: "testing"
+      message: "ADMIN PAYMENTS UI + MEMBER BILLING TESTING COMPLETE ✅ (11/11 tests passed). Tested NEW features: Admin Payments console UI + Member Billing page with credit conversion. TEST A (Admin Payments UI): (1) Admin login successful, navigated to /admin/payments section; (2) Payment Gateway card: Status badge 'TERKONFIGURASI', masked API key '•••• Ei4g' (security verified), all inputs/buttons present, Webhook URL shown; (3) Test connection button -> SUCCESS toast 'Koneksi ke Mayar berhasil.'; (4) Credit Conversion: Set rpc=1000, bonus=10 -> preview correctly showed 'Rp 100.000 = 110 kredit', saved successfully; (5) Top-up toggle: OFF -> message input appeared, ON -> saved successfully; (6) CLEANUP: Reset bonus to 0, saved. TEST B (Member Billing): (7) Registered fresh user (test+1786159684@example.com), landed on /app; (8) /app/billing: Header shows '1 credit = Rp1.000', wallet shows '0 credits', '≈ Rp0 · 1 credit = Rp1.000'; (9) Pro plan card shows '= 299 credits', CTA button 'TOP UP RP299.000'; (10) Top-up dialog: Opened, changed amount to 100000 -> preview 'You'll receive 100 credits for Rp100.000', closed WITHOUT clicking 'Continue to payment'. ALL CRITICAL SAFETY GUARDRAILS FOLLOWED: Did NOT type into API key/webhook inputs, did NOT click 'Simpan gateway', did NOT click 'Continue to payment' (would create real Mayar invoice), credit settings reset to defaults. All UI elements rendering correctly, all toasts appearing, credit conversion math working perfectly (rupiah_per_credit=1000, bonus_percent=0, min_topup=10000), no console errors. Both features are production-ready."
+
     file: "backend/app/domains/custom_domains.py"
     stuck_count: 0
     priority: "high"

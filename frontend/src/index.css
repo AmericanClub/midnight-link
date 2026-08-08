@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800;900&family=IBM+Plex+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Sora:wght@400;500;600;700;800&family=Plus+Jakarta+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap');
 
 @tailwind base;
 @tailwind components;
@@ -6,61 +6,65 @@
 
 @layer base {
   :root {
-    --background: 210 20% 98%;
-    --foreground: 222 47% 11%;
+    /* Light mode — warm moonlit parchment */
+    --background: 40 44% 98%;
+    --foreground: 20 16% 12%;
     --card: 0 0% 100%;
-    --card-foreground: 222 47% 11%;
+    --card-foreground: 20 16% 12%;
     --popover: 0 0% 100%;
-    --popover-foreground: 222 47% 11%;
-    --primary: 245 58% 51%;
-    --primary-foreground: 0 0% 100%;
-    --secondary: 210 40% 96%;
-    --secondary-foreground: 222 47% 11%;
-    --muted: 210 40% 96%;
-    --muted-foreground: 215 16% 47%;
-    --accent: 210 40% 96%;
-    --accent-foreground: 222 47% 11%;
+    --popover-foreground: 20 16% 12%;
+    --primary: 38 100% 50%;
+    --primary-foreground: 26 65% 8%;
+    --secondary: 40 38% 94%;
+    --secondary-foreground: 20 16% 12%;
+    --muted: 40 30% 95%;
+    --muted-foreground: 30 8% 42%;
+    --accent: 40 70% 91%;
+    --accent-foreground: 24 50% 22%;
     --destructive: 0 84% 60%;
     --destructive-foreground: 0 0% 100%;
-    --border: 214 32% 91%;
-    --input: 214 32% 91%;
-    --ring: 245 58% 51%;
-    --brand-amber: 38 92% 50%;
-    --success: 142 71% 45%;
-    --chart-1: 245 58% 51%;
-    --chart-2: 262 83% 58%;
-    --chart-3: 38 92% 50%;
-    --chart-4: 199 89% 60%;
-    --chart-5: 347 77% 50%;
-    --radius: 0.5rem;
+    --border: 40 26% 88%;
+    --input: 40 26% 88%;
+    --ring: 38 100% 50%;
+    --brand-amber: 43 100% 50%;
+    --brand-gold: 45 100% 55%;
+    --success: 150 62% 40%;
+    --chart-1: 38 100% 50%;
+    --chart-2: 43 100% 52%;
+    --chart-3: 24 92% 54%;
+    --chart-4: 199 89% 50%;
+    --chart-5: 275 70% 58%;
+    --radius: 0.85rem;
   }
   .dark {
-    --background: 229 60% 5%;
-    --foreground: 210 40% 98%;
-    --card: 222 47% 8%;
-    --card-foreground: 210 40% 98%;
-    --popover: 222 47% 8%;
-    --popover-foreground: 210 40% 98%;
-    --primary: 239 84% 67%;
-    --primary-foreground: 0 0% 100%;
-    --secondary: 217 33% 14%;
-    --secondary-foreground: 210 40% 98%;
-    --muted: 217 33% 14%;
-    --muted-foreground: 215 20% 65%;
-    --accent: 217 33% 17%;
-    --accent-foreground: 210 40% 98%;
+    /* Dark mode — deep midnight sky with an amber moon */
+    --background: 226 46% 6%;
+    --foreground: 40 32% 96%;
+    --card: 226 34% 9%;
+    --card-foreground: 40 32% 96%;
+    --popover: 226 36% 8%;
+    --popover-foreground: 40 32% 96%;
+    --primary: 40 100% 56%;
+    --primary-foreground: 226 55% 7%;
+    --secondary: 226 26% 15%;
+    --secondary-foreground: 40 32% 96%;
+    --muted: 226 24% 14%;
+    --muted-foreground: 40 14% 66%;
+    --accent: 226 30% 18%;
+    --accent-foreground: 40 45% 92%;
     --destructive: 0 72% 51%;
     --destructive-foreground: 0 0% 100%;
-    --border: 217 33% 17%;
-    --input: 217 33% 17%;
-    --ring: 239 84% 67%;
-    --brand-amber: 38 92% 55%;
-    --success: 142 71% 45%;
-    --chart-1: 239 84% 67%;
-    --chart-2: 262 83% 68%;
-    --chart-3: 38 92% 55%;
-    --chart-4: 199 89% 60%;
-    --chart-5: 347 77% 60%;
+    --border: 226 24% 17%;
+    --input: 226 24% 20%;
+    --ring: 40 100% 56%;
+    --brand-amber: 43 100% 56%;
+    --brand-gold: 45 100% 60%;
+    --success: 150 60% 46%;
+    --chart-1: 40 100% 56%;
+    --chart-2: 43 100% 60%;
+    --chart-3: 24 92% 58%;
+    --chart-4: 199 89% 58%;
+    --chart-5: 275 72% 66%;
   }
 }
 
@@ -70,11 +74,11 @@
   }
   body {
     @apply bg-background text-foreground;
-    font-family: 'IBM Plex Sans', system-ui, sans-serif;
+    font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
     -webkit-font-smoothing: antialiased;
   }
   .font-display {
-    font-family: 'Outfit', system-ui, sans-serif;
+    font-family: 'Sora', system-ui, sans-serif;
     letter-spacing: -0.02em;
   }
   .font-mono {
@@ -89,6 +93,32 @@
       linear-gradient(to bottom, hsl(var(--border) / 0.5) 1px, transparent 1px);
     background-size: 44px 44px;
   }
+  /* Amber gradient text (the moon) */
+  .text-gradient {
+    background-image: linear-gradient(100deg, hsl(var(--brand-gold)), hsl(38 100% 50%) 55%, hsl(24 92% 52%));
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+  /* Midnight radial aurora used behind hero / dark panels */
+  .aurora {
+    background:
+      radial-gradient(60% 55% at 78% 12%, hsl(43 100% 55% / 0.28), transparent 60%),
+      radial-gradient(45% 45% at 12% 88%, hsl(24 92% 52% / 0.16), transparent 62%),
+      radial-gradient(90% 80% at 50% 0%, hsl(226 60% 16% / 0.55), transparent 70%);
+  }
+  .night-panel {
+    background:
+      radial-gradient(70% 60% at 85% 8%, hsl(43 100% 55% / 0.22), transparent 60%),
+      radial-gradient(50% 50% at 10% 100%, hsl(275 70% 45% / 0.16), transparent 60%),
+      linear-gradient(160deg, hsl(226 46% 9%), hsl(230 55% 5%));
+  }
+  .glow-amber {
+    box-shadow: 0 0 0 1px hsl(var(--primary) / 0.25), 0 18px 50px -12px hsl(38 100% 50% / 0.45);
+  }
+  .ring-glow {
+    box-shadow: 0 0 40px -6px hsl(43 100% 55% / 0.55);
+  }
   .fade-up {
     animation: fadeUp 0.6s cubic-bezier(0.16, 1, 0.3, 1) both;
   }
@@ -96,12 +126,27 @@
     from { opacity: 0; transform: translateY(16px); }
     to { opacity: 1; transform: translateY(0); }
   }
+  .float-slow {
+    animation: floatSlow 7s ease-in-out infinite;
+  }
+  @keyframes floatSlow {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-14px); }
+  }
+  .pulse-glow {
+    animation: pulseGlow 4s ease-in-out infinite;
+  }
+  @keyframes pulseGlow {
+    0%, 100% { opacity: 0.55; transform: scale(1); }
+    50% { opacity: 0.9; transform: scale(1.05); }
+  }
   .card-lift {
-    transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+    transition: transform 0.25s ease, box-shadow 0.25s ease, border-color 0.25s ease;
   }
   .card-lift:hover {
     transform: translateY(-4px);
-    box-shadow: 0 12px 30px -12px hsl(var(--foreground) / 0.15);
+    border-color: hsl(var(--primary) / 0.4);
+    box-shadow: 0 18px 40px -16px hsl(38 100% 50% / 0.35);
   }
 }
 
@@ -115,7 +160,7 @@
 }
 .legal-prose h2 {
   color: hsl(var(--foreground));
-  font-family: "Outfit", system-ui, sans-serif;
+  font-family: "Sora", system-ui, sans-serif;
   font-weight: 700;
   font-size: 1.15rem;
   margin-top: 2rem;
@@ -138,4 +183,3 @@
   color: hsl(var(--foreground));
   font-weight: 600;
 }
-

@@ -1,25 +1,29 @@
 import React from "react";
 
-export default function Logo({ className = "", showWord = true, size = 28 }) {
+// Midnight Link brand mark — the amber "witch moon" logo + wordmark.
+export default function Logo({ className = "", showWord = true, size = 32 }) {
   return (
-    <div className={`flex items-center gap-2 ${className}`} data-testid="brand-logo">
-      <svg width={size} height={size} viewBox="0 0 32 32" fill="none" aria-hidden="true">
-        <path
-          d="M16 2L28 7v9c0 7.2-5 11.6-12 14C9 27.6 4 23.2 4 16V7l12-5z"
-          fill="hsl(var(--primary))"
+    <div className={`flex items-center gap-2.5 ${className}`} data-testid="brand-logo">
+      <span
+        className="relative inline-flex shrink-0 items-center justify-center"
+        style={{ width: size, height: size }}
+      >
+        <span
+          aria-hidden="true"
+          className="absolute inset-0 rounded-full bg-primary/40 blur-[6px]"
         />
-        <path
-          d="M10.5 21V12.2l5.5 5.2 5.5-5.2V21"
-          stroke="white"
-          strokeWidth="2.2"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          fill="none"
+        <img
+          src="/logo.png"
+          alt="Midnight Link"
+          width={size}
+          height={size}
+          className="relative rounded-full ring-1 ring-primary/30"
+          style={{ width: size, height: size }}
         />
-      </svg>
+      </span>
       {showWord && (
         <span className="font-display text-xl font-extrabold tracking-tight text-foreground">
-          MidGate
+          Midnight<span className="text-gradient">Link</span>
         </span>
       )}
     </div>

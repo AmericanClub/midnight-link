@@ -57,7 +57,7 @@ class TestCORS:
         assert r.headers.get("access-control-allow-origin") != "https://evil.example.com"
 
     def test_trusted_origin_local_echoed(self):
-        origin = "https://protect-links.preview.emergentagent.com"
+        origin = "https://link-midnight-design.preview.emergentagent.com"
         r = requests.get(f"{LOCAL_URL}/api/health",
                          headers={"Origin": origin}, timeout=10)
         assert r.status_code == 200

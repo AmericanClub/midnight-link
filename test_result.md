@@ -105,6 +105,17 @@
 user_problem_statement: "MidGate SaaS gateway. Recent work: (1) added Contact link in public navbar, (2) added 'Back to home' link on auth pages, (3) pending validation of dedicated Admin Console + user/workspace suspension logic."
 
 backend:
+  - task: "Admin Payments feature (payment-config endpoints + credit conversion)"
+    implemented: true
+    working: true
+    file: "backend/app/domains/admin.py, backend/app/domains/wallet.py, backend/app/mayar.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+        - working: true
+          agent: "testing"
+          comment: "COMPREHENSIVE TESTING COMPLETE (10/10 tests passed). Verified: (1) GET /api/admin/payment-config returns correct structure {payments, credits, gateway} with API key properly MASKED (•••• Ei4g), full key NOT leaked (security verified); (2) Non-admin gets 403 (RBAC working); (3) PUT credit settings (rupiah_per_credit=1000, bonus_percent=10, min_topup=20000) persists correctly and reflects in both GET /api/admin/payment-config AND normal user's GET /api/wallet/summary; (4) PUT topup toggle (topup_enabled=false/true, topup_disabled_message) persists correctly; (5) PUT mayar_base_url (safe production URL) persists correctly; (6) POST /api/admin/payment-config/test returns 200 with {ok:true, message:'Koneksi ke Mayar berhasil.'} (Mayar connection working, no 500 error); (7) CREDIT CONVERSION: Granted 300 credits to test workspace via POST /api/wallet/admin/adjust, purchased Pro plan (299000 Rp -> ceil(299000/1000)=299 credits), balance correctly became 1 (300-299), workspace plan upgraded to 'pro'; (8) Insufficient credits: Attempted Business plan (999000 Rp -> 999 credits) with balance 1, correctly returned 402 with message 'Insufficient credits. Top up 998 more to activate Business.' (error references CREDITS not Rupiah, shortfall calculation correct); (9) Below-min top-up validation: POST /api/wallet/topup with amount=5000 (below min_topup=20000) correctly returned 400 with 'Minimum top-up is Rp20,000.' (NO Mayar call made, validation working); (10) Settings reset to defaults (rupiah_per_credit=1000, bonus_percent=0, min_topup=10000, topup_enabled=true) successful. ALL CRITICAL SAFETY GUARDRAILS FOLLOWED: Did NOT set/overwrite mayar_api_key (would clobber real key), did NOT POST /api/wallet/topup with valid amount (would create real invoice), mayar_base_url set to safe production URL only, credit settings reset to defaults at end. Gateway source: env (using .env credentials). All endpoints working perfectly."
   - task: "Admin Console endpoints (overview/users/workspaces/revenue/security-events/global-blocklist/api-usage/feeds)"
     implemented: true
     working: "NA"
@@ -177,12 +188,12 @@ frontend:
 metadata:
   created_by: "main_agent"
   version: "1.1"
-  test_sequence: 11
+  test_sequence: 12
   run_ui: true
 
 test_plan:
   current_focus:
-    - "All redesign tests completed successfully"
+    - "Admin Payments feature testing complete"
   stuck_tasks: []
   test_all: false
   test_priority: "high_first"
@@ -301,4 +312,9 @@ agent_communication:
       message: "REGRESSION TEST COMPLETE (Midnight Link rebrand). Tested: (1) Backend health ✅, (2) Admin auth with admin@midgate.co/Admin123! ✅, (3) Core endpoints (links/wallet/admin) ✅ all return 200, (4) Webhook headers renamed to X-MidnightLink-* ✅ (verified via code + test delivery), (5) Custom domain TXT token prefix 'midnightlink-verify=' ✅. NO 500 errors found. Minor cosmetic issue: existing admin display name still 'MidGate Admin' (seed_admin only updates new accounts). All critical functionality working. 15 tests passed, 0 failed, 1 warning."
     - agent: "testing"
       message: "REDESIGN UI TEST COMPLETE (Midnight Link retro pixel-art/arcade neobrutalist theme). Comprehensive testing of all redesign elements: ✅ Landing page loads with 'Midnight Link' branding, logo (/logo.png) loads, hero 'Every Click. Protected.', all CTAs navigate correctly, Protection Stats section, 6 feature cards, footer links including support@midnightlink.link. ✅ NO 'MidGate' text found anywhere (rebrand successful). ✅ Theme toggle works (light/dark switching + localStorage persistence). ✅ Auth pages render with retro AuthShell, wrong credentials show 'Invalid email or password' toast, admin login (admin@midgate.co/Admin123!) redirects to /admin successfully. ✅ Admin Console renders with sidebar nav (Overview/Users/Workspaces/Wallets/Partners), stat cards, charts, navigation between sections works. ✅ Register page has retro styling + legal note with Terms/Privacy links. ✅ 404 'GAME OVER' page shows pixel '404', 'GAME OVER' text, 'Respawn at home' + 'Go to dashboard' buttons, navigation works. ✅ Public pages (/pricing with 10 plan cards, /contact with support@midnightlink.link + form, /terms, /privacy, /refund) all load with Midnight Link branding. ✅ No broken images. Minor: Sound toggle not rendered in PublicNav (imported but not used; present in AuthShell). Console errors are expected 401s from /api/auth/me when not logged in + Cloudflare CDN RUM failures (external, not app issue). All critical redesign functionality working perfectly."
+    - agent: "main"
+      message: "NEW FEATURE — Admin Payments console + configurable credit conversion. Endpoints (admin only, admin@midgate.co/Admin123!): GET /api/admin/payment-config -> {payments, credits, gateway}; PUT /api/admin/payment-config (partial: topup_enabled, topup_disabled_message, rupiah_per_credit, bonus_percent, min_topup, mayar_api_key, mayar_webhook_token, mayar_base_url); POST /api/admin/payment-config/test. Mayar client resolves creds from DB (platform_settings _id=gateway) else .env; gateway_status returns MASKED key only. Credit model: rupiah_per_credit default 1000 -> top-up credits=floor(amount/rpc)+bonus; plan Rp price -> ceil(price/rpc) credits. /wallet/summary now returns rupiah_per_credit, bonus_percent, min_topup. GUARDRAILS: (1) DO NOT set/overwrite mayar_api_key (clobbers real key) — only verify GET masks it + PUT of other fields works; (2) DO NOT POST /wallet/topup with a valid amount (creates a REAL Mayar invoice) — only test below-min_topup 400; (3) if you change mayar_base_url set it back to https://api.mayar.id/hl/v1; (4) reset credits to 1000/0/10000 at end. VERIFY: masked key+source; PUT credits persists+reflects in GET and /wallet/summary; topup toggle persists; test endpoint returns ok true/false (no 500); purchase-plan conversion — register user, POST /api/wallet/admin/adjust {workspace_id, amount:+300}, then POST /api/wallet/purchase-plan {plan_id:pro} deducts ceil(299000/rpc) credits and 402 when short uses converted credits."
 
+
+    - agent: "testing"
+      message: "ADMIN PAYMENTS FEATURE TESTING COMPLETE ✅ (10/10 tests passed). Tested NEW feature: Admin Payments console + configurable credit conversion. All endpoints working perfectly: (1) GET /api/admin/payment-config returns correct structure with API key MASKED (security verified, full key NOT leaked); (2) Non-admin 403 protection working; (3) PUT credit settings persists and reflects in both admin endpoint and normal user's wallet/summary; (4) Topup toggle works; (5) Mayar base_url update works; (6) Test endpoint returns 200 (Mayar connection successful); (7) Credit conversion math correct: 300 credits granted, Pro plan (299000 Rp) costs ceil(299000/1000)=299 credits, balance became 1, workspace upgraded to 'pro'; (8) Insufficient credits returns 402 with correct message referencing CREDITS (not Rupiah) and shortfall (998 credits); (9) Below-min top-up validation works (400, no Mayar call); (10) Settings reset successful. ALL CRITICAL SAFETY GUARDRAILS FOLLOWED: Did NOT set/overwrite mayar_api_key, did NOT POST /api/wallet/topup with valid amount, mayar_base_url set to safe production URL only, credit settings reset to defaults. Gateway using .env credentials (source: env). NO issues found. Feature is production-ready."

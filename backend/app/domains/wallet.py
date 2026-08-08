@@ -1,13 +1,15 @@
 """Credit wallet + immutable ledger, funded by real Mayar top-ups.
 
-Model (approved): 1 credit = Rp1. Hybrid — top up the wallet via Mayar (QRIS/e-wallet/VA)
-and spend credits on plans. Credits never expire. All balance changes append an
-immutable ledger entry. Payments are only credited after server-side verification with
-Mayar (idempotent), so forged webhooks cannot grant credits.
+Model: the Rupiah-per-credit rate is admin-configurable (Payments console). Top up the
+wallet via Mayar (QRIS/e-wallet/VA) and spend credits on plans; plan Rupiah prices are
+converted to credits at the same rate so pricing stays consistent. Credits never expire.
+All balance changes append an immutable ledger entry. Payments are only credited after
+server-side verification with Mayar (idempotent), so forged webhooks cannot grant credits.
 """
 import hmac
 import json
 import logging
+import math
 import uuid
 
 from fastapi import APIRouter, HTTPException, Depends, Request
@@ -25,8 +27,9 @@ from .admin import require_admin
 router = APIRouter(prefix="/api/wallet", tags=["wallet"])
 logger = logging.getLogger("midgate.wallet")
 
-MIN_TOPUP = 10_000            # Rp
+MIN_TOPUP = 10_000            # Rp — default minimum (admin-configurable)
 MAX_TOPUP = 100_000_000       # Rp — sane upper bound to catch typos/abuse
+DEFAULT_RUPIAH_PER_CREDIT = 1000
 PAID_STATUSES = {"paid", "settled", "success"}
 DEFAULT_TOPUP_DISABLED_MSG = "Pembayaran sedang tidak tersedia untuk sementara. Silakan coba lagi nanti."
 
@@ -54,6 +57,65 @@ async def set_payment_settings(*, topup_enabled=None, topup_disabled_message=Non
         updates["updated_by"] = admin_email
     await db.platform_settings.update_one({"_id": "payments"}, {"$set": updates}, upsert=True)
     return await get_payment_settings()
+
+
+# --------------------- credit conversion settings ------------------------ #
+async def get_credit_settings() -> dict:
+    doc = await db.platform_settings.find_one({"_id": "credits"}) or {}
+    rpc = int(doc.get("rupiah_per_credit") or DEFAULT_RUPIAH_PER_CREDIT)
+    if rpc < 1:
+        rpc = 1
+    return {
+        "rupiah_per_credit": rpc,
+        "bonus_percent": float(doc.get("bonus_percent") or 0),
+        "min_topup": int(doc.get("min_topup") or MIN_TOPUP),
+        "updated_at": doc.get("updated_at"),
+        "updated_by": doc.get("updated_by"),
+    }
+
+
+async def set_credit_settings(*, rupiah_per_credit=None, bonus_percent=None,
+                              min_topup=None, admin_email=None) -> dict:
+    updates = {"updated_at": now_iso()}
+    if rupiah_per_credit is not None:
+        updates["rupiah_per_credit"] = max(1, int(rupiah_per_credit))
+    if bonus_percent is not None:
+        updates["bonus_percent"] = max(0.0, min(float(bonus_percent), 1000.0))
+    if min_topup is not None:
+        updates["min_topup"] = max(0, int(min_topup))
+    if admin_email:
+        updates["updated_by"] = admin_email
+    await db.platform_settings.update_one({"_id": "credits"}, {"$set": updates}, upsert=True)
+    return await get_credit_settings()
+
+
+def credits_for_amount(amount_rp: int, cs: dict):
+    """Returns (total_credits, base_credits, bonus_credits) for a top-up amount."""
+    base = int(amount_rp) // cs["rupiah_per_credit"]
+    bonus = int(base * cs["bonus_percent"] / 100)
+    return base + bonus, base, bonus
+
+
+def credits_for_price(price_rp: int, cs: dict) -> int:
+    """Credits needed to buy something priced in Rupiah (rounded up)."""
+    return int(math.ceil(int(price_rp) / cs["rupiah_per_credit"]))
+
+
+# --------------------- payment gateway (Mayar) config -------------------- #
+async def set_gateway_config(*, api_key=None, webhook_token=None, base_url=None,
+                             admin_email=None) -> dict:
+    updates = {"updated_at": now_iso(), "provider": "mayar"}
+    if api_key is not None and str(api_key).strip():
+        updates["api_key"] = str(api_key).strip()
+    if webhook_token is not None and str(webhook_token).strip():
+        updates["webhook_token"] = str(webhook_token).strip()
+    if base_url is not None and str(base_url).strip():
+        updates["base_url"] = str(base_url).strip()
+    if admin_email:
+        updates["updated_by"] = admin_email
+    await db.platform_settings.update_one({"_id": "gateway"}, {"$set": updates}, upsert=True)
+    mayar.invalidate_creds()
+    return await mayar.gateway_status()
 
 
 # --------------------------- helpers ------------------------------------- #
@@ -129,8 +191,8 @@ async def _try_credit_topup(rec: dict) -> dict:
     return {"status": "paid", "credited": True}
 
 
-def _verify_webhook_token(request: Request) -> bool:
-    token = settings.MAYAR_WEBHOOK_TOKEN
+async def _verify_webhook_token(request: Request) -> bool:
+    token = await mayar.webhook_token()
     if not token:
         return False
     candidates = [
@@ -168,8 +230,10 @@ async def summary(ws=Depends(get_billing_workspace)):
         {"workspace_id": ws["id"]}, {"_id": 0}
     ).sort("created_at", -1).limit(20).to_list(20)
     ps = await get_payment_settings()
+    cs = await get_credit_settings()
     return {"balance": int(w.get("balance", 0)), "currency": "credit",
-            "min_topup": MIN_TOPUP, "gateway_ready": mayar.configured(),
+            "min_topup": cs["min_topup"], "gateway_ready": await mayar.configured(),
+            "rupiah_per_credit": cs["rupiah_per_credit"], "bonus_percent": cs["bonus_percent"],
             "topup_enabled": ps["topup_enabled"],
             "topup_disabled_message": ps["topup_disabled_message"], "ledger": ledger}
 
@@ -188,13 +252,19 @@ async def topup(payload: TopupInput, ws=Depends(get_billing_workspace),
     ps = await get_payment_settings()
     if not ps["topup_enabled"]:
         raise HTTPException(status_code=503, detail=ps["topup_disabled_message"])
-    if not mayar.configured():
+    if not await mayar.configured():
         raise HTTPException(status_code=503, detail="Payment gateway is not configured yet.")
+    cs = await get_credit_settings()
     amount = int(payload.amount)
-    if amount < MIN_TOPUP:
-        raise HTTPException(status_code=400, detail=f"Minimum top-up is Rp{MIN_TOPUP:,}.")
+    if amount < cs["min_topup"]:
+        raise HTTPException(status_code=400, detail=f"Minimum top-up is Rp{cs['min_topup']:,}.")
     if amount > MAX_TOPUP:
         raise HTTPException(status_code=400, detail="Top-up amount is too large.")
+    credits, base_credits, bonus_credits = credits_for_amount(amount, cs)
+    if credits < 1:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Top-up too small — you need at least Rp{cs['rupiah_per_credit']:,} to earn 1 credit.")
 
     order_id = str(uuid.uuid4())
     base = payload.return_url if (payload.return_url or "").startswith(("http://", "https://")) \
@@ -207,7 +277,7 @@ async def topup(payload: TopupInput, ws=Depends(get_billing_workspace),
             email=user.get("email"),
             mobile=user.get("mobile") or "081200000000",
             amount=amount,
-            description=f"Midnight Link wallet top-up ({amount:,} credits)",
+            description=f"Midnight Link wallet top-up — {credits:,} credits (Rp{amount:,})",
             redirect_url=return_url,
             extra_data={"order_id": order_id, "workspace_id": ws["id"], "kind": "wallet_topup"},
         )
@@ -216,11 +286,14 @@ async def topup(payload: TopupInput, ws=Depends(get_billing_workspace),
         raise HTTPException(status_code=502, detail="Could not start payment. Please try again.")
 
     rec = {"id": order_id, "workspace_id": ws["id"], "kind": "wallet_topup",
-           "amount": amount, "credits": amount, "status": "pending", "credited": False,
+           "amount": amount, "credits": credits, "base_credits": base_credits,
+           "bonus_credits": bonus_credits, "rupiah_per_credit": cs["rupiah_per_credit"],
+           "status": "pending", "credited": False,
            "mayar_invoice_id": inv.get("id"), "mayar_transaction_id": inv.get("transactionId"),
            "payment_url": inv.get("link"), "created_by": user["id"], "created_at": now_iso()}
     await db.mayar_payments.insert_one({**rec})
-    return {"order_id": order_id, "payment_url": inv.get("link"), "amount": amount}
+    return {"order_id": order_id, "payment_url": inv.get("link"), "amount": amount,
+            "credits": credits}
 
 
 @router.get("/topup/{order_id}")
@@ -244,21 +317,23 @@ async def purchase_plan(payload: PurchaseInput, ws=Depends(get_billing_workspace
     if plan["price"] is None:
         raise HTTPException(status_code=400, detail="Enterprise plans are handled by sales")
 
-    price = int(plan["price"])
+    price_rp = int(plan["price"])
+    cs = await get_credit_settings()
+    price_credits = credits_for_price(price_rp, cs)
     w_doc = await db.workspaces.find_one({"id": ws["id"]}, {"_id": 0, "plan": 1})
     if (w_doc or {}).get("plan") == plan["id"]:
         raise HTTPException(status_code=400, detail=f"You're already on the {plan['name']} plan.")
     w = await _get_wallet(ws["id"])
     balance = int(w.get("balance", 0))
-    if balance < price:
+    if balance < price_credits:
         raise HTTPException(
             status_code=402,
-            detail=f"Insufficient credits. Top up {price - balance:,} more to activate {plan['name']}.",
+            detail=f"Insufficient credits. Top up {price_credits - balance:,} more to activate {plan['name']}.",
         )
     balance_after, entry = await _apply(
-        ws["id"], -price, "spend", f"{plan['name']} plan — 1 month", ref=plan["id"])
+        ws["id"], -price_credits, "spend", f"{plan['name']} plan — 1 month", ref=plan["id"])
     period_end = await activate_plan_for_workspace(
-        ws["id"], plan["id"], paid_via="wallet_credit", amount=price, ref=entry["id"])
+        ws["id"], plan["id"], paid_via="wallet_credit", amount=price_rp, ref=entry["id"])
     return {"ok": True, "plan": plan["id"], "balance": balance_after,
             "current_period_end": period_end}
 
@@ -275,7 +350,7 @@ async def mayar_webhook(request: Request):
 
     event = payload.get("event") or payload.get("event.received")
     data = payload.get("data") or {}
-    token_ok = _verify_webhook_token(request)
+    token_ok = await _verify_webhook_token(request)
     logger.info("Mayar webhook event=%s token_ok=%s", event, token_ok)
 
     if event and event != "payment.received":

@@ -307,6 +307,58 @@ async def payment_settings_put(payload: PaymentSettingsUpdate, admin=Depends(req
     )
 
 
+class PaymentConfigUpdate(BaseModel):
+    topup_enabled: bool | None = None
+    topup_disabled_message: str | None = None
+    rupiah_per_credit: int | None = None
+    bonus_percent: float | None = None
+    min_topup: int | None = None
+    mayar_api_key: str | None = None
+    mayar_webhook_token: str | None = None
+    mayar_base_url: str | None = None
+
+
+@router.get("/payment-config")
+async def payment_config_get(admin=Depends(require_admin)):
+    from .wallet import get_payment_settings, get_credit_settings
+    from .. import mayar
+    return {
+        "payments": await get_payment_settings(),
+        "credits": await get_credit_settings(),
+        "gateway": await mayar.gateway_status(),
+    }
+
+
+@router.put("/payment-config")
+async def payment_config_put(payload: PaymentConfigUpdate, admin=Depends(require_admin)):
+    from .wallet import set_payment_settings, set_credit_settings, set_gateway_config
+    if payload.topup_enabled is not None or payload.topup_disabled_message is not None:
+        await set_payment_settings(topup_enabled=payload.topup_enabled,
+                                   topup_disabled_message=payload.topup_disabled_message,
+                                   admin_email=admin["email"])
+    if any(v is not None for v in (payload.rupiah_per_credit, payload.bonus_percent, payload.min_topup)):
+        await set_credit_settings(rupiah_per_credit=payload.rupiah_per_credit,
+                                  bonus_percent=payload.bonus_percent,
+                                  min_topup=payload.min_topup, admin_email=admin["email"])
+    if any(v is not None for v in (payload.mayar_api_key, payload.mayar_webhook_token, payload.mayar_base_url)):
+        await set_gateway_config(api_key=payload.mayar_api_key,
+                                 webhook_token=payload.mayar_webhook_token,
+                                 base_url=payload.mayar_base_url, admin_email=admin["email"])
+    return await payment_config_get(admin)
+
+
+@router.post("/payment-config/test")
+async def payment_config_test(admin=Depends(require_admin)):
+    from .. import mayar
+    if not await mayar.configured():
+        return {"ok": False, "message": "API key Mayar belum diatur."}
+    try:
+        await mayar.list_transactions(page=1, page_size=1)
+        return {"ok": True, "message": "Koneksi ke Mayar berhasil."}
+    except mayar.MayarError as e:
+        return {"ok": False, "message": f"Gagal: {e}"}
+
+
 # --------------------------- wallets (credit) ---------------------------- #
 class WalletAdjust(BaseModel):
     amount: int

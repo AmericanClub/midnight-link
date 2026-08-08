@@ -7,6 +7,7 @@ import {
   RefreshCw, LogOut, Search, Trash2, Plus, TrendingUp, MousePointerClick, LinkIcon,
   QrCode, Ticket, ShieldCheck, Plug, ExternalLink, CheckCircle2, XCircle, Loader2,
   Wallet, ArrowDownLeft, ArrowUpRight, Clock, Store, Copy, RotateCw, Send, Power, ArrowLeft,
+  CreditCard, Save, Coins,
 } from "lucide-react";
 import { AreaChart, Area, ResponsiveContainer, Tooltip, XAxis, CartesianGrid } from "recharts";
 import Logo from "@/components/Logo";
@@ -34,6 +35,7 @@ const NAV = [
   { key: "workspaces", label: "Workspaces", icon: Building2 },
   { key: "revenue", label: "Revenue", icon: DollarSign },
   { key: "wallets", label: "Wallets", icon: Wallet },
+  { key: "payments", label: "Payments", icon: CreditCard },
   { key: "partners", label: "Payment Partners", icon: Store },
   { key: "security", label: "Security Events", icon: ShieldAlert },
   { key: "blocklist", label: "Blocklist & Feeds", icon: Ban },
@@ -1058,8 +1060,228 @@ function PartnersSection() {
   );
 }
 
+/* ------------------------------- Payments ------------------------------- */
+function LabeledField({ label, hint, children }) {
+  return (
+    <div>
+      <label className="text-sm font-display font-bold uppercase tracking-wide">{label}</label>
+      {hint && <p className="mb-1.5 mt-0.5 text-xs text-muted-foreground normal-case">{hint}</p>}
+      <div className={hint ? "" : "mt-1.5"}>{children}</div>
+    </div>
+  );
+}
+
+function PaymentsSection() {
+  const qc = useQueryClient();
+  const { data, isLoading } = useQuery({
+    queryKey: ["admin-payment-config"],
+    queryFn: async () => (await api.get("/admin/payment-config")).data,
+  });
+
+  const [gw, setGw] = useState({ mayar_api_key: "", mayar_webhook_token: "", mayar_base_url: "" });
+  const [cr, setCr] = useState({ rupiah_per_credit: 1000, bonus_percent: 0, min_topup: 10000 });
+  const [pay, setPay] = useState({ topup_enabled: true, topup_disabled_message: "" });
+
+  React.useEffect(() => {
+    if (!data) return;
+    setGw((g) => ({ ...g, mayar_base_url: data.gateway?.base_url || "" }));
+    setCr({
+      rupiah_per_credit: data.credits?.rupiah_per_credit ?? 1000,
+      bonus_percent: data.credits?.bonus_percent ?? 0,
+      min_topup: data.credits?.min_topup ?? 10000,
+    });
+    setPay({
+      topup_enabled: data.payments?.topup_enabled ?? true,
+      topup_disabled_message: data.payments?.topup_disabled_message || "",
+    });
+  }, [data]);
+
+  const save = useMutation({
+    mutationFn: async (patch) => (await api.put("/admin/payment-config", patch)).data,
+    onSuccess: () => {
+      toast.success("Pengaturan disimpan");
+      qc.invalidateQueries({ queryKey: ["admin-payment-config"] });
+      qc.invalidateQueries({ queryKey: ["wallet"] });
+    },
+    onError: (e) => toast.error(formatApiError(e.response?.data?.detail) || e.message),
+  });
+  const test = useMutation({
+    mutationFn: async () => (await api.post("/admin/payment-config/test")).data,
+    onSuccess: (r) => (r.ok ? toast.success(r.message) : toast.error(r.message)),
+    onError: (e) => toast.error(formatApiError(e.response?.data?.detail) || e.message),
+  });
+
+  if (isLoading) {
+    return <div className="max-w-3xl space-y-4"><Skeleton className="h-56 w-full" /><Skeleton className="h-56 w-full" /></div>;
+  }
+
+  const gwStatus = data?.gateway || {};
+  const connected = gwStatus.api_key_set;
+  const rpc = Math.max(1, Number(cr.rupiah_per_credit) || 1);
+  const bonus = Math.max(0, Number(cr.bonus_percent) || 0);
+  const base100 = Math.floor(100000 / rpc);
+  const preview100 = base100 + Math.floor((base100 * bonus) / 100);
+
+  const saveGateway = () => {
+    const patch = {};
+    if (gw.mayar_base_url && gw.mayar_base_url.trim()) patch.mayar_base_url = gw.mayar_base_url.trim();
+    if (gw.mayar_api_key.trim()) patch.mayar_api_key = gw.mayar_api_key.trim();
+    if (gw.mayar_webhook_token.trim()) patch.mayar_webhook_token = gw.mayar_webhook_token.trim();
+    if (Object.keys(patch).length === 0) { toast.info("Tidak ada perubahan gateway"); return; }
+    save.mutate(patch, { onSuccess: () => setGw((g) => ({ ...g, mayar_api_key: "", mayar_webhook_token: "" })) });
+  };
+  const saveCredits = () => save.mutate({
+    rupiah_per_credit: Math.max(1, parseInt(cr.rupiah_per_credit, 10) || 1),
+    bonus_percent: Math.max(0, Number(cr.bonus_percent) || 0),
+    min_topup: Math.max(0, parseInt(cr.min_topup, 10) || 0),
+  });
+  const savePay = () => save.mutate({
+    topup_enabled: pay.topup_enabled,
+    topup_disabled_message: pay.topup_disabled_message,
+  });
+
+  return (
+    <div className="max-w-3xl space-y-6" data-testid="payments-section">
+      {/* ---- Mayar gateway ---- */}
+      <Card className="p-6">
+        <div className="mb-5 flex items-center justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <div className="flex h-10 w-10 items-center justify-center rounded-[4px] border-[2.5px] border-[hsl(var(--nb-border))] bg-primary text-primary-foreground shadow-[3px_3px_0_0_hsl(var(--nb-shadow))]">
+              <Store className="h-5 w-5" />
+            </div>
+            <div>
+              <h3 className="font-display text-lg font-bold uppercase tracking-wide">Payment Gateway — Mayar</h3>
+              <p className="text-sm text-muted-foreground">Kredensial disimpan di database & menimpa nilai .env</p>
+            </div>
+          </div>
+          <Badge variant={connected ? "success" : "destructive"} data-testid="gw-status-badge">
+            {connected ? "Terkonfigurasi" : "Belum diatur"}
+          </Badge>
+        </div>
+
+        <div className="mb-5 grid grid-cols-2 gap-3 rounded-[4px] border-2 border-[hsl(var(--nb-border))] bg-muted/40 p-3 text-sm sm:grid-cols-3">
+          <div><p className="text-xs uppercase text-muted-foreground">API Key</p><p className="font-mono font-semibold" data-testid="gw-apikey-current">{gwStatus.api_key_masked || "—"}</p></div>
+          <div><p className="text-xs uppercase text-muted-foreground">Webhook token</p><p className="font-semibold">{gwStatus.webhook_token_set ? "Tersetel" : "Belum"}</p></div>
+          <div><p className="text-xs uppercase text-muted-foreground">Sumber</p><p className="font-semibold uppercase">{gwStatus.source || "none"}</p></div>
+        </div>
+
+        <div className="space-y-4">
+          <LabeledField label="API Key baru" hint="Kosongkan jika tidak ingin mengubah. Tidak ditampilkan kembali demi keamanan.">
+            <Input type="password" placeholder="Tempel API key Mayar…" autoComplete="off"
+              value={gw.mayar_api_key} onChange={(e) => setGw((g) => ({ ...g, mayar_api_key: e.target.value }))}
+              className="font-mono" data-testid="gw-apikey-input" />
+          </LabeledField>
+          <LabeledField label="Webhook token baru" hint="Untuk verifikasi callback Mayar. Kosongkan jika tidak berubah.">
+            <Input type="password" placeholder="Tempel webhook token…" autoComplete="off"
+              value={gw.mayar_webhook_token} onChange={(e) => setGw((g) => ({ ...g, mayar_webhook_token: e.target.value }))}
+              className="font-mono" data-testid="gw-webhook-input" />
+          </LabeledField>
+          <LabeledField label="Base URL" hint="Default: https://api.mayar.id/hl/v1">
+            <Input placeholder="https://api.mayar.id/hl/v1"
+              value={gw.mayar_base_url} onChange={(e) => setGw((g) => ({ ...g, mayar_base_url: e.target.value }))}
+              className="font-mono" data-testid="gw-baseurl-input" />
+          </LabeledField>
+
+          <div className="rounded-[4px] border-2 border-dashed border-[hsl(var(--nb-border))] p-3 text-xs text-muted-foreground">
+            <span className="font-semibold">Webhook URL untuk dashboard Mayar:</span>{" "}
+            <code className="font-mono">{`${window.location.origin.replace(/^http/, "https")}`}/api/wallet/mayar/webhook</code>
+          </div>
+
+          <div className="flex flex-wrap gap-3">
+            <Button onClick={saveGateway} disabled={save.isPending} className="gap-2" data-testid="gw-save-btn">
+              <Save className="h-4 w-4" /> Simpan gateway
+            </Button>
+            <Button variant="outline" onClick={() => test.mutate()} disabled={test.isPending} className="gap-2" data-testid="gw-test-btn">
+              {test.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />} Test koneksi
+            </Button>
+          </div>
+        </div>
+      </Card>
+
+      {/* ---- Credit conversion ---- */}
+      <Card className="p-6">
+        <div className="mb-5 flex items-center gap-3">
+          <div className="flex h-10 w-10 items-center justify-center rounded-[4px] border-[2.5px] border-[hsl(var(--nb-border))] bg-primary text-primary-foreground shadow-[3px_3px_0_0_hsl(var(--nb-shadow))]">
+            <Coins className="h-5 w-5" />
+          </div>
+          <div>
+            <h3 className="font-display text-lg font-bold uppercase tracking-wide">Konversi Kredit</h3>
+            <p className="text-sm text-muted-foreground">Berapa Rupiah untuk 1 kredit saat member top-up</p>
+          </div>
+        </div>
+
+        <div className="grid gap-4 sm:grid-cols-3">
+          <LabeledField label="Rupiah / 1 kredit">
+            <Input type="number" min={1} step={100} value={cr.rupiah_per_credit}
+              onChange={(e) => setCr((c) => ({ ...c, rupiah_per_credit: e.target.value }))}
+              className="font-mono" data-testid="credit-rpc-input" />
+          </LabeledField>
+          <LabeledField label="Bonus (%)">
+            <Input type="number" min={0} step={1} value={cr.bonus_percent}
+              onChange={(e) => setCr((c) => ({ ...c, bonus_percent: e.target.value }))}
+              className="font-mono" data-testid="credit-bonus-input" />
+          </LabeledField>
+          <LabeledField label="Min. top-up (Rp)">
+            <Input type="number" min={0} step={1000} value={cr.min_topup}
+              onChange={(e) => setCr((c) => ({ ...c, min_topup: e.target.value }))}
+              className="font-mono" data-testid="credit-min-input" />
+          </LabeledField>
+        </div>
+
+        <div className="mt-4 rounded-[4px] border-2 border-[hsl(var(--nb-border))] bg-primary/10 p-3 text-sm" data-testid="credit-preview">
+          <span className="font-semibold">Contoh:</span> Rp 100.000 ={" "}
+          <span className="font-mono font-bold text-primary">{preview100.toLocaleString("id-ID")} kredit</span>
+          {bonus > 0 && <span className="text-muted-foreground"> (termasuk bonus {bonus}%)</span>}
+          {" · "}Rp {rpc.toLocaleString("id-ID")} = 1 kredit
+        </div>
+        <p className="mt-2 text-xs text-muted-foreground">
+          Harga plan otomatis dikonversi ke kredit dengan rate ini (mis. Pro Rp299.000 = {Math.ceil(299000 / rpc).toLocaleString("id-ID")} kredit).
+        </p>
+
+        <div className="mt-5">
+          <Button onClick={saveCredits} disabled={save.isPending} className="gap-2" data-testid="credit-save-btn">
+            <Save className="h-4 w-4" /> Simpan konversi
+          </Button>
+        </div>
+      </Card>
+
+      {/* ---- Top-up availability ---- */}
+      <Card className="p-6">
+        <div className="mb-4 flex items-center gap-3">
+          <div className="flex h-10 w-10 items-center justify-center rounded-[4px] border-[2.5px] border-[hsl(var(--nb-border))] bg-primary text-primary-foreground shadow-[3px_3px_0_0_hsl(var(--nb-shadow))]">
+            <Power className="h-5 w-5" />
+          </div>
+          <div>
+            <h3 className="font-display text-lg font-bold uppercase tracking-wide">Ketersediaan Top-up</h3>
+            <p className="text-sm text-muted-foreground">Matikan sementara jika gateway sedang bermasalah</p>
+          </div>
+        </div>
+        <div className="flex items-center justify-between rounded-[4px] border-2 border-[hsl(var(--nb-border))] p-3">
+          <span className="font-display text-sm font-bold uppercase tracking-wide">Top-up aktif</span>
+          <Switch checked={pay.topup_enabled} onCheckedChange={(v) => setPay((p) => ({ ...p, topup_enabled: v }))} data-testid="payment-topup-toggle" />
+        </div>
+        {!pay.topup_enabled && (
+          <div className="mt-4">
+            <LabeledField label="Pesan saat top-up nonaktif">
+              <Input value={pay.topup_disabled_message}
+                onChange={(e) => setPay((p) => ({ ...p, topup_disabled_message: e.target.value }))}
+                placeholder="Pembayaran sedang tidak tersedia…" data-testid="payment-message-input" />
+            </LabeledField>
+          </div>
+        )}
+        <div className="mt-5">
+          <Button onClick={savePay} disabled={save.isPending} className="gap-2" data-testid="payment-save-btn">
+            <Save className="h-4 w-4" /> Simpan
+          </Button>
+        </div>
+      </Card>
+    </div>
+  );
+}
+
 const SECTIONS = {
   overview: OverviewSection,
+  payments: PaymentsSection,
   users: UsersSection,
   workspaces: WorkspacesSection,
   revenue: RevenueSection,

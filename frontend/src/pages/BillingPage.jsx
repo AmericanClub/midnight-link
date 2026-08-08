@@ -35,7 +35,7 @@ const featureList = (l) => [
 const QUICK = [25000, 50000, 100000, 250000, 500000];
 const LEDGER_LABEL = { topup: "Top-up", spend: "Plan purchase", refund: "Refund", adjustment: "Adjustment", bonus: "Bonus" };
 
-function TopupDialog({ open, onOpenChange, presetAmount, onCredited }) {
+function TopupDialog({ open, onOpenChange, presetAmount, onCredited, rupiahPerCredit = 1, bonusPercent = 0, minTopup = 10000 }) {
   const [amount, setAmount] = useState(50000);
   const [pending, setPending] = useState(null); // { order_id, payment_url }
   const [checking, setChecking] = useState(false);
@@ -43,11 +43,11 @@ function TopupDialog({ open, onOpenChange, presetAmount, onCredited }) {
 
   useEffect(() => {
     if (open) {
-      setAmount(presetAmount && presetAmount >= 10000 ? presetAmount : 50000);
+      setAmount(presetAmount && presetAmount >= minTopup ? presetAmount : Math.max(50000, minTopup));
       setPending(null);
     }
     return () => { if (pollRef.current) clearInterval(pollRef.current); };
-  }, [open, presetAmount]);
+  }, [open, presetAmount, minTopup]);
 
   const stopPolling = () => { if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = null; } };
 
@@ -85,7 +85,11 @@ function TopupDialog({ open, onOpenChange, presetAmount, onCredited }) {
     onError: (err) => toast.error(formatApiError(err.response?.data?.detail) || err.message),
   });
 
-  const credits = Number(amount) || 0;
+  const rpc = Math.max(1, Number(rupiahPerCredit) || 1);
+  const amt = Number(amount) || 0;
+  const baseCredits = Math.floor(amt / rpc);
+  const bonusCredits = Math.floor((baseCredits * (Number(bonusPercent) || 0)) / 100);
+  const credits = baseCredits + bonusCredits;
 
   return (
     <Dialog open={open} onOpenChange={(o) => { if (!o) stopPolling(); onOpenChange(o); }}>
@@ -93,7 +97,7 @@ function TopupDialog({ open, onOpenChange, presetAmount, onCredited }) {
         <DialogHeader>
           <DialogTitle className="font-display">Top up your wallet</DialogTitle>
           <DialogDescription>
-            Pay securely with QRIS, e-wallet, or bank transfer via Mayar. 1 credit = Rp1.
+            Pay securely with QRIS, e-wallet, or bank transfer via Mayar. 1 credit = {rp(rpc)}.
           </DialogDescription>
         </DialogHeader>
 
@@ -102,7 +106,7 @@ function TopupDialog({ open, onOpenChange, presetAmount, onCredited }) {
             <div>
               <Label htmlFor="topup-amount">Amount (Rp)</Label>
               <Input
-                id="topup-amount" type="number" min={10000} step={1000} value={amount}
+                id="topup-amount" type="number" min={minTopup} step={1000} value={amount}
                 onChange={(e) => setAmount(e.target.value)}
                 className="mt-1.5 font-mono" data-testid="topup-amount-input"
               />
@@ -118,17 +122,18 @@ function TopupDialog({ open, onOpenChange, presetAmount, onCredited }) {
                 ))}
               </div>
             </div>
-            <div className="rounded-lg bg-muted/50 p-3 text-sm">
-              You'll receive <span className="font-mono font-semibold">{credits.toLocaleString("id-ID")} credits</span>{" "}
-              <span className="text-muted-foreground">(≈ {rp(credits)})</span>
+            <div className="rounded-lg bg-muted/50 p-3 text-sm" data-testid="topup-credit-preview">
+              You’ll receive <span className="font-mono font-semibold">{credits.toLocaleString("id-ID")} credits</span>{" "}
+              <span className="text-muted-foreground">for {rp(amt)}</span>
+              {bonusCredits > 0 && <span className="text-primary"> (incl. {bonusCredits.toLocaleString("id-ID")} bonus)</span>}
             </div>
             <Button
-              className="w-full gap-2" disabled={start.isPending || credits < 10000}
+              className="w-full gap-2" disabled={start.isPending || amt < minTopup || credits < 1}
               onClick={() => start.mutate()} data-testid="topup-submit-btn"
             >
               {start.isPending ? <><Loader2 className="h-4 w-4 animate-spin" /> Starting…</> : <><ExternalLink className="h-4 w-4" /> Continue to payment</>}
             </Button>
-            <p className="text-center text-xs text-muted-foreground">Minimum top-up {rp(10000)}.</p>
+            <p className="text-center text-xs text-muted-foreground">Minimum top-up {rp(minTopup)}.</p>
           </div>
         ) : (
           <div className="space-y-4 text-center" data-testid="topup-waiting">
@@ -138,7 +143,7 @@ function TopupDialog({ open, onOpenChange, presetAmount, onCredited }) {
             <div>
               <p className="font-medium">Waiting for your payment…</p>
               <p className="mt-1 text-sm text-muted-foreground">
-                Complete the payment in the new tab. We'll credit your wallet automatically once it's confirmed.
+                Complete the payment in the new tab. We’ll credit your wallet automatically once it’s confirmed.
               </p>
             </div>
             <div className="flex flex-col gap-2">
@@ -150,7 +155,7 @@ function TopupDialog({ open, onOpenChange, presetAmount, onCredited }) {
                 onClick={async () => { setChecking(true); await checkStatus(pending.order_id, false); setChecking(false); }}
                 data-testid="topup-check-btn"
               >
-                {checking ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />} I've completed the payment
+                {checking ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />} I’ve completed the payment
               </Button>
             </div>
           </div>
@@ -190,6 +195,10 @@ export default function BillingPage() {
   const topupEnabled = walletQ.data?.topup_enabled ?? true;
   const topupMsg = walletQ.data?.topup_disabled_message
     || "Pembayaran sedang tidak tersedia untuk sementara. Silakan coba lagi nanti.";
+  const rupiahPerCredit = Math.max(1, walletQ.data?.rupiah_per_credit ?? 1);
+  const bonusPercent = walletQ.data?.bonus_percent ?? 0;
+  const minTopup = walletQ.data?.min_topup ?? 10000;
+  const creditsForPrice = (priceRp) => Math.ceil((priceRp || 0) / rupiahPerCredit);
 
   const refreshAll = useCallback(async () => {
     await refreshSession();
@@ -235,16 +244,20 @@ export default function BillingPage() {
     if (p.id === currentPlanId) return { label: "Current plan", disabled: true, variant: "outline" };
     if (p.id === "free") return { label: "Free", disabled: true, variant: "outline" };
     if (p.price == null) return { label: "Contact sales", variant: "outline", action: () => toast.info("Our team will reach out — sales@midnightlink.link") };
-    const short = p.price - balance;
-    if (short > 0) return { label: topupEnabled ? `Top up ${rp(short)}` : "Top up unavailable", variant: "default", topup: true, disabled: !topupEnabled, action: () => openTopup(short) };
-    return { label: `Activate — ${p.price.toLocaleString("id-ID")} credits`, variant: "default", action: () => purchase.mutate(p.id) };
+    const priceCredits = creditsForPrice(p.price);
+    const shortCredits = priceCredits - balance;
+    if (shortCredits > 0) {
+      const topupRp = shortCredits * rupiahPerCredit;
+      return { label: topupEnabled ? `Top up ${rp(topupRp)}` : "Top up unavailable", variant: "default", topup: true, disabled: !topupEnabled, action: () => openTopup(topupRp) };
+    }
+    return { label: `Activate — ${priceCredits.toLocaleString("id-ID")} credits`, variant: "default", action: () => purchase.mutate(p.id) };
   };
 
   return (
     <DashboardLayout>
       <div className="mb-8">
         <h1 className="font-display text-2xl font-bold tracking-tight">Billing</h1>
-        <p className="mt-1 text-sm text-muted-foreground">Top up credits and activate plans. 1 credit = Rp1.</p>
+        <p className="mt-1 text-sm text-muted-foreground">Top up credits and activate plans. 1 credit = {rp(rupiahPerCredit)}.</p>
       </div>
 
       {noAccess ? (
@@ -270,7 +283,7 @@ export default function BillingPage() {
                 {Number(balance).toLocaleString("id-ID")}
                 <span className="ml-2 text-base font-semibold text-muted-foreground">credits</span>
               </p>
-              <p className="mt-1 text-sm text-muted-foreground">≈ {rp(balance)} · 1 credit = Rp1</p>
+              <p className="mt-1 text-sm text-muted-foreground">≈ {rp(balance * rupiahPerCredit)} · 1 credit = {rp(rupiahPerCredit)}</p>
             </div>
             <Button className="gap-2" onClick={() => openTopup(0)} disabled={!topupEnabled} data-testid="wallet-topup-btn">
               <Plus className="h-4 w-4" /> Top up
@@ -348,6 +361,9 @@ export default function BillingPage() {
                     {fmtPrice(p.price, p.currency)}
                     {p.price > 0 && <span className="text-sm font-normal text-muted-foreground">/mo</span>}
                   </p>
+                  {p.price > 0 && (
+                    <p className="mt-1 text-xs text-muted-foreground">= {creditsForPrice(p.price).toLocaleString("id-ID")} credits</p>
+                  )}
                 </div>
                 <ul className="mb-6 flex-1 space-y-2 text-sm">
                   {featureList(p.limits).map((f) => (
@@ -412,7 +428,7 @@ export default function BillingPage() {
       </>
       )}
 
-      <TopupDialog open={topupOpen} onOpenChange={setTopupOpen} presetAmount={presetAmount} onCredited={refreshAll} />
+      <TopupDialog open={topupOpen} onOpenChange={setTopupOpen} presetAmount={presetAmount} onCredited={refreshAll} rupiahPerCredit={rupiahPerCredit} bonusPercent={bonusPercent} minTopup={minTopup} />
     </DashboardLayout>
   );
 }

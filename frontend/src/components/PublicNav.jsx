@@ -56,6 +56,7 @@ export default function PublicNav() {
         <div className="hidden items-center gap-2 md:flex">
           <LanguageToggle />
           <ThemeToggle />
+          <SoundToggle />
           {user ? (
             <Button onClick={() => navigate("/app")} data-testid="nav-dashboard-btn">
               Dashboard

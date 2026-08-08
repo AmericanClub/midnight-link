@@ -194,6 +194,8 @@ test_plan:
 
 agent_communication:
     - agent: "main"
+      message: "REBRAND + REDESIGN (Midnight Link). Backend changes to regression-test: pure branding string renames across backend/app (MidGate -> 'Midnight Link') in billing receipt/emails, wallet top-up description, auth welcome/reset emails, team invite, redirect interstitial, analytics CSV filename; webhook signature/event/delivery HTTP header names renamed X-MidGate-* -> X-MidnightLink-* (webhooks.py + partner_pay.py); custom-domain DNS verify token 'midgate-verify' -> 'midnightlink-verify' + DOMAIN_VERIFY_PREFIX default; config EDGE_HOST default; server.py FastAPI title + seeded admin display name. PRESERVED (unchanged): visitor-hash salt in utils.py ('midgate-salt'), logger names ('midgate.*'), ADMIN_EMAIL/ADMIN_PASSWORD env (admin@midgate.co/Admin123!), LEGACY_ADMIN_EMAILS. .env CORS_ORIGINS now ALSO includes https://midnightlink.link + www. GOAL: confirm nothing broke — server healthy, admin login (admin@midgate.co/Admin123!) works, core authed endpoints respond (auth/me, links list, wallet summary, admin overview), and webhook test delivery emits header 'X-MidnightLink-Signature'. Do NOT test real Mayar payment completion (needs real money). No DB schema changes."
+    - agent: "main"
       message: "Iteration 15 (payment-gateway readiness + security hardening). Changes to test: (1) NEW legal pages /terms /privacy /refund (LegalLayout) + footer links + register legal note; (2) favicon.svg + tab title 'MidGate — Every Click. Protected.'; (3) SECURITY FIXES: CORS now allowlist (backend echoes only trusted origins, rejects others), webhook SSRF (reject URLs resolving to private IPs at create + re-check at delivery via validate_public_url), public contact form rate-limited (5/min/IP -> 429), regex search inputs re.escape'd (links.py, admin.py). Verify none of these broke existing flows. Credentials: admin@midgate.co/Admin123!, teammate@example.com/Teammate123! (NOTE: admin email is now .co not .io). Public contact endpoint: POST /api/support/public. Webhook create: POST /api/webhooks (needs workspace)."
 
 iter14_changes:
@@ -233,4 +235,73 @@ frontend_iter12:
         - working: "NA"
           agent: "main"
           comment: "New nav item admin-nav-integrations + IntegrationsSection. data-testid: integrations-section, ipintel-card, ipintel-status-badge (Active/Disabled/Not configured), ipintel-key-input, ipintel-save-btn, ipintel-enable-switch, ipintel-test-btn, ipintel-remove-btn, ipintel-test-result, ipintel-stats-card. Must render for admin; key already configured (badge=Active). Test connection button should show success toast. DO NOT remove key or save a fake key; leave it enabled."
+
+regression_test_rebrand:
+  - task: "Backend health check"
+    implemented: true
+    working: true
+    file: "backend/server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+        - working: true
+          agent: "testing"
+          comment: "GET /api/health returns 200 with status=ok, service=core-api. Backend is up and responding."
+  
+  - task: "Admin authentication (admin@midgate.co)"
+    implemented: true
+    working: true
+    file: "backend/app/domains/auth.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+        - working: true
+          agent: "testing"
+          comment: "POST /api/auth/login with admin@midgate.co/Admin123! returns 200 + token. GET /api/auth/me returns admin user with role=admin. Login works correctly after rebrand. Minor: Admin display name is 'MidGate Admin' (not updated to 'Midnight Link Admin' for existing account, only affects new accounts via seed_admin)."
+  
+  - task: "Core authenticated endpoints (links, wallet, admin)"
+    implemented: true
+    working: true
+    file: "backend/app/domains/links.py, backend/app/domains/wallet.py, backend/app/domains/admin.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+        - working: true
+          agent: "testing"
+          comment: "All core endpoints return 200: GET /api/links (0 links), GET /api/wallet/summary (balance=0), GET /api/admin/overview (users=1, workspaces=1), GET /api/admin/users (1 user), GET /api/admin/workspaces (1 workspace). No 500 errors introduced by string edits."
+  
+  - task: "Webhook header rename (X-MidnightLink-*)"
+    implemented: true
+    working: true
+    file: "backend/app/domains/webhooks.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+        - working: true
+          agent: "testing"
+          comment: "Webhook creation, test delivery, and deletion all work. Test delivery to httpbin.org succeeded (status=success, status_code=200). Code review of webhooks.py lines 54-58 confirms outgoing headers use X-MidnightLink-Signature, X-MidnightLink-Event, X-MidnightLink-Delivery (renamed from X-MidGate-*). Test message includes 'This is a test event from Midnight Link.'"
+  
+  - task: "Custom domain verification token prefix"
+    implemented: true
+    working: true
+    file: "backend/app/domains/custom_domains.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+        - working: true
+          agent: "testing"
+          comment: "POST /api/domains creates custom domain successfully. TXT verification token now starts with 'midnightlink-verify=' (was 'midgate-verify='). Verified via custom_domains.py line 45. Domain creation and deletion work correctly."
+
+agent_communication:
+    - agent: "main"
+      message: "REBRAND + REDESIGN (Midnight Link). Backend changes to regression-test: pure branding string renames across backend/app (MidGate -> 'Midnight Link') in billing receipt/emails, wallet top-up description, auth welcome/reset emails, team invite, redirect interstitial, analytics CSV filename; webhook signature/event/delivery HTTP header names renamed X-MidGate-* -> X-MidnightLink-* (webhooks.py + partner_pay.py); custom-domain DNS verify token 'midgate-verify' -> 'midnightlink-verify' + DOMAIN_VERIFY_PREFIX default; config EDGE_HOST default; server.py FastAPI title + seeded admin display name. PRESERVED (unchanged): visitor-hash salt in utils.py ('midgate-salt'), logger names ('midgate.*'), ADMIN_EMAIL/ADMIN_PASSWORD env (admin@midgate.co/Admin123!), LEGACY_ADMIN_EMAILS. .env CORS_ORIGINS now ALSO includes https://midnightlink.link + www. GOAL: confirm nothing broke — server healthy, admin login (admin@midgate.co/Admin123!) works, core authed endpoints respond (auth/me, links list, wallet summary, admin overview), and webhook test delivery emits header 'X-MidnightLink-Signature'. Do NOT test real Mayar payment completion (needs real money). No DB schema changes."
+    - agent: "main"
+      message: "Iteration 15 (payment-gateway readiness + security hardening). Changes to test: (1) NEW legal pages /terms /privacy /refund (LegalLayout) + footer links + register legal note; (2) favicon.svg + tab title 'MidGate — Every Click. Protected.'; (3) SECURITY FIXES: CORS now allowlist (backend echoes only trusted origins, rejects others), webhook SSRF (reject URLs resolving to private IPs at create + re-check at delivery via validate_public_url), public contact form rate-limited (5/min/IP -> 429), regex search inputs re.escape'd (links.py, admin.py). Verify none of these broke existing flows. Credentials: admin@midgate.co/Admin123!, teammate@example.com/Teammate123! (NOTE: admin email is now .co not .io). Public contact endpoint: POST /api/support/public. Webhook create: POST /api/webhooks (needs workspace)."
+    - agent: "testing"
+      message: "REGRESSION TEST COMPLETE (Midnight Link rebrand). Tested: (1) Backend health ✅, (2) Admin auth with admin@midgate.co/Admin123! ✅, (3) Core endpoints (links/wallet/admin) ✅ all return 200, (4) Webhook headers renamed to X-MidnightLink-* ✅ (verified via code + test delivery), (5) Custom domain TXT token prefix 'midnightlink-verify=' ✅. NO 500 errors found. Minor cosmetic issue: existing admin display name still 'MidGate Admin' (seed_admin only updates new accounts). All critical functionality working. 15 tests passed, 0 failed, 1 warning."
 

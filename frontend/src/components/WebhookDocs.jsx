@@ -57,7 +57,7 @@ function verifyMidgate(rawBody, header, secret) {
 app.post("/webhook", express.raw({ type: "application/json" }), (req, res) => {
   const ok = verifyMidgate(
     req.body.toString(),
-    req.get("X-MidGate-Signature"),
+    req.get("X-MidnightLink-Signature"),
     process.env.MIDGATE_SECRET
   );
   if (!ok) return res.status(400).send("bad signature");
@@ -127,9 +127,9 @@ export default function WebhookDocs() {
       <div className="mb-5">
         <p className="mb-2 text-sm font-medium">Headers on every request</p>
         <ul className="space-y-1 font-mono text-xs text-muted-foreground">
-          <li><span className="text-foreground">X-MidGate-Event</span> — the event type</li>
-          <li><span className="text-foreground">X-MidGate-Delivery</span> — unique delivery id</li>
-          <li><span className="text-foreground">X-MidGate-Signature</span> — <span className="text-foreground">t=&lt;unix_ts&gt;,v1=&lt;hmac_sha256&gt;</span></li>
+          <li><span className="text-foreground">X-MidnightLink-Event</span> — the event type</li>
+          <li><span className="text-foreground">X-MidnightLink-Delivery</span> — unique delivery id</li>
+          <li><span className="text-foreground">X-MidnightLink-Signature</span> — <span className="text-foreground">t=&lt;unix_ts&gt;,v1=&lt;hmac_sha256&gt;</span></li>
         </ul>
         <p className="mt-2 text-xs text-muted-foreground">
           Signature = HMAC-SHA256 of <code className="text-foreground">{"`${t}.${rawBody}`"}</code> using your webhook's signing secret.

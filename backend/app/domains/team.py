@@ -152,7 +152,7 @@ async def create_invitation(payload: InviteInput, request: Request, ws=Depends(g
     await db.invitations.insert_one({**inv})
     accept_path = f"/accept-invite?token={token}"
     await email_provider.send(
-        email, f"You're invited to {ws.get('name')} on MidGate",
+        email, f"You're invited to {ws.get('name')} on Midnight Link",
         f"You've been invited as {ROLE_LABELS.get(payload.role)}. Accept: {accept_path}")
     return {**_invite_public(inv), "token": token, "accept_path": accept_path}
 

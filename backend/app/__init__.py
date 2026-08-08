@@ -1,1 +1,1 @@
-# MidGate core application package
+# Midnight Link core application package

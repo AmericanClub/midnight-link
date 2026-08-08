@@ -1,4 +1,4 @@
-"""Self-hosted threat intelligence for MidGate Protect.
+"""Self-hosted threat intelligence for Midnight Link Protect.
 
 - Tor exit-node set (refreshed from the public bulk list, with a seed fallback)
 - Datacenter / hosting CIDR ranges (curated seed; admin-extendable)

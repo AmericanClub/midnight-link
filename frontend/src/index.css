@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Sora:wght@400;500;600;700;800&family=Plus+Jakarta+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap');
 
 @tailwind base;
 @tailwind components;
@@ -6,65 +6,70 @@
 
 @layer base {
   :root {
-    /* Light mode — warm moonlit parchment */
-    --background: 40 44% 98%;
-    --foreground: 20 16% 12%;
+    /* Light mode — warm arcade parchment + amber moon */
+    --background: 40 44% 97%;
+    --foreground: 24 24% 10%;
     --card: 0 0% 100%;
-    --card-foreground: 20 16% 12%;
+    --card-foreground: 24 24% 10%;
     --popover: 0 0% 100%;
-    --popover-foreground: 20 16% 12%;
+    --popover-foreground: 24 24% 10%;
     --primary: 38 100% 50%;
-    --primary-foreground: 26 65% 8%;
-    --secondary: 40 38% 94%;
-    --secondary-foreground: 20 16% 12%;
-    --muted: 40 30% 95%;
-    --muted-foreground: 30 8% 42%;
-    --accent: 40 70% 91%;
-    --accent-foreground: 24 50% 22%;
-    --destructive: 0 84% 60%;
+    --primary-foreground: 26 70% 8%;
+    --secondary: 40 40% 92%;
+    --secondary-foreground: 24 24% 10%;
+    --muted: 40 30% 93%;
+    --muted-foreground: 28 10% 38%;
+    --accent: 40 80% 88%;
+    --accent-foreground: 24 55% 20%;
+    --destructive: 2 78% 52%;
     --destructive-foreground: 0 0% 100%;
-    --border: 40 26% 88%;
-    --input: 40 26% 88%;
+    --border: 24 24% 12%;
+    --input: 24 24% 12%;
     --ring: 38 100% 50%;
     --brand-amber: 43 100% 50%;
     --brand-gold: 45 100% 55%;
-    --success: 150 62% 40%;
+    --success: 150 62% 38%;
+    /* Neobrutalist border + hard-shadow ink */
+    --nb-border: 24 24% 10%;
+    --nb-shadow: 24 24% 10%;
     --chart-1: 38 100% 50%;
-    --chart-2: 43 100% 52%;
-    --chart-3: 24 92% 54%;
-    --chart-4: 199 89% 50%;
-    --chart-5: 275 70% 58%;
-    --radius: 0.85rem;
+    --chart-2: 199 85% 45%;
+    --chart-3: 150 62% 40%;
+    --chart-4: 2 78% 55%;
+    --chart-5: 275 65% 58%;
+    --radius: 0.2rem;
   }
   .dark {
-    /* Dark mode — deep midnight sky with an amber moon */
-    --background: 226 46% 6%;
-    --foreground: 40 32% 96%;
-    --card: 226 34% 9%;
-    --card-foreground: 40 32% 96%;
-    --popover: 226 36% 8%;
-    --popover-foreground: 40 32% 96%;
+    /* Dark mode — deep midnight sky, glowing amber moon */
+    --background: 226 48% 6%;
+    --foreground: 40 34% 95%;
+    --card: 226 32% 10%;
+    --card-foreground: 40 34% 95%;
+    --popover: 226 34% 9%;
+    --popover-foreground: 40 34% 95%;
     --primary: 40 100% 56%;
-    --primary-foreground: 226 55% 7%;
-    --secondary: 226 26% 15%;
-    --secondary-foreground: 40 32% 96%;
-    --muted: 226 24% 14%;
-    --muted-foreground: 40 14% 66%;
-    --accent: 226 30% 18%;
+    --primary-foreground: 226 60% 6%;
+    --secondary: 226 26% 16%;
+    --secondary-foreground: 40 34% 95%;
+    --muted: 226 24% 15%;
+    --muted-foreground: 40 16% 66%;
+    --accent: 226 30% 20%;
     --accent-foreground: 40 45% 92%;
-    --destructive: 0 72% 51%;
+    --destructive: 2 72% 54%;
     --destructive-foreground: 0 0% 100%;
-    --border: 226 24% 17%;
-    --input: 226 24% 20%;
+    --border: 226 20% 74%;
+    --input: 226 20% 40%;
     --ring: 40 100% 56%;
     --brand-amber: 43 100% 56%;
     --brand-gold: 45 100% 60%;
     --success: 150 60% 46%;
+    --nb-border: 226 22% 78%;
+    --nb-shadow: 226 80% 2%;
     --chart-1: 40 100% 56%;
-    --chart-2: 43 100% 60%;
-    --chart-3: 24 92% 58%;
-    --chart-4: 199 89% 58%;
-    --chart-5: 275 72% 66%;
+    --chart-2: 199 85% 58%;
+    --chart-3: 150 60% 48%;
+    --chart-4: 2 78% 60%;
+    --chart-5: 275 70% 68%;
   }
 }
 
@@ -74,50 +79,86 @@
   }
   body {
     @apply bg-background text-foreground;
-    font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
+    font-family: 'Space Grotesk', system-ui, sans-serif;
     -webkit-font-smoothing: antialiased;
   }
   .font-display {
-    font-family: 'Sora', system-ui, sans-serif;
-    letter-spacing: -0.02em;
+    font-family: 'Space Grotesk', system-ui, sans-serif;
+    letter-spacing: -0.01em;
+  }
+  .font-pixel {
+    font-family: 'Press Start 2P', system-ui, monospace;
+    letter-spacing: 0;
+    line-height: 1.35;
   }
   .font-mono {
     font-family: 'JetBrains Mono', monospace;
   }
 }
 
+@layer components {
+  /* Neobrutalist boxes: thick border + hard offset shadow, sharp corners */
+  .nb {
+    border-width: 3px;
+    border-style: solid;
+    border-color: hsl(var(--nb-border));
+    border-radius: 4px;
+    box-shadow: 5px 5px 0 0 hsl(var(--nb-shadow));
+  }
+  .nb-sm {
+    border-width: 2.5px;
+    border-style: solid;
+    border-color: hsl(var(--nb-border));
+    border-radius: 3px;
+    box-shadow: 3px 3px 0 0 hsl(var(--nb-shadow));
+  }
+  .nb-flat {
+    border-width: 2.5px;
+    border-style: solid;
+    border-color: hsl(var(--nb-border));
+    border-radius: 3px;
+  }
+  /* Interactive press feedback (arcade style) */
+  .nb-press {
+    box-shadow: 3px 3px 0 0 hsl(var(--nb-shadow));
+    transition: transform 0.08s ease, box-shadow 0.08s ease;
+  }
+  .nb-press:hover {
+    transform: translate(-1px, -1px);
+    box-shadow: 5px 5px 0 0 hsl(var(--nb-shadow));
+  }
+  .nb-press:active {
+    transform: translate(2px, 2px);
+    box-shadow: 1px 1px 0 0 hsl(var(--nb-shadow));
+  }
+}
+
 @layer utilities {
   .grid-bg {
     background-image:
-      linear-gradient(to right, hsl(var(--border) / 0.5) 1px, transparent 1px),
-      linear-gradient(to bottom, hsl(var(--border) / 0.5) 1px, transparent 1px);
-    background-size: 44px 44px;
+      linear-gradient(to right, hsl(var(--nb-border) / 0.18) 2px, transparent 2px),
+      linear-gradient(to bottom, hsl(var(--nb-border) / 0.18) 2px, transparent 2px);
+    background-size: 48px 48px;
   }
-  /* Amber gradient text (the moon) */
+  .dot-bg {
+    background-image: radial-gradient(hsl(var(--nb-border) / 0.16) 1.5px, transparent 1.5px);
+    background-size: 22px 22px;
+  }
   .text-gradient {
     background-image: linear-gradient(100deg, hsl(var(--brand-gold)), hsl(38 100% 50%) 55%, hsl(24 92% 52%));
     -webkit-background-clip: text;
     background-clip: text;
     color: transparent;
   }
-  /* Midnight radial aurora used behind hero / dark panels */
   .aurora {
     background:
-      radial-gradient(60% 55% at 78% 12%, hsl(43 100% 55% / 0.28), transparent 60%),
-      radial-gradient(45% 45% at 12% 88%, hsl(24 92% 52% / 0.16), transparent 62%),
-      radial-gradient(90% 80% at 50% 0%, hsl(226 60% 16% / 0.55), transparent 70%);
+      radial-gradient(55% 50% at 80% 14%, hsl(43 100% 55% / 0.22), transparent 60%),
+      radial-gradient(45% 45% at 12% 90%, hsl(24 92% 52% / 0.14), transparent 62%);
   }
   .night-panel {
     background:
-      radial-gradient(70% 60% at 85% 8%, hsl(43 100% 55% / 0.22), transparent 60%),
-      radial-gradient(50% 50% at 10% 100%, hsl(275 70% 45% / 0.16), transparent 60%),
+      radial-gradient(60% 55% at 85% 10%, hsl(43 100% 55% / 0.20), transparent 60%),
       linear-gradient(160deg, hsl(226 46% 9%), hsl(230 55% 5%));
-  }
-  .glow-amber {
-    box-shadow: 0 0 0 1px hsl(var(--primary) / 0.25), 0 18px 50px -12px hsl(38 100% 50% / 0.45);
-  }
-  .ring-glow {
-    box-shadow: 0 0 40px -6px hsl(43 100% 55% / 0.55);
   }
   .fade-up {
     animation: fadeUp 0.6s cubic-bezier(0.16, 1, 0.3, 1) both;
@@ -131,22 +172,14 @@
   }
   @keyframes floatSlow {
     0%, 100% { transform: translateY(0); }
-    50% { transform: translateY(-14px); }
-  }
-  .pulse-glow {
-    animation: pulseGlow 4s ease-in-out infinite;
-  }
-  @keyframes pulseGlow {
-    0%, 100% { opacity: 0.55; transform: scale(1); }
-    50% { opacity: 0.9; transform: scale(1.05); }
+    50% { transform: translateY(-12px); }
   }
   .card-lift {
-    transition: transform 0.25s ease, box-shadow 0.25s ease, border-color 0.25s ease;
+    transition: transform 0.12s ease, box-shadow 0.12s ease;
   }
   .card-lift:hover {
-    transform: translateY(-4px);
-    border-color: hsl(var(--primary) / 0.4);
-    box-shadow: 0 18px 40px -16px hsl(38 100% 50% / 0.35);
+    transform: translate(-2px, -2px);
+    box-shadow: 8px 8px 0 0 hsl(var(--nb-shadow));
   }
 }
 
@@ -155,31 +188,18 @@
   line-height: 1.75;
   font-size: 0.95rem;
 }
-.legal-prose > p {
-  margin-bottom: 1rem;
-}
+.legal-prose > p { margin-bottom: 1rem; }
 .legal-prose h2 {
   color: hsl(var(--foreground));
-  font-family: "Sora", system-ui, sans-serif;
+  font-family: 'Space Grotesk', system-ui, sans-serif;
   font-weight: 700;
-  font-size: 1.15rem;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+  font-size: 1.1rem;
   margin-top: 2rem;
   margin-bottom: 0.75rem;
 }
-.legal-prose ul {
-  list-style: disc;
-  padding-left: 1.25rem;
-  margin-bottom: 1rem;
-}
-.legal-prose li {
-  margin-bottom: 0.4rem;
-}
-.legal-prose a {
-  color: hsl(var(--primary));
-  text-decoration: underline;
-  text-underline-offset: 2px;
-}
-.legal-prose strong {
-  color: hsl(var(--foreground));
-  font-weight: 600;
-}
+.legal-prose ul { list-style: disc; padding-left: 1.25rem; margin-bottom: 1rem; }
+.legal-prose li { margin-bottom: 0.4rem; }
+.legal-prose a { color: hsl(var(--primary)); text-decoration: underline; text-underline-offset: 2px; }
+.legal-prose strong { color: hsl(var(--foreground)); font-weight: 600; }

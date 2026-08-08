@@ -1,7 +1,7 @@
 """Custom domains — bring-your-own-domain for branded short links & QR.
 
 Real DNS-based verification via dnspython (TXT challenge), no external API.
-Once verified and the DNS points to MidGate's edge, links resolve at
+Once verified and the DNS points to Midnight Link's edge, links resolve at
 https://your.domain/{alias}. One verified domain per workspace can be primary.
 """
 import asyncio
@@ -42,7 +42,7 @@ def _txt_name(domain: str) -> str:
 
 
 def _expected_txt(token: str) -> str:
-    return f"midgate-verify={token}"
+    return f"midnightlink-verify={token}"
 
 
 def _instructions(d: dict) -> dict:

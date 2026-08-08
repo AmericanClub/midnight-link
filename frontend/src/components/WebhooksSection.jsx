@@ -34,7 +34,7 @@ function SecretReveal({ secret, onDone }) {
         </Button>
       </div>
       <p className="text-xs text-amber-600 dark:text-amber-400">
-        Copy it now — it won't be shown again. Use it to verify the <code>X-MidGate-Signature</code> header.
+        Copy it now — it won't be shown again. Use it to verify the <code>X-MidnightLink-Signature</code> header.
       </p>
       <Button className="w-full" onClick={onDone} data-testid="webhook-secret-done">Done</Button>
     </div>
@@ -213,7 +213,7 @@ export default function WebhooksSection() {
         <Button size="sm" onClick={() => setDialog(true)} className="gap-2" data-testid="new-webhook-btn"><Plus className="h-4 w-4" />Add endpoint</Button>
       </div>
       <p className="mb-4 text-sm text-muted-foreground">
-        Get real-time events delivered to your server. Each request is signed with HMAC-SHA256 in the <code>X-MidGate-Signature</code> header.
+        Get real-time events delivered to your server. Each request is signed with HMAC-SHA256 in the <code>X-MidnightLink-Signature</code> header.
       </p>
 
       {isLoading ? <Skeleton className="h-24 w-full" /> : items.length === 0 ? (

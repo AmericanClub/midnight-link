@@ -9,7 +9,7 @@ const QRPreview = forwardRef(function QRPreview({ value, style = {}, size = 220 
     width: size,
     height: size,
     type: "svg",
-    data: value || "https://midgate.io",
+    data: value || "https://midnightlink.link",
     margin: style.margin ?? 8,
     qrOptions: { errorCorrectionLevel: style.error_correction || "M" },
     dotsOptions: { color: style.fg_color || "#0A0A0A", type: style.dots_style || "rounded" },
@@ -35,7 +35,7 @@ const QRPreview = forwardRef(function QRPreview({ value, style = {}, size = 220 
 
   useImperativeHandle(ref, () => ({
     download: (extension) => {
-      if (qrRef.current) qrRef.current.download({ name: "midgate-qr", extension });
+      if (qrRef.current) qrRef.current.download({ name: "midnightlink-qr", extension });
     },
   }));
 

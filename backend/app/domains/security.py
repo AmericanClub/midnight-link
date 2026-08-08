@@ -1,4 +1,4 @@
-"""MidGate Protect — risk scoring, configurable rules, IP allow/block lists,
+"""Midnight Link Protect — risk scoring, configurable rules, IP allow/block lists,
 threat-intel signals, and the full per-request evaluation pipeline."""
 import hashlib
 import hmac

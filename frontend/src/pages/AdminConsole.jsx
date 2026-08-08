@@ -422,7 +422,7 @@ function IntegrationsSection() {
     <div className="max-w-2xl space-y-6" data-testid="integrations-section">
       <p className="text-sm text-muted-foreground">
         Connect a paid IP intelligence provider to accurately detect VPNs, proxies, Tor and
-        risky IPs on every click. When active, results enrich MidGate's risk scoring and
+        risky IPs on every click. When active, results enrich Midnight Link's risk scoring and
         per-link proxy/VPN protection automatically.
       </p>
 
@@ -793,7 +793,7 @@ function NewPartnerDialog({ onClose, onCreated }) {
       <DialogContent className="max-w-lg" data-testid="new-partner-dialog">
         <DialogHeader>
           <DialogTitle className="font-display">{creds ? "Partner created" : "New payment partner"}</DialogTitle>
-          <DialogDescription>{creds ? "Store these credentials in the partner app now." : "Create a partner app (e.g. midnight) that can collect payments through MidGate."}</DialogDescription>
+          <DialogDescription>{creds ? "Store these credentials in the partner app now." : "Create a partner app (e.g. midnight) that can collect payments through Midnight Link."}</DialogDescription>
         </DialogHeader>
         {!creds ? (
           <div className="space-y-4">
@@ -801,7 +801,7 @@ function NewPartnerDialog({ onClose, onCreated }) {
               <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="midnight" data-testid="partner-name-input" /></div>
             <div className="space-y-1.5"><label className="text-sm">Source tag (optional)</label>
               <Input value={tag} onChange={(e) => setTag(e.target.value)} placeholder="midnight" /></div>
-            <div className="space-y-1.5"><label className="text-sm">Webhook URL (where MidGate sends charge.paid)</label>
+            <div className="space-y-1.5"><label className="text-sm">Webhook URL (where Midnight Link sends charge.paid)</label>
               <Input value={hook} onChange={(e) => setHook(e.target.value)} placeholder="https://midnight.app/api/midgate/webhook" data-testid="partner-hook-input" /></div>
             <DialogFooter>
               <Button variant="outline" onClick={onClose}>Cancel</Button>
@@ -813,7 +813,7 @@ function NewPartnerDialog({ onClose, onCreated }) {
         ) : (
           <div className="space-y-3">
             <SecretReveal label="Partner API Key (Authorization: Bearer …)" value={creds.api_key} testid="partner-new-apikey" />
-            <SecretReveal label="Webhook Signing Secret (verify X-MidGate-Signature)" value={creds.webhook_secret} testid="partner-new-secret" />
+            <SecretReveal label="Webhook Signing Secret (verify X-MidnightLink-Signature)" value={creds.webhook_secret} testid="partner-new-secret" />
             <DialogFooter><Button onClick={onClose} data-testid="partner-creds-done">Done</Button></DialogFooter>
           </div>
         )}
@@ -982,7 +982,7 @@ function PartnerDetail({ partnerId, onBack }) {
         <TabsContent value="settings">
           <Card className="mt-4 space-y-4 p-6">
             <div className="space-y-1.5">
-              <label className="text-sm font-medium">Webhook URL <span className="text-xs text-muted-foreground">— where MidGate sends charge.paid</span></label>
+              <label className="text-sm font-medium">Webhook URL <span className="text-xs text-muted-foreground">— where Midnight Link sends charge.paid</span></label>
               <div className="flex gap-2">
                 <Input value={hookValue} onChange={(e) => setHook(e.target.value)} placeholder="https://midnight.app/api/midgate/webhook" data-testid="partner-hook-edit" />
                 <Button variant="outline" onClick={saveHook} data-testid="partner-hook-save">Save</Button>
@@ -1019,7 +1019,7 @@ function PartnersSection() {
   return (
     <div className="space-y-6" data-testid="admin-partners-section">
       <div className="flex items-center justify-between">
-        <p className="text-sm text-muted-foreground">Apps (e.g. midnight) that collect payments through MidGate's Mayar gateway.</p>
+        <p className="text-sm text-muted-foreground">Apps (e.g. midnight) that collect payments through Midnight Link's Mayar gateway.</p>
         <Button className="gap-2" onClick={() => setShowNew(true)} data-testid="new-partner-btn"><Plus className="h-4 w-4" /> New partner</Button>
       </div>
       {rows.length > 0 && (

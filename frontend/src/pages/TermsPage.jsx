@@ -8,26 +8,26 @@ export default function TermsPage() {
   return (
     <LegalLayout title="Terms of Service" updated={UPDATED} testid="terms-page">
       <p>
-        These Terms of Service ("Terms") govern your access to and use of MidGate (the
+        These Terms of Service ("Terms") govern your access to and use of Midnight Link (the
         "Service"), a link management and traffic-protection platform available at
-        midgate.co. MidGate is a service operated from Siak, Indonesia
-        ("MidGate", "we", "us", or "our"). By creating an account or using the
+        midnightlink.link. Midnight Link is a service operated from Siak, Indonesia
+        ("Midnight Link", "we", "us", or "our"). By creating an account or using the
         Service, you agree to be bound by these Terms. If you do not agree, do not use the
         Service.
       </p>
 
       <h2>1. The Service</h2>
       <p>
-        MidGate provides smart links, dynamic QR codes, click analytics, bot/proxy/VPN
+        Midnight Link provides smart links, dynamic QR codes, click analytics, bot/proxy/VPN
         detection, configurable traffic-protection rules, custom domains, a developer API,
         webhooks, and team workspaces. Features available to you depend on your subscription
         plan.
       </p>
       <p>
-        MidGate is a digital, subscription-based software service. Access to paid features is
+        Midnight Link is a digital, subscription-based software service. Access to paid features is
         provisioned <strong>automatically and immediately</strong> after a successful payment —
         there is no physical product or shipment. You access the Service online at any time
-        through your account at midgate.co.
+        through your account at midnightlink.link.
       </p>
 
       <h2>2. Accounts</h2>
@@ -35,7 +35,7 @@ export default function TermsPage() {
         <li>You must provide accurate registration information and keep it up to date.</li>
         <li>You are responsible for safeguarding your password and for all activity under your account.</li>
         <li>You must be at least 18 years old, or the age of majority in your jurisdiction, to use the Service.</li>
-        <li>You must notify us immediately of any unauthorized use of your account at support@midgate.co.</li>
+        <li>You must notify us immediately of any unauthorized use of your account at support@midnightlink.link.</li>
       </ul>
 
       <h2>3. Acceptable use</h2>
@@ -48,7 +48,7 @@ export default function TermsPage() {
         <li>attempts to disrupt, reverse engineer, or gain unauthorized access to the Service or its infrastructure.</li>
       </ul>
       <p>
-        MidGate's protection features are intended for anti-abuse and anti-bot purposes only
+        Midnight Link's protection features are intended for anti-abuse and anti-bot purposes only
         and must not be used to cloak, deceive, or evade lawful review. We may suspend or
         terminate accounts and links that violate this section.
       </p>
@@ -71,7 +71,7 @@ export default function TermsPage() {
 
       <h2>6. Intellectual property</h2>
       <p>
-        The Service, including its software, design, and branding, is owned by MidGate and
+        The Service, including its software, design, and branding, is owned by Midnight Link and
         protected by applicable laws. We grant you a limited, non-exclusive, non-transferable
         right to use the Service in accordance with these Terms. You retain ownership of the
         content and destinations you configure.
@@ -94,7 +94,7 @@ export default function TermsPage() {
 
       <h2>9. Limitation of liability</h2>
       <p>
-        To the maximum extent permitted by law, MidGate shall not be liable for any indirect,
+        To the maximum extent permitted by law, Midnight Link shall not be liable for any indirect,
         incidental, special, or consequential damages, or for loss of profits, revenue, data,
         or goodwill. Our total liability for any claim relating to the Service shall not exceed
         the amount you paid to us in the three (3) months preceding the event giving rise to the
@@ -124,7 +124,7 @@ export default function TermsPage() {
       <h2>13. Contact</h2>
       <p>
         Questions about these Terms? Email us at{" "}
-        <a href="mailto:support@midgate.co">support@midgate.co</a> or use our{" "}
+        <a href="mailto:support@midnightlink.link">support@midnightlink.link</a> or use our{" "}
         <Link to="/contact">contact page</Link>.
       </p>
     </LegalLayout>

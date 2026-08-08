@@ -157,7 +157,7 @@ async def export_link_csv(
     for r in rows:
         writer.writerow(r)
     buf.seek(0)
-    fname = f"midgate_{link['alias']}_clicks.csv"
+    fname = f"midnightlink_{link['alias']}_clicks.csv"
     return StreamingResponse(
         iter([buf.getvalue()]),
         media_type="text/csv",

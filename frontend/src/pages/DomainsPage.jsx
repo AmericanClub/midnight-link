@@ -131,7 +131,7 @@ function DomainCard({ d, onChanged }) {
           <p className="text-xs font-medium text-muted-foreground">Add these DNS records at your registrar, then click Verify:</p>
           <DnsRow record={d.instructions.txt} />
           <DnsRow record={d.instructions.cname} />
-          <p className="text-[11px] text-muted-foreground">The TXT record proves ownership. The CNAME points traffic to MidGate's edge.</p>
+          <p className="text-[11px] text-muted-foreground">The TXT record proves ownership. The CNAME points traffic to Midnight Link's edge.</p>
         </div>
       )}
     </Card>

@@ -1,11 +1,11 @@
-"""MidGate Payment Gateway API for first-party partner apps (e.g. midnight).
+"""Midnight Link Payment Gateway API for first-party partner apps (e.g. midnight).
 
-A partner app authenticates with a Partner API Key and asks MidGate to collect a
-payment. MidGate creates a Mayar invoice (QRIS + e-wallet + VA on the hosted
+A partner app authenticates with a Partner API Key and asks Midnight Link to collect a
+payment. Midnight Link creates a Mayar invoice (QRIS + e-wallet + VA on the hosted
 checkout) and, once the payment is verified against Mayar, sends an HMAC-signed
 `charge.paid` webhook back to the partner. The partner then credits its own users.
 
-MidGate never trusts a "paid" claim from the client — every settlement is
+Midnight Link never trusts a "paid" claim from the client — every settlement is
 re-verified with Mayar. Correlation is by `extraData.charge_id` + Mayar
 `paymentLinkId`. All money flows into the operator's single Mayar account
 (first-party only).
@@ -99,9 +99,9 @@ async def _deliver_charge_paid(partner: dict, charge: dict):
     body = json.dumps(payload, separators=(",", ":")).encode()
     ts = str(int(time.time()))
     headers = {
-        "Content-Type": "application/json", "User-Agent": "MidGate-Pay/1.0",
-        "X-MidGate-Event": "charge.paid", "X-MidGate-Delivery": delivery_id,
-        "X-MidGate-Signature": f"t={ts},v1={sign(partner['webhook_secret'], ts, body)}",
+        "Content-Type": "application/json", "User-Agent": "MidnightLink-Pay/1.0",
+        "X-MidnightLink-Event": "charge.paid", "X-MidnightLink-Delivery": delivery_id,
+        "X-MidnightLink-Signature": f"t={ts},v1={sign(partner['webhook_secret'], ts, body)}",
     }
     status, code, error, attempts = "failed", None, None, 0
     try:
@@ -219,7 +219,7 @@ async def create_charge(payload: ChargeCreate, partner=Depends(get_partner)):
 
     charge_id = str(uuid.uuid4())
     cust = payload.customer
-    email = (cust.email or "").strip() or "noreply@midgate.co"
+    email = (cust.email or "").strip() or "noreply@midnightlink.link"
     name = (cust.name or "").strip()
     if len(name) < 3:
         name = "Customer"
@@ -233,7 +233,7 @@ async def create_charge(payload: ChargeCreate, partner=Depends(get_partner)):
             mobile=mobile,
             amount=amount,
             description=payload.description or f"{partner['name']} payment {payload.reference_id}",
-            redirect_url=payload.redirect_url or "https://midgate.co",
+            redirect_url=payload.redirect_url or "https://midnightlink.link",
             extra_data={"charge_id": charge_id, "partner_id": partner["id"],
                         "reference_id": payload.reference_id,
                         "source": partner.get("source_tag") or partner["name"]},

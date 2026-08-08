@@ -8,9 +8,9 @@ export default function PrivacyPage() {
   return (
     <LegalLayout title="Privacy Policy" updated={UPDATED} testid="privacy-page">
       <p>
-        This Privacy Policy explains how MidGate ("we", "us", or "our"), a service
+        This Privacy Policy explains how Midnight Link ("we", "us", or "our"), a service
         operated from Siak, Indonesia, collects, uses, and protects your
-        information when you use midgate.co and the MidGate service (the "Service"). By using
+        information when you use midnightlink.link and the Midnight Link service (the "Service"). By using
         the Service you agree to this Policy.
       </p>
 
@@ -70,7 +70,7 @@ export default function PrivacyPage() {
         <li>Request a copy or deletion of your personal data;</li>
         <li>Withdraw consent or object to certain processing, where applicable.</li>
       </ul>
-      <p>To exercise these rights, contact us at <a href="mailto:support@midgate.co">support@midgate.co</a>.</p>
+      <p>To exercise these rights, contact us at <a href="mailto:support@midnightlink.link">support@midnightlink.link</a>.</p>
 
       <h2>8. Children's privacy</h2>
       <p>
@@ -92,7 +92,7 @@ export default function PrivacyPage() {
 
       <h2>11. Contact</h2>
       <p>
-        For privacy questions, email <a href="mailto:support@midgate.co">support@midgate.co</a>{" "}
+        For privacy questions, email <a href="mailto:support@midnightlink.link">support@midnightlink.link</a>{" "}
         or visit our <Link to="/contact">contact page</Link>.
       </p>
     </LegalLayout>

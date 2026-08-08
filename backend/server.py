@@ -18,7 +18,7 @@ from app.domains.notifications import wire_notifications
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s %(message)s")
 logger = logging.getLogger("midgate")
 
-app = FastAPI(title="MidGate Core API", version="0.1.0")
+app = FastAPI(title="Midnight Link Core API", version="0.1.0")
 
 
 @app.get("/api/health")
@@ -85,11 +85,11 @@ async def seed_admin():
                 break
     if existing is None:
         res = await db.users.insert_one({
-            "name": "MidGate Admin", "email": email,
+            "name": "Midnight Link Admin", "email": email,
             "password_hash": hash_password(settings.ADMIN_PASSWORD),
             "role": "admin", "created_at": now_iso(),
         })
-        await create_default_workspace(str(res.inserted_id), "MidGate Admin")
+        await create_default_workspace(str(res.inserted_id), "Midnight Link Admin")
         logger.info("Seeded admin user %s", email)
     elif not verify_password(settings.ADMIN_PASSWORD, existing["password_hash"]):
         await db.users.update_one({"email": email},
@@ -111,4 +111,4 @@ async def on_startup():
     await seed_admin()
     asyncio.create_task(refresh_tor())
     asyncio.create_task(asyncio.to_thread(warm_geoip))
-    logger.info("MidGate Core API started")
+    logger.info("Midnight Link Core API started")

@@ -57,7 +57,7 @@ async def _resolve(alias):
 
 def _page(title, message, status, extra=""):
     html = f"""<!doctype html><html><head><meta charset="utf-8">
-<title>MidGate</title><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Midnight Link</title><meta name="viewport" content="width=device-width, initial-scale=1">
 <style>body{{font-family:system-ui,sans-serif;background:#FAFAFA;color:#0A0A0A;display:flex;
 align-items:center;justify-content:center;height:100vh;margin:0}}
 .card{{text-align:center;max-width:440px;padding:40px}}
@@ -65,7 +65,7 @@ align-items:center;justify-content:center;height:100vh;margin:0}}
 h2{{margin:8px 0}} p{{color:#475569;line-height:1.6}}
 a.btn{{display:inline-block;margin-top:20px;background:#4338CA;color:#fff;padding:12px 24px;
 border-radius:8px;text-decoration:none;font-weight:600}}</style></head>
-<body><div class="card"><div class="b">MidGate</div>
+<body><div class="card"><div class="b">Midnight Link</div>
 <h2>{title}</h2><p>{message}</p>{extra}</div></body></html>"""
     return HTMLResponse(content=html, status_code=status)
 

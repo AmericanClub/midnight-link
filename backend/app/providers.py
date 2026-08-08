@@ -1,4 +1,4 @@
-"""Provider abstractions for MidGate.
+"""Provider abstractions for Midnight Link.
 
 Business logic depends only on these interfaces, never on concrete SDKs.
 Initial implementations: InMemoryEventBus, MongoAnalyticsStore, ConsoleEmailProvider,

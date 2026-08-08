@@ -203,11 +203,11 @@ async def topup(payload: TopupInput, ws=Depends(get_billing_workspace),
 
     try:
         inv = await mayar.create_invoice(
-            name=user.get("name") or "MidGate Customer",
+            name=user.get("name") or "Midnight Link Customer",
             email=user.get("email"),
             mobile=user.get("mobile") or "081200000000",
             amount=amount,
-            description=f"MidGate wallet top-up ({amount:,} credits)",
+            description=f"Midnight Link wallet top-up ({amount:,} credits)",
             redirect_url=return_url,
             extra_data={"order_id": order_id, "workspace_id": ws["id"], "kind": "wallet_topup"},
         )

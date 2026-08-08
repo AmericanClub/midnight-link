@@ -8,8 +8,8 @@ export default function RefundPage() {
   return (
     <LegalLayout title="Refund & Cancellation Policy" updated={UPDATED} testid="refund-page">
       <p>
-        This Refund &amp; Cancellation Policy explains how subscriptions to MidGate
-        (midgate.co) are billed, cancelled, and refunded. MidGate is a service operated
+        This Refund &amp; Cancellation Policy explains how subscriptions to Midnight Link
+        (midnightlink.link) are billed, cancelled, and refunded. Midnight Link is a service operated
         from Siak, Indonesia. This Policy forms part of our{" "}
         <Link to="/terms">Terms of Service</Link>.
       </p>
@@ -23,7 +23,7 @@ export default function RefundPage() {
 
       <h2>2. Cancellation</h2>
       <ul>
-        <li>You may cancel your subscription at any time from your account's Billing page or by emailing <a href="mailto:support@midgate.co">support@midgate.co</a>.</li>
+        <li>You may cancel your subscription at any time from your account's Billing page or by emailing <a href="mailto:support@midnightlink.link">support@midnightlink.link</a>.</li>
         <li>When you cancel, your plan remains active until the end of the current paid billing cycle; it will not renew afterwards.</li>
         <li>After the cycle ends, your workspace is downgraded to the Free plan. Your data is retained subject to Free-plan limits.</li>
       </ul>
@@ -45,7 +45,7 @@ export default function RefundPage() {
 
       <h2>5. How to request a refund</h2>
       <p>
-        Email <a href="mailto:support@midgate.co">support@midgate.co</a> from the email address
+        Email <a href="mailto:support@midnightlink.link">support@midnightlink.link</a> from the email address
         associated with your account, including your invoice number and the reason for your
         request. We will review and respond within a reasonable time.
       </p>
@@ -60,7 +60,7 @@ export default function RefundPage() {
       <h2>7. Contact</h2>
       <p>
         Questions about billing or refunds? Email{" "}
-        <a href="mailto:support@midgate.co">support@midgate.co</a> or visit our{" "}
+        <a href="mailto:support@midnightlink.link">support@midnightlink.link</a> or visit our{" "}
         <Link to="/contact">contact page</Link>.
       </p>
     </LegalLayout>

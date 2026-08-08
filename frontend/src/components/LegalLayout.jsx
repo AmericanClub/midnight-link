@@ -39,11 +39,11 @@ export default function LegalLayout({ title, updated, children, testid }) {
             ))}
           </div>
           <p className="text-center text-muted-foreground" data-testid="legal-notice">
-            MidGate is a digital service operated from Siak, Indonesia ·{" "}
-            <a href="mailto:support@midgate.co" className="hover:text-foreground">support@midgate.co</a> ·{" "}
+            Midnight Link is a digital service operated from Siak, Indonesia ·{" "}
+            <a href="mailto:support@midnightlink.link" className="hover:text-foreground">support@midnightlink.link</a> ·{" "}
             <a href="https://wa.me/6285111219661" target="_blank" rel="noreferrer" className="hover:text-foreground">WhatsApp +62 851-1121-9661</a>
           </p>
-          <p className="text-muted-foreground">© {new Date().getFullYear()} MidGate. Every Click. Protected.</p>
+          <p className="text-muted-foreground">© {new Date().getFullYear()} Midnight Link. Every Click. Protected.</p>
         </div>
       </footer>
     </div>

@@ -14,11 +14,11 @@ class Settings:
     ACCESS_TOKEN_MINUTES = 60
     REFRESH_TOKEN_DAYS = 7
     FRONTEND_URL = os.environ.get("FRONTEND_URL", "http://localhost:3000")
-    ADMIN_EMAIL = os.environ.get("ADMIN_EMAIL", "admin@midgate.io")
+    ADMIN_EMAIL = os.environ.get("ADMIN_EMAIL", "admin@midnightlink.link")
     ADMIN_PASSWORD = os.environ.get("ADMIN_PASSWORD", "Admin123!")
     CORS_ORIGINS = os.environ.get("CORS_ORIGINS", "*")
-    EDGE_HOST = os.environ.get("EDGE_HOST", "edge.midgate.io")
-    DOMAIN_VERIFY_PREFIX = os.environ.get("DOMAIN_VERIFY_PREFIX", "_midgate-challenge")
+    EDGE_HOST = os.environ.get("EDGE_HOST", "edge.midnightlink.link")
+    DOMAIN_VERIFY_PREFIX = os.environ.get("DOMAIN_VERIFY_PREFIX", "_midnightlink-challenge")
     IPINTEL_SECRET = os.environ["IPINTEL_SECRET"]
     MAYAR_BASE_URL = os.environ.get("MAYAR_BASE_URL", "https://api.mayar.id/hl/v1")
     MAYAR_API_KEY = os.environ.get("MAYAR_API_KEY", "")

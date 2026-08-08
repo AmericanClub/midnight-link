@@ -22,7 +22,7 @@ export default function PublicNav() {
   ];
 
   return (
-    <header className="sticky top-0 z-50 border-b border-border bg-background/80 backdrop-blur-xl">
+    <header className="sticky top-0 z-50 border-b-[3px] border-[hsl(var(--nb-border))] bg-background/85 backdrop-blur-xl">
       <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
         <Link to="/" data-testid="public-logo-link">
           <Logo />
@@ -35,7 +35,7 @@ export default function PublicNav() {
                 key={l.label}
                 href={l.to}
                 data-testid={l.testid}
-                className="text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
+                className="font-display text-sm font-semibold uppercase tracking-wide text-muted-foreground transition-colors hover:text-primary"
               >
                 {l.label}
               </a>
@@ -44,7 +44,7 @@ export default function PublicNav() {
                 key={l.label}
                 to={l.to}
                 data-testid={l.testid}
-                className="text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
+                className="font-display text-sm font-semibold uppercase tracking-wide text-muted-foreground transition-colors hover:text-primary"
               >
                 {l.label}
               </Link>
@@ -80,7 +80,7 @@ export default function PublicNav() {
       </div>
 
       {open && (
-        <div className="border-t border-border bg-background px-4 py-4 md:hidden">
+        <div className="border-t-[3px] border-[hsl(var(--nb-border))] bg-background px-4 py-4 md:hidden">
           <div className="flex flex-col gap-3">
             {links.map((l) =>
               l.to.startsWith("/#") ? (

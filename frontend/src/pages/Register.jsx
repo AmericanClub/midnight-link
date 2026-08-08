@@ -23,7 +23,7 @@ export default function Register() {
     setLoading(true);
     try {
       await register(name, email, password);
-      toast.success("Account created. Welcome to MidGate!");
+      toast.success("Account created. Welcome to Midnight Link!");
       const inv = localStorage.getItem("midgate_invite");
       if (inv) { localStorage.removeItem("midgate_invite"); navigate(`/accept-invite?token=${inv}`); }
       else navigate("/app");

@@ -47,7 +47,7 @@ export default function AcceptInvitePage() {
   const badStatus = invite && invite.status !== "pending";
 
   return (
-    <AuthShell title="Workspace invitation" subtitle="Join a MidGate workspace">
+    <AuthShell title="Workspace invitation" subtitle="Join a Midnight Link workspace">
       {loading || user === null ? (
         <Skeleton className="h-40 w-full rounded-xl" data-testid="invite-loading" />
       ) : error ? (

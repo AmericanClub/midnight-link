@@ -234,7 +234,7 @@ export default function BillingPage() {
   const planCta = (p) => {
     if (p.id === currentPlanId) return { label: "Current plan", disabled: true, variant: "outline" };
     if (p.id === "free") return { label: "Free", disabled: true, variant: "outline" };
-    if (p.price == null) return { label: "Contact sales", variant: "outline", action: () => toast.info("Our team will reach out — sales@midgate.co") };
+    if (p.price == null) return { label: "Contact sales", variant: "outline", action: () => toast.info("Our team will reach out — sales@midnightlink.link") };
     const short = p.price - balance;
     if (short > 0) return { label: topupEnabled ? `Top up ${rp(short)}` : "Top up unavailable", variant: "default", topup: true, disabled: !topupEnabled, action: () => openTopup(short) };
     return { label: `Activate — ${p.price.toLocaleString("id-ID")} credits`, variant: "default", action: () => purchase.mutate(p.id) };

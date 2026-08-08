@@ -1,1 +1,1 @@
-# MidGate domain modules
+# Midnight Link domain modules

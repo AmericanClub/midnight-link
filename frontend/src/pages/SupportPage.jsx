@@ -16,7 +16,7 @@ import api, { formatApiError } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
 import { TicketMessages, STATUS_VARIANT, CATEGORIES, PRIORITIES } from "@/components/TicketThread";
 
-const SUPPORT_EMAIL = "support@midgate.co";
+const SUPPORT_EMAIL = "support@midnightlink.link";
 
 function NewTicketDialog({ open, onOpenChange, onCreated }) {
   const [form, setForm] = useState({ subject: "", category: "bug", priority: "medium", message: "" });

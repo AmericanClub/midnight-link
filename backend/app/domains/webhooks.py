@@ -51,10 +51,10 @@ async def deliver(webhook: dict, event_type: str, data: dict) -> dict:
     ts = str(int(time.time()))
     headers = {
         "Content-Type": "application/json",
-        "User-Agent": "MidGate-Webhooks/1.0",
-        "X-MidGate-Event": event_type,
-        "X-MidGate-Delivery": delivery_id,
-        "X-MidGate-Signature": f"t={ts},v1={sign(webhook['secret'], ts, body)}",
+        "User-Agent": "MidnightLink-Webhooks/1.0",
+        "X-MidnightLink-Event": event_type,
+        "X-MidnightLink-Delivery": delivery_id,
+        "X-MidnightLink-Signature": f"t={ts},v1={sign(webhook['secret'], ts, body)}",
     }
     attempts, status, status_code, error = 0, "failed", None, None
     # SSRF guard: re-check that the target still resolves to a public address
@@ -228,7 +228,7 @@ async def rotate_secret(webhook_id: str, ws=Depends(get_current_workspace)):
 async def test_webhook(webhook_id: str, ws=Depends(get_current_workspace)):
     w = await _owned(webhook_id, ws)
     result = await deliver(w, "ping", {
-        "message": "This is a test event from MidGate.",
+        "message": "This is a test event from Midnight Link.",
         "workspace_id": ws["id"], "sample": True,
     })
     return {"delivery": result}

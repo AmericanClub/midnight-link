@@ -12,9 +12,9 @@ import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@
 import api, { formatApiError } from "@/lib/api";
 import { CATEGORIES } from "@/components/TicketThread";
 
-const SUPPORT_EMAIL = "support@midgate.co";
+const SUPPORT_EMAIL = "support@midnightlink.link";
 const WHATSAPP_DISPLAY = "+62 851-1121-9661";
-const WHATSAPP_LINK = "https://wa.me/6285111219661?text=" + encodeURIComponent("Halo MidGate, saya ingin bertanya.");
+const WHATSAPP_LINK = "https://wa.me/6285111219661?text=" + encodeURIComponent("Halo Midnight Link, saya ingin bertanya.");
 
 export default function ContactPage() {
   const [form, setForm] = useState({ name: "", email: "", subject: "", category: "other", message: "" });

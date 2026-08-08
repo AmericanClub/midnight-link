@@ -1,7 +1,7 @@
 """Support tickets — customer reporting with threaded replies.
 
 Anyone (public visitor or signed-in user) can open a ticket; the PLATFORM
-admin (role == 'admin', the MidGate site owner) manages every ticket from the
+admin (role == 'admin', the Midnight Link site owner) manages every ticket from the
 Admin panel: reply, change status/priority. Replies notify the requester via
 the in-app notification bell (when the ticket belongs to a workspace).
 """

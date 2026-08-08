@@ -1,7 +1,7 @@
 import React from "react";
 
 // Midnight Link brand mark — the amber "witch moon" logo + wordmark.
-export default function Logo({ className = "", showWord = true, size = 32 }) {
+export default function Logo({ className = "", showWord = true, size = 32, onDark = false }) {
   return (
     <div className={`flex items-center gap-2.5 ${className}`} data-testid="brand-logo">
       <span
@@ -22,8 +22,8 @@ export default function Logo({ className = "", showWord = true, size = 32 }) {
         />
       </span>
       {showWord && (
-        <span className="font-display text-xl font-extrabold tracking-tight text-foreground">
-          Midnight<span className="text-gradient">Link</span>
+        <span className={`font-pixel text-[13px] font-normal leading-none ${onDark ? "text-white" : "text-foreground"}`}>
+          Midnight<span className="text-primary">Link</span>
         </span>
       )}
     </div>

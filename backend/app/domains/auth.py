@@ -92,7 +92,7 @@ async def register(payload: RegisterInput, response: Response):
     result = await db.users.insert_one(doc)
     user_id = str(result.inserted_id)
     workspace = await create_default_workspace(user_id, payload.name.strip())
-    await email_provider.send(email, "Welcome to MidGate", f"Welcome {payload.name}! Every Click. Protected.")
+    await email_provider.send(email, "Welcome to Midnight Link", f"Welcome {payload.name}! Every Click. Protected.")
     set_auth_cookies(response, create_access_token(user_id, email), create_refresh_token(user_id))
     workspaces = await list_user_workspaces(user_id)
     return {"user": {"id": user_id, "name": doc["name"], "email": email, "role": "user"},
@@ -169,7 +169,7 @@ async def forgot_password(payload: ForgotInput):
             "expires_at": datetime.now(timezone.utc) + timedelta(hours=1),
         })
         link = f"/reset-password?token={token}"
-        await email_provider.send(email, "Reset your MidGate password", f"Reset link: {link}")
+        await email_provider.send(email, "Reset your Midnight Link password", f"Reset link: {link}")
     # constant-time-ish neutral response, never reveal existence
     return {"ok": True, "message": "If an account exists, a reset link has been sent."}
 

@@ -5,7 +5,10 @@ import { cn } from "@/lib/utils"
 const Card = React.forwardRef(({ className, ...props }, ref) => (
   <div
     ref={ref}
-    className={cn("rounded-xl border bg-card text-card-foreground shadow", className)}
+    className={cn(
+      "rounded-[5px] border-[3px] border-[hsl(var(--nb-border))] bg-card text-card-foreground shadow-[5px_5px_0_0_hsl(var(--nb-shadow))]",
+      className
+    )}
     {...props} />
 ))
 Card.displayName = "Card"
@@ -21,7 +24,7 @@ CardHeader.displayName = "CardHeader"
 const CardTitle = React.forwardRef(({ className, ...props }, ref) => (
   <div
     ref={ref}
-    className={cn("font-semibold leading-none tracking-tight", className)}
+    className={cn("font-display font-bold uppercase tracking-wide leading-none", className)}
     {...props} />
 ))
 CardTitle.displayName = "CardTitle"

@@ -78,7 +78,7 @@ export default function DashboardLayout({ children }) {
           <DropdownMenuTrigger asChild>
             <button
               data-testid="workspace-switcher-btn"
-              className="flex w-full items-center justify-between rounded-lg border border-border bg-card px-3 py-2.5 text-left transition-colors hover:bg-accent"
+              className="flex w-full items-center justify-between rounded-[4px] border-[2.5px] border-[hsl(var(--nb-border))] bg-card px-3 py-2.5 text-left shadow-[3px_3px_0_0_hsl(var(--nb-shadow))] transition-colors hover:bg-accent"
             >
               <div className="min-w-0">
                 <p className="truncate text-sm font-semibold">{workspace?.name || "Workspace"}</p>
@@ -116,10 +116,10 @@ export default function DashboardLayout({ children }) {
               to={item.to}
               data-testid={item.testid}
               onClick={() => setOpen(false)}
-              className={`flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors ${
+              className={`flex items-center gap-3 rounded-[4px] border-[2.5px] px-3 py-2.5 font-display text-[13px] font-bold uppercase tracking-wide transition-all ${
                 isActive(item.to)
-                  ? "bg-primary/10 text-primary"
-                  : "text-muted-foreground hover:bg-accent hover:text-foreground"
+                  ? "border-[hsl(var(--nb-border))] bg-primary text-primary-foreground shadow-[3px_3px_0_0_hsl(var(--nb-shadow))]"
+                  : "border-transparent text-muted-foreground hover:border-[hsl(var(--nb-border))] hover:bg-accent hover:text-foreground"
               }`}
             >
               <Icon className="h-[18px] w-[18px]" />
@@ -129,7 +129,7 @@ export default function DashboardLayout({ children }) {
         })}
       </nav>
 
-      <div className="border-t border-border p-3">
+      <div className="border-t-[3px] border-[hsl(var(--nb-border))] p-3">
         <div className="flex items-center gap-2 text-xs text-muted-foreground">
           <LanguageToggle />
           <ThemeToggle />
@@ -141,7 +141,7 @@ export default function DashboardLayout({ children }) {
   return (
     <div className="min-h-screen bg-background">
       {/* Desktop sidebar */}
-      <aside className="fixed inset-y-0 left-0 z-40 hidden w-64 border-r border-border bg-card lg:block">
+      <aside className="fixed inset-y-0 left-0 z-40 hidden w-64 border-r-[3px] border-[hsl(var(--nb-border))] bg-card lg:block">
         {SidebarInner}
       </aside>
 
@@ -149,14 +149,14 @@ export default function DashboardLayout({ children }) {
       {open && (
         <div className="fixed inset-0 z-50 lg:hidden">
           <div className="absolute inset-0 bg-black/50" onClick={() => setOpen(false)} />
-          <aside className="absolute inset-y-0 left-0 w-64 border-r border-border bg-card">
+          <aside className="absolute inset-y-0 left-0 w-64 border-r-[3px] border-[hsl(var(--nb-border))] bg-card">
             {SidebarInner}
           </aside>
         </div>
       )}
 
       <div className="lg:pl-64">
-        <header className="sticky top-0 z-30 flex h-16 items-center justify-between border-b border-border bg-background/80 px-4 backdrop-blur-xl sm:px-6">
+        <header className="sticky top-0 z-30 flex h-16 items-center justify-between border-b-[3px] border-[hsl(var(--nb-border))] bg-background/85 px-4 backdrop-blur-xl sm:px-6">
           <div className="flex items-center gap-3">
             <Button
               variant="ghost"

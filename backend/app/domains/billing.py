@@ -131,7 +131,7 @@ def generate_receipt_pdf(invoice: dict, workspace_name: str) -> bytes:
     y = h - 40 * mm
     c.setFillColorRGB(0.263, 0.219, 0.792)
     c.setFont("Helvetica-Bold", 22)
-    c.drawString(25 * mm, y, "MidGate")
+    c.drawString(25 * mm, y, "Midnight Link")
     c.setFont("Helvetica", 9)
     c.setFillColorRGB(0.3, 0.3, 0.3)
     c.drawString(25 * mm, y - 6 * mm, "Every Click. Protected.")
@@ -165,7 +165,7 @@ def generate_receipt_pdf(invoice: dict, workspace_name: str) -> bytes:
 
     c.setFont("Helvetica", 8)
     c.setFillColorRGB(0.5, 0.5, 0.5)
-    c.drawString(25 * mm, 20 * mm, "Thank you for choosing MidGate. This is a system-generated receipt.")
+    c.drawString(25 * mm, 20 * mm, "Thank you for choosing Midnight Link. This is a system-generated receipt.")
     c.showPage()
     c.save()
     buf.seek(0)
@@ -212,7 +212,7 @@ async def receipt(invoice_id: str, ws=Depends(get_billing_workspace)):
     pdf = generate_receipt_pdf(inv, ws.get("name", "Workspace"))
     return StreamingResponse(
         iter([pdf]), media_type="application/pdf",
-        headers={"Content-Disposition": f'inline; filename="midgate_receipt_{invoice_id[:8]}.pdf"'},
+        headers={"Content-Disposition": f'inline; filename="midnightlink_receipt_{invoice_id[:8]}.pdf"'},
     )
 
 
@@ -269,7 +269,7 @@ async def _activate(invoice: dict, workspace_name: str):
     # email a receipt (MOCKED email provider; PDF is downloadable via receipt endpoint)
     await email_provider.send(
         to=f"workspace:{invoice['workspace_id']}",
-        subject=f"Your MidGate receipt — {plan['name']} plan",
+        subject=f"Your Midnight Link receipt — {plan['name']} plan",
         body=f"Payment received for the {plan['name']} plan. Receipt: /api/billing/invoices/{invoice['id']}/receipt.pdf",
     )
     await event_bus.publish("invoice.paid", {"workspace_id": invoice["workspace_id"], "invoice_id": invoice["id"]})

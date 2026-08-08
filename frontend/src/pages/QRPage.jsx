@@ -124,7 +124,7 @@ function QRDialog({ open, onOpenChange, onSaved, existing }) {
     }
   };
 
-  const previewValue = editing ? `${BACKEND}${existing.short_path}` : (form.destination_url || "https://midgate.io");
+  const previewValue = editing ? `${BACKEND}${existing.short_path}` : (form.destination_url || "https://midnightlink.link");
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -132,7 +132,7 @@ function QRDialog({ open, onOpenChange, onSaved, existing }) {
         <DialogHeader>
           <DialogTitle className="font-display">{editing ? "Edit Dynamic QR" : "New Dynamic QR"}</DialogTitle>
           <DialogDescription>
-            The QR encodes a MidGate short URL, so you can change the destination anytime without reprinting.
+            The QR encodes a Midnight Link short URL, so you can change the destination anytime without reprinting.
           </DialogDescription>
         </DialogHeader>
         <form onSubmit={submit} className="grid gap-6 md:grid-cols-[1fr_auto]">

@@ -35,7 +35,7 @@ export default function Login() {
   };
 
   return (
-    <AuthShell title={t("auth.welcome")} subtitle="Log in to your MidGate workspace.">
+    <AuthShell title={t("auth.welcome")} subtitle="Log in to your Midnight Link workspace.">
       <form onSubmit={submit} className="space-y-4" data-testid="login-form">
         <div className="space-y-2">
           <Label htmlFor="email">{t("auth.email")}</Label>

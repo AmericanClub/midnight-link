@@ -1,0 +1,23 @@
+{
+  "summary": "Full backend + frontend verification of the new Duration Passes billing system (replaces Free/Starter/Pro) and the new admin 'Request / 1 kredit' (requests_per_credit) setting in Payments > Konversi Kredit. Backend: 9/9 pytest cases passed covering GET /api/billing/passes catalog + pricing (30d/100k=Rp350.000, 1d/1k=Rp7.500), wallet entitlement shape, admin PUT/GET /api/admin/payment-config with requests_per_credit, propagation to /api/wallet/summary, and full POST /api/wallet/purchase-pass flow after admin credit adjust (402 insufficient path + 200 success path with active pass). Frontend: /app/billing renders wallet-card, active-pass-card, entitlement-card (ent-included/used/remaining), all 5 pass-card-{1,3,7,14,30}; chip switching on pass-card-30 correctly updates pass-price-30 (50k=Rp175.000, 100k=Rp350.000, 200k=Rp700.000). Insufficient-balance CTA reads 'Top up Rp658.000' and opens topup-dialog with preset shortfall amount (658000). Sufficient-balance CTA on pass-card-1 shows 'BELI — 23 KREDIT'. Admin console -> Payments -> Konversi Kredit renders credit-rpcredit-input with current value 333, is editable, credit-save-btn persists (400 saved and re-read, then reset to 333), and credit-overflow-note reactively reflects the new number. All acceptance criteria met.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {"ui_bugs": [], "integration_issues": [], "design_issues": []},
+  "test_report_links": [
+    "/app/backend/tests/test_iteration_19_passes.py",
+    "/app/test_reports/pytest/iter19.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "AdminConsole.jsx is 1536 lines — file size exceeds the 700-line guideline; consider splitting Payments/Users/Workspaces sections into their own components in a future refactor.",
+    "BillingPage.jsx (527 lines) is close to the limit — TopupDialog + PassCard could be extracted to files under /src/pages/billing/ for maintainability.",
+    "wallet.consume_request logic is correct but relies on Mongo find_one_and_update with $expr on a mixed condition; ensure indexes exist on workspaces.id and wallets.workspace_id to keep hot-path redirect fast."
+  ],
+  "updated_files": ["/app/backend/tests/test_iteration_19_passes.py"],
+  "success_rate": {"backend": "100% (9/9)", "frontend": "100% (all data-testids + flows verified)"},
+  "test_credentials": "member@midnightlink.link / Member123!  and  admin@midgate.co / Admin123!",
+  "seed_data_creation": "Admin adjusted member workspace wallet +50 credits (reason: TEST_iter19_pass_purchase). Member workspace also now has an active 1-day / 1000-request pass (expires 24h). Left as-is because functional verification is the priority per request note; can be cleaned up manually if needed. requests_per_credit was toggled 333->500->333 and 333->400->333, ends at 333 (default).",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Duration pass system + admin requests_per_credit are working end-to-end. Backend regression file lives at /app/backend/tests/test_iteration_19_passes.py. Note: member workspace wallet has ~42 leftover credits and an active 1-day pass from this test run; some 'insufficient balance' CTA checks depend on balance state (test handles both branches). Real Mayar payment COMPLETION was not exercised (mocked per instructions); only the create-invoice + dialog-preset path was verified for top-up UI.",
+  "rca of the issue": "n/a — no issues found"
+}

@@ -1247,7 +1247,7 @@ function PaymentsSection() {
   });
 
   const [gw, setGw] = useState({ mayar_api_key: "", mayar_webhook_token: "", mayar_base_url: "" });
-  const [cr, setCr] = useState({ rupiah_per_credit: 1000, bonus_percent: 0, min_topup: 10000 });
+  const [cr, setCr] = useState({ rupiah_per_credit: 1000, bonus_percent: 0, min_topup: 10000, requests_per_credit: 333 });
   const [pay, setPay] = useState({ topup_enabled: true, topup_disabled_message: "" });
 
   React.useEffect(() => {
@@ -1257,6 +1257,7 @@ function PaymentsSection() {
       rupiah_per_credit: data.credits?.rupiah_per_credit ?? 1000,
       bonus_percent: data.credits?.bonus_percent ?? 0,
       min_topup: data.credits?.min_topup ?? 10000,
+      requests_per_credit: data.credits?.requests_per_credit ?? 333,
     });
     setPay({
       topup_enabled: data.payments?.topup_enabled ?? true,
@@ -1302,6 +1303,7 @@ function PaymentsSection() {
     rupiah_per_credit: Math.max(1, parseInt(cr.rupiah_per_credit, 10) || 1),
     bonus_percent: Math.max(0, Number(cr.bonus_percent) || 0),
     min_topup: Math.max(0, parseInt(cr.min_topup, 10) || 0),
+    requests_per_credit: Math.max(1, parseInt(cr.requests_per_credit, 10) || 1),
   });
   const savePay = () => save.mutate({
     topup_enabled: pay.topup_enabled,
@@ -1378,7 +1380,7 @@ function PaymentsSection() {
           </div>
         </div>
 
-        <div className="grid gap-4 sm:grid-cols-3">
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           <LabeledField label="Rupiah / 1 kredit">
             <Input type="number" min={1} step={100} value={cr.rupiah_per_credit}
               onChange={(e) => setCr((c) => ({ ...c, rupiah_per_credit: e.target.value }))}
@@ -1394,6 +1396,11 @@ function PaymentsSection() {
               onChange={(e) => setCr((c) => ({ ...c, min_topup: e.target.value }))}
               className="font-mono" data-testid="credit-min-input" />
           </LabeledField>
+          <LabeledField label="Request / 1 kredit" hint="Overflow saat kuota pass habis">
+            <Input type="number" min={1} step={1} value={cr.requests_per_credit}
+              onChange={(e) => setCr((c) => ({ ...c, requests_per_credit: e.target.value }))}
+              className="font-mono" data-testid="credit-rpcredit-input" />
+          </LabeledField>
         </div>
 
         <div className="mt-4 rounded-[4px] border-2 border-[hsl(var(--nb-border))] bg-primary/10 p-3 text-sm" data-testid="credit-preview">
@@ -1402,8 +1409,10 @@ function PaymentsSection() {
           {bonus > 0 && <span className="text-muted-foreground"> (termasuk bonus {bonus}%)</span>}
           {" · "}Rp {rpc.toLocaleString("id-ID")} = 1 kredit
         </div>
-        <p className="mt-2 text-xs text-muted-foreground">
-          Harga plan otomatis dikonversi ke kredit dengan rate ini (mis. Pro Rp299.000 = {Math.ceil(299000 / rpc).toLocaleString("id-ID")} kredit).
+        <p className="mt-2 text-xs text-muted-foreground" data-testid="credit-overflow-note">
+          Overflow: saat kuota request pass habis, 1 kredit otomatis dipakai untuk{" "}
+          <span className="font-mono font-semibold">{Math.max(1, parseInt(cr.requests_per_credit, 10) || 1).toLocaleString("id-ID")} request</span>{" "}
+          tambahan (≈Rp{Math.round(rpc / Math.max(1, parseInt(cr.requests_per_credit, 10) || 1)).toLocaleString("id-ID")}/request).
         </p>
 
         <div className="mt-5">

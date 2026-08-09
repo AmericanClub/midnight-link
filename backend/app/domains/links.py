@@ -211,6 +211,11 @@ class ProtectionInput(BaseModel):
     block_proxy_vpn: bool | None = None
     allow_countries: list[str] | None = None
     block_countries: list[str] | None = None
+    block_devices: list[str] | None = None
+    block_os: list[str] | None = None
+    block_empty_ua: bool | None = None
+    allow_referrers: list[str] | None = None
+    block_referrers: list[str] | None = None
     block_action: str | None = None
     block_redirect_url: str | None = None
     rate_limit_per_min: int | None = None

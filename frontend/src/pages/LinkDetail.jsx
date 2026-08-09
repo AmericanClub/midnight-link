@@ -103,6 +103,11 @@ function ProtectionSettings({ linkId }) {
   if (!p) return null;
   // manual edits switch the preset to "custom"
   const set = (k, v) => setP((s) => ({ ...s, [k]: v, preset: "custom" }));
+  const toggleInList = (k, val) => setP((s) => {
+    const arr = new Set(s[k] || []);
+    arr.has(val) ? arr.delete(val) : arr.add(val);
+    return { ...s, [k]: [...arr], preset: "custom" };
+  });
   const applyPreset = (name) => setP((s) => ({ ...s, ...PRESET_VALUES[name], preset: name }));
   const Toggle = ({ k, label, desc }) => (
     <div className="flex items-center justify-between rounded-lg border border-border p-3">
@@ -177,6 +182,66 @@ function ProtectionSettings({ linkId }) {
           <Input type="number" value={p.rate_limit_per_min || 0} onChange={(e) => set("rate_limit_per_min", Number(e.target.value))} data-testid="prot-rate-limit" />
         </div>
       </div>
+
+      <div className={`mt-6 border-t border-border pt-5 ${p.enabled ? "" : "pointer-events-none opacity-50"}`}>
+        <p className="mb-3 text-sm font-semibold">Device filtering</p>
+        <div className="grid gap-4 sm:grid-cols-2">
+          <div className="space-y-1.5">
+            <Label className="text-xs">Block devices</Label>
+            <div className="flex flex-wrap gap-2">
+              {["Mobile", "Desktop", "Tablet"].map((d) => {
+                const on = (p.block_devices || []).includes(d);
+                return (
+                  <button type="button" key={d} onClick={() => toggleInList("block_devices", d)}
+                    data-testid={`prot-device-${d.toLowerCase()}`}
+                    className={`rounded-lg border px-3 py-1.5 text-sm transition-colors ${on ? "border-destructive bg-destructive/10 font-semibold text-destructive" : "border-border hover:border-primary/40"}`}>
+                    {d}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+          <div className="space-y-1.5">
+            <Label className="text-xs">Block operating systems</Label>
+            <div className="flex flex-wrap gap-2">
+              {["Windows", "iOS", "macOS", "Android", "Linux"].map((o) => {
+                const on = (p.block_os || []).includes(o);
+                return (
+                  <button type="button" key={o} onClick={() => toggleInList("block_os", o)}
+                    data-testid={`prot-os-${o.toLowerCase()}`}
+                    className={`rounded-lg border px-3 py-1.5 text-sm transition-colors ${on ? "border-destructive bg-destructive/10 font-semibold text-destructive" : "border-border hover:border-primary/40"}`}>
+                    {o}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div className={`mt-6 border-t border-border pt-5 ${p.enabled ? "" : "pointer-events-none opacity-50"}`}>
+        <p className="mb-1 text-sm font-semibold">Layer 7 header firewall</p>
+        <p className="mb-3 text-xs text-muted-foreground">Filter traffic by HTTP referrer and user-agent — ideal for locking clicks to your own campaigns.</p>
+        <div className="mb-3">
+          <Toggle k="block_empty_ua" label="Block empty / missing user-agent" desc="Stops raw scripts & scrapers with no browser signature" />
+        </div>
+        <div className="grid gap-4 sm:grid-cols-2">
+          <div className="space-y-1.5">
+            <Label className="text-xs">Allow referrers only (comma sep, e.g. mail.google.com, facebook.com)</Label>
+            <Input value={(p.allow_referrers || []).join(",")}
+              onChange={(e) => set("allow_referrers", e.target.value.split(",").map((x) => x.trim()).filter(Boolean))}
+              placeholder="empty = allow all" data-testid="prot-allow-referrers" />
+            <p className="text-[11px] text-muted-foreground">If set, only clicks coming FROM these domains pass. Direct clicks (no referrer) are blocked.</p>
+          </div>
+          <div className="space-y-1.5">
+            <Label className="text-xs">Block referrers (comma sep)</Label>
+            <Input value={(p.block_referrers || []).join(",")}
+              onChange={(e) => set("block_referrers", e.target.value.split(",").map((x) => x.trim()).filter(Boolean))}
+              placeholder="e.g. spam-site.com" data-testid="prot-block-referrers" />
+          </div>
+        </div>
+      </div>
+
       <Button className="mt-5" onClick={() => save.mutate()} disabled={save.isPending} data-testid="prot-save-btn">
         {save.isPending ? "Saving…" : "Save protection"}
       </Button>

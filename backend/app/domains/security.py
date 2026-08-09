@@ -33,6 +33,11 @@ DEFAULT_PROTECTION = {
     "block_proxy_vpn": False,
     "allow_countries": [],
     "block_countries": [],
+    "block_devices": [],
+    "block_os": [],
+    "block_empty_ua": False,
+    "allow_referrers": [],
+    "block_referrers": [],
     "block_action": "fallback",   # fallback | block_page | notfound | redirect
     "block_redirect_url": "",
     "rate_limit_per_min": 0,
@@ -138,6 +143,24 @@ def match_ip(ip: str, values: list) -> bool:
 
 
 # --------------------------- signals + risk ------------------------------- #
+def _referrer_host(referrer: str) -> str:
+    if not referrer or str(referrer).strip().lower() in ("", "direct"):
+        return ""
+    try:
+        from urllib.parse import urlparse
+        raw = referrer if "://" in referrer else "http://" + referrer
+        host = (urlparse(raw).hostname or "").lower()
+        if host.startswith("www."):
+            host = host[4:]
+        return host
+    except Exception:
+        return ""
+
+
+def _ref_match(host: str, domains: list) -> bool:
+    return any(host == d or host.endswith("." + d) for d in domains if d)
+
+
 def build_signals(ip: str, ua: str, referrer: str = "Direct", country: str = "Unknown") -> dict:
     intel = intel_lookup(ip)
     ua_cls = classify_ua(ua)
@@ -312,6 +335,23 @@ async def evaluate_request(workspace_id: str, link: dict | None, ip: str, ua: st
                 reasons.append(f"Country {signals['country']} blocked")
             if ac and country not in ac:
                 reasons.append(f"Country {signals['country']} not allowlisted")
+        # device / OS filtering
+        bdev = [d.lower() for d in prot.get("block_devices", [])]
+        if bdev and signals["device"].lower() in bdev:
+            reasons.append(f"Device {signals['device']} blocked")
+        bos = [o.lower() for o in prot.get("block_os", [])]
+        if bos and signals["os"].lower() in bos:
+            reasons.append(f"OS {signals['os']} blocked")
+        # layer-7 header / referrer firewall
+        if prot.get("block_empty_ua") and not (signals.get("user_agent") or "").strip():
+            reasons.append("Missing / empty user-agent blocked")
+        ref_host = _referrer_host(signals.get("referrer", ""))
+        block_refs = [r.lower().strip() for r in prot.get("block_referrers", []) if str(r).strip()]
+        allow_refs = [r.lower().strip() for r in prot.get("allow_referrers", []) if str(r).strip()]
+        if block_refs and ref_host and _ref_match(ref_host, block_refs):
+            reasons.append(f"Referrer {ref_host} blocked")
+        if allow_refs and not (ref_host and _ref_match(ref_host, allow_refs)):
+            reasons.append("Referrer not in allowlist")
         rl = prot.get("rate_limit_per_min", 0)
         if rl and not rate_limiter.allow(f"{link['id']}:{ip}", rl):
             reasons.append("Rate limit exceeded")

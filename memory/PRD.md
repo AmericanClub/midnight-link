@@ -1,8 +1,7 @@
 # Midnight Link — Product Requirements & Progress
 _(formerly "MidGate" — rebranded 2026-08)_
 
-## FEATURE LOG — Resilience / Anti-abuse (2026-06)
-- **Google Safe Browsing URL scanning** (`backend/app/safe_browsing.py`): scans destination URLs for phishing/malware/unwanted-software BEFORE a link/QR is created or edited. Fail-open (only an explicit threat match blocks, HTTP 422 `unsafe_destination`). API key encrypted (Fernet, same tolerant `_build_fernet` as ip_intel) in `db.platform_settings _id="safebrowsing"`, env fallback `SAFE_BROWSING_API_KEY`. Per-URL TTL cache (300s). v4 = free/non-commercial; upgrade path = Web Risk.
+## FEATURE LOG — Resilience / Anti-abuse (2026-06)- **Google Safe Browsing URL scanning** (`backend/app/safe_browsing.py`): scans destination URLs for phishing/malware/unwanted-software BEFORE a link/QR is created or edited. Fail-open (only an explicit threat match blocks, HTTP 422 `unsafe_destination`). API key encrypted (Fernet, same tolerant `_build_fernet` as ip_intel) in `db.platform_settings _id="safebrowsing"`, env fallback `SAFE_BROWSING_API_KEY`. Per-URL TTL cache (300s). v4 = free/non-commercial; upgrade path = Web Risk.
   - Admin endpoints in `admin.py`: `GET/PUT /api/admin/safe-browsing`, `POST /api/admin/safe-browsing/test`, `DELETE /api/admin/safe-browsing/key`.
   - Admin UI: `SafeBrowsingCard` in `AdminConsole.jsx` (Integrations tab, below proxycheck). Enter key → Save → toggle "Scan destination URLs" → Test connection.
   - Integrated in `links.py` (create+update), `qr.py` (create+update) via `assert_url_safe()` / `UnsafeDestination`.

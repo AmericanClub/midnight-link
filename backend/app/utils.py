@@ -67,6 +67,10 @@ def parse_user_agent(ua: str) -> dict:
 
 
 def client_ip(request) -> str:
+    # Cloudflare (proxy mode) sends the real visitor IP here; trust it first.
+    cf = request.headers.get("cf-connecting-ip")
+    if cf:
+        return cf.strip()
     xff = request.headers.get("x-forwarded-for")
     if xff:
         return xff.split(",")[0].strip()

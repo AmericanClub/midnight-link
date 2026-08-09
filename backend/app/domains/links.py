@@ -8,6 +8,7 @@ from ..db import db
 from ..security import get_current_user
 from ..utils import now_iso, gen_alias
 from ..url_safety import validate_destination, UnsafeURLError
+from ..safe_browsing import assert_url_safe, UnsafeDestination
 from .workspace import get_current_workspace
 from .billing import enforce_quota
 from .security import DEFAULT_PROTECTION, PROTECTION_PRESETS, invalidate_rules
@@ -62,6 +63,14 @@ async def create_link(payload: LinkCreate, ws=Depends(get_current_workspace), us
         destination = validate_destination(payload.destination_url)
     except UnsafeURLError as e:
         raise HTTPException(status_code=400, detail=str(e))
+    try:
+        scan_status = await assert_url_safe(destination)
+    except UnsafeDestination as e:
+        raise HTTPException(status_code=422, detail={
+            "code": "unsafe_destination",
+            "message": f"This destination was flagged for {e.threat_label} by Google Safe Browsing and can't be shortened. Contact support if you believe this is a mistake.",
+            "threat_type": e.threat_type,
+        })
     if payload.redirect_type not in VALID_REDIRECT:
         raise HTTPException(status_code=400, detail="Redirect type must be 302, 307 or 308")
 
@@ -105,6 +114,7 @@ async def create_link(payload: LinkCreate, ws=Depends(get_current_workspace), us
         "fallback_url": fallback,
         "click_count": 0,
         "protection": protection,
+        "scan_status": scan_status,
         "created_by": user["id"],
         "created_at": now_iso(),
         "updated_at": now_iso(),
@@ -166,6 +176,14 @@ async def update_link(link_id: str, payload: LinkUpdate, ws=Depends(get_current_
             updates["destination_url"] = validate_destination(data["destination_url"])
         except UnsafeURLError as e:
             raise HTTPException(status_code=400, detail=str(e))
+        try:
+            updates["scan_status"] = await assert_url_safe(updates["destination_url"])
+        except UnsafeDestination as e:
+            raise HTTPException(status_code=422, detail={
+                "code": "unsafe_destination",
+                "message": f"This destination was flagged for {e.threat_label} by Google Safe Browsing and can't be used. Contact support if you believe this is a mistake.",
+                "threat_type": e.threat_type,
+            })
     if "fallback_url" in data and data["fallback_url"]:
         try:
             updates["fallback_url"] = validate_destination(data["fallback_url"])

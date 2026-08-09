@@ -285,6 +285,41 @@ async def ip_intel_remove(admin=Depends(require_admin)):
     return await get_status()
 
 
+# --------------------------- Safe Browsing (Google) ----------------------- #
+class SafeBrowsingUpdate(BaseModel):
+    api_key: str | None = None
+    enabled: bool | None = None
+
+
+@router.get("/safe-browsing")
+async def safe_browsing_status(admin=Depends(require_admin)):
+    from ..safe_browsing import get_status
+    return await get_status()
+
+
+@router.put("/safe-browsing")
+async def safe_browsing_save(payload: SafeBrowsingUpdate, admin=Depends(require_admin)):
+    from ..safe_browsing import save_config, get_status
+    if payload.api_key is not None and payload.api_key.strip():
+        if len(payload.api_key.strip()) < 8:
+            raise HTTPException(status_code=400, detail="API key looks too short")
+    await save_config(api_key=payload.api_key, enabled=payload.enabled, admin_email=admin["email"])
+    return await get_status()
+
+
+@router.post("/safe-browsing/test")
+async def safe_browsing_test(admin=Depends(require_admin)):
+    from ..safe_browsing import test_connection
+    return await test_connection()
+
+
+@router.delete("/safe-browsing/key")
+async def safe_browsing_remove(admin=Depends(require_admin)):
+    from ..safe_browsing import remove_key, get_status
+    await remove_key()
+    return await get_status()
+
+
 # --------------------- payment (top-up) master switch -------------------- #
 class PaymentSettingsUpdate(BaseModel):
     topup_enabled: bool | None = None

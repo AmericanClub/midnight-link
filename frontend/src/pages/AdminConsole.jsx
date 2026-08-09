@@ -542,6 +542,174 @@ function IntegrationsSection() {
           <p className="mt-4 text-xs text-destructive">Last error: {stats.last_error}</p>
         )}
       </Card>
+
+      <SafeBrowsingCard />
+    </div>
+  );
+}
+
+/* ---------------------- Safe Browsing (Google) -------------------------- */
+function SafeBrowsingCard() {
+  const qc = useQueryClient();
+  const [key, setKey] = useState("");
+  const { data, isLoading } = useQuery({
+    queryKey: ["admin-safe-browsing"],
+    queryFn: async () => (await api.get("/admin/safe-browsing")).data,
+  });
+  const save = useMutation({
+    mutationFn: async (body) => (await api.put("/admin/safe-browsing", body)).data,
+    onSuccess: (d) => { qc.setQueryData(["admin-safe-browsing"], d); setKey(""); toast.success("Safe Browsing updated"); },
+    onError: (e) => toast.error(formatApiError(e)),
+  });
+  const test = useMutation({
+    mutationFn: async () => (await api.post("/admin/safe-browsing/test")).data,
+    onSuccess: (d) => {
+      qc.invalidateQueries({ queryKey: ["admin-safe-browsing"] });
+      d.ok ? toast.success(d.message) : toast.error(d.message || "Connection failed");
+    },
+    onError: (e) => toast.error(formatApiError(e)),
+  });
+  const removeKey = useMutation({
+    mutationFn: async () => (await api.delete("/admin/safe-browsing/key")).data,
+    onSuccess: (d) => { qc.setQueryData(["admin-safe-browsing"], d); toast.success("API key removed"); },
+    onError: (e) => toast.error(formatApiError(e)),
+  });
+
+  if (isLoading) return <Skeleton className="h-80 w-full max-w-2xl" data-testid="safebrowsing-loading" />;
+
+  const configured = data?.configured;
+  const enabled = data?.enabled;
+  const stats = data?.stats || {};
+  const lastTest = data?.last_test;
+
+  const StatusBadge = () => {
+    if (!configured) return <Badge variant="secondary" data-testid="sb-status-badge">Not configured</Badge>;
+    if (!enabled) return <Badge variant="outline" className="border-amber-500 text-amber-600" data-testid="sb-status-badge">Disabled</Badge>;
+    return <Badge className="bg-emerald-600 hover:bg-emerald-600" data-testid="sb-status-badge">Active</Badge>;
+  };
+
+  return (
+    <div className="space-y-6" data-testid="safebrowsing-section">
+      <div className="border-t border-border pt-6">
+        <h3 className="font-display font-semibold">URL threat scanning</h3>
+        <p className="mt-1 text-sm text-muted-foreground">
+          Scan every destination URL for phishing, malware and unwanted software <b>before</b> a
+          short link or QR is created. Flagged links are rejected — protecting the reputation of
+          your domain in email and browsers. Advisory provided by Google.
+        </p>
+      </div>
+
+      <Card className="overflow-hidden" data-testid="safebrowsing-card">
+        <div className="flex items-center justify-between gap-3 border-b border-border p-5">
+          <div className="flex items-center gap-3">
+            <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-primary/10 text-primary">
+              <ShieldAlert className="h-5 w-5" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <h3 className="font-display font-semibold">Google Safe Browsing</h3>
+                <a href="https://developers.google.com/safe-browsing/v4/get-started" target="_blank" rel="noreferrer"
+                   className="text-muted-foreground hover:text-foreground" data-testid="sb-dashboard-link">
+                  <ExternalLink className="h-3.5 w-3.5" />
+                </a>
+              </div>
+              <p className="text-xs text-muted-foreground">Phishing / malware / unwanted-software detection</p>
+            </div>
+          </div>
+          <StatusBadge />
+        </div>
+
+        <div className="space-y-5 p-5">
+          <div className="space-y-1.5">
+            <label className="text-sm font-medium">API key</label>
+            {configured && (
+              <p className="text-xs text-muted-foreground">
+                Current key: <span className="font-mono">{data.key_masked}</span>
+                {data.source && <> · source: {data.source}</>}
+                {data.updated_by && <> · set by {data.updated_by}</>}
+              </p>
+            )}
+            <div className="flex gap-2">
+              <Input
+                type="password"
+                autoComplete="new-password"
+                placeholder={configured ? "Enter a new key to replace" : "AIza… (from Google Cloud Console)"}
+                value={key}
+                onChange={(e) => setKey(e.target.value)}
+                className="font-mono"
+                data-testid="sb-key-input"
+              />
+              <Button
+                onClick={() => save.mutate({ api_key: key, enabled: enabled ?? true })}
+                disabled={!key.trim() || save.isPending}
+                className="gap-2 whitespace-nowrap"
+                data-testid="sb-save-btn"
+              >
+                {save.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+                Save key
+              </Button>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Stored encrypted on the server and never shown again. Enable the <b>Safe Browsing API</b> in Google Cloud Console — free (non-commercial).
+            </p>
+          </div>
+
+          <div className="flex items-center justify-between rounded-lg border border-border p-4">
+            <div>
+              <p className="text-sm font-medium">Scan destination URLs</p>
+              <p className="text-xs text-muted-foreground">Reject phishing/malware links when members create or edit them.</p>
+            </div>
+            <Switch
+              checked={!!enabled}
+              disabled={!configured || save.isPending}
+              onCheckedChange={(v) => save.mutate({ enabled: v })}
+              data-testid="sb-enable-switch"
+            />
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2">
+            <Button variant="outline" onClick={() => test.mutate()} disabled={!configured || test.isPending}
+              className="gap-2" data-testid="sb-test-btn">
+              {test.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+              Test connection
+            </Button>
+            {configured && (
+              <Button variant="ghost" onClick={() => removeKey.mutate()} disabled={removeKey.isPending}
+                className="gap-2 text-destructive hover:text-destructive" data-testid="sb-remove-btn">
+                <Trash2 className="h-4 w-4" />Remove key
+              </Button>
+            )}
+          </div>
+
+          {lastTest && (
+            <div className={`flex items-start gap-2 rounded-lg p-3 text-sm ${lastTest.ok ? "bg-emerald-500/10 text-emerald-700 dark:text-emerald-400" : "bg-destructive/10 text-destructive"}`}
+              data-testid="sb-test-result">
+              {lastTest.ok ? <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0" /> : <XCircle className="mt-0.5 h-4 w-4 shrink-0" />}
+              <span>{lastTest.message}</span>
+            </div>
+          )}
+        </div>
+      </Card>
+
+      <Card className="p-5" data-testid="sb-stats-card">
+        <h4 className="mb-4 text-sm font-semibold">Scan stats this session</h4>
+        <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+          {[
+            { label: "URLs scanned", value: stats.queries ?? 0 },
+            { label: "Threats blocked", value: stats.blocked ?? 0 },
+            { label: "Cache hits", value: stats.cache_hits ?? 0 },
+            { label: "Errors", value: stats.errors ?? 0 },
+          ].map((s) => (
+            <div key={s.label} data-testid={`sb-stat-${s.label.toLowerCase().replace(/\W+/g, "-")}`}>
+              <p className="font-display text-2xl font-bold">{s.value}</p>
+              <p className="text-xs text-muted-foreground">{s.label}</p>
+            </div>
+          ))}
+        </div>
+        {stats.last_error && (
+          <p className="mt-4 text-xs text-destructive">Last error: {stats.last_error}</p>
+        )}
+      </Card>
     </div>
   );
 }

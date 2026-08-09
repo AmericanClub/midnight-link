@@ -20,6 +20,7 @@ class Settings:
     EDGE_HOST = os.environ.get("EDGE_HOST", "edge.midnightlink.link")
     DOMAIN_VERIFY_PREFIX = os.environ.get("DOMAIN_VERIFY_PREFIX", "_midnightlink-challenge")
     IPINTEL_SECRET = os.environ["IPINTEL_SECRET"]
+    SAFE_BROWSING_API_KEY = os.environ.get("SAFE_BROWSING_API_KEY", "")
     MAYAR_BASE_URL = os.environ.get("MAYAR_BASE_URL", "https://api.mayar.id/hl/v1")
     MAYAR_API_KEY = os.environ.get("MAYAR_API_KEY", "")
     MAYAR_WEBHOOK_TOKEN = os.environ.get("MAYAR_WEBHOOK_TOKEN", "")

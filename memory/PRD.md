@@ -1,6 +1,17 @@
 # Midnight Link — Product Requirements & Progress
 _(formerly "MidGate" — rebranded 2026-08)_
 
+## FEATURE LOG — Resilience / Anti-abuse (2026-06)
+- **Google Safe Browsing URL scanning** (`backend/app/safe_browsing.py`): scans destination URLs for phishing/malware/unwanted-software BEFORE a link/QR is created or edited. Fail-open (only an explicit threat match blocks, HTTP 422 `unsafe_destination`). API key encrypted (Fernet, same tolerant `_build_fernet` as ip_intel) in `db.platform_settings _id="safebrowsing"`, env fallback `SAFE_BROWSING_API_KEY`. Per-URL TTL cache (300s). v4 = free/non-commercial; upgrade path = Web Risk.
+  - Admin endpoints in `admin.py`: `GET/PUT /api/admin/safe-browsing`, `POST /api/admin/safe-browsing/test`, `DELETE /api/admin/safe-browsing/key`.
+  - Admin UI: `SafeBrowsingCard` in `AdminConsole.jsx` (Integrations tab, below proxycheck). Enter key → Save → toggle "Scan destination URLs" → Test connection.
+  - Integrated in `links.py` (create+update), `qr.py` (create+update) via `assert_url_safe()` / `UnsafeDestination`.
+  - Links/QR now store `scan_status` ("clean"/"unavailable"/"disabled").
+- **Cloudflare-ready IP**: `utils.client_ip` now prefers `cf-connecting-ip` header (accurate visitor IP + IP-blocking behind Cloudflare proxy). `client_country` already reads `cf-ipcountry`.
+- **Recent clicks upgrade** (earlier this session): raw visitor IP stored per click, IP column + Block/Unblock action in `LinkDetail.jsx`, realtime auto-refresh (5s) + LIVE indicator. CSV export includes `ip`.
+- Deploy note: all above are CODE changes → require VPS redeploy (git pull → restart backend → `yarn build` frontend). Cloudflare proxy is a dashboard change (set records to Proxied + SSL "Full (strict)").
+
+
 ## DEPLOYED — Live on DigitalOcean VPS (2026-08)
 - **Status: LIVE** at `https://midnightlink.link` (+ `www`). Verified: homepage 200 (serves React build), `/api/health` → `{status:ok}`, `/api/ready` → `{database:ok}`, screenshot of live retro landing page confirmed.
 - **Infra:** DigitalOcean droplet (Ubuntu 24.04, 1 vCPU / **2 GB RAM** after resize / 70 GB, IP `157.230.51.87`), project at `/opt/midnight-link/{frontend,backend}`.

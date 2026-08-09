@@ -1268,7 +1268,7 @@ function PaymentsSection() {
   const save = useMutation({
     mutationFn: async (patch) => (await api.put("/admin/payment-config", patch)).data,
     onSuccess: () => {
-      toast.success("Pengaturan disimpan");
+      toast.success("Settings saved");
       qc.invalidateQueries({ queryKey: ["admin-payment-config"] });
       qc.invalidateQueries({ queryKey: ["wallet"] });
     },
@@ -1296,7 +1296,7 @@ function PaymentsSection() {
     if (gw.mayar_base_url && gw.mayar_base_url.trim()) patch.mayar_base_url = gw.mayar_base_url.trim();
     if (gw.mayar_api_key.trim()) patch.mayar_api_key = gw.mayar_api_key.trim();
     if (gw.mayar_webhook_token.trim()) patch.mayar_webhook_token = gw.mayar_webhook_token.trim();
-    if (Object.keys(patch).length === 0) { toast.info("Tidak ada perubahan gateway"); return; }
+    if (Object.keys(patch).length === 0) { toast.info("No gateway changes"); return; }
     save.mutate(patch, { onSuccess: () => setGw((g) => ({ ...g, mayar_api_key: "", mayar_webhook_token: "" })) });
   };
   const saveCredits = () => save.mutate({
@@ -1321,28 +1321,28 @@ function PaymentsSection() {
             </div>
             <div>
               <h3 className="font-display text-lg font-bold uppercase tracking-wide">Payment Gateway — Mayar</h3>
-              <p className="text-sm text-muted-foreground">Kredensial disimpan di database & menimpa nilai .env</p>
+              <p className="text-sm text-muted-foreground">Credentials are stored in the database & override .env values</p>
             </div>
           </div>
           <Badge variant={connected ? "success" : "destructive"} data-testid="gw-status-badge">
-            {connected ? "Terkonfigurasi" : "Belum diatur"}
+            {connected ? "Configured" : "Not set"}
           </Badge>
         </div>
 
         <div className="mb-5 grid grid-cols-2 gap-3 rounded-[4px] border-2 border-[hsl(var(--nb-border))] bg-muted/40 p-3 text-sm sm:grid-cols-3">
           <div><p className="text-xs uppercase text-muted-foreground">API Key</p><p className="font-mono font-semibold" data-testid="gw-apikey-current">{gwStatus.api_key_masked || "—"}</p></div>
-          <div><p className="text-xs uppercase text-muted-foreground">Webhook token</p><p className="font-semibold">{gwStatus.webhook_token_set ? "Tersetel" : "Belum"}</p></div>
-          <div><p className="text-xs uppercase text-muted-foreground">Sumber</p><p className="font-semibold uppercase">{gwStatus.source || "none"}</p></div>
+          <div><p className="text-xs uppercase text-muted-foreground">Webhook token</p><p className="font-semibold">{gwStatus.webhook_token_set ? "Set" : "Not set"}</p></div>
+          <div><p className="text-xs uppercase text-muted-foreground">Source</p><p className="font-semibold uppercase">{gwStatus.source || "none"}</p></div>
         </div>
 
         <div className="space-y-4">
-          <LabeledField label="API Key baru" hint="Kosongkan jika tidak ingin mengubah. Tidak ditampilkan kembali demi keamanan.">
-            <Input type="password" placeholder="Tempel API key Mayar…" autoComplete="off"
+          <LabeledField label="New API Key" hint="Leave blank to keep the current key. Never shown again for security.">
+            <Input type="password" placeholder="Paste Mayar API key…" autoComplete="off"
               value={gw.mayar_api_key} onChange={(e) => setGw((g) => ({ ...g, mayar_api_key: e.target.value }))}
               className="font-mono" data-testid="gw-apikey-input" />
           </LabeledField>
-          <LabeledField label="Webhook token baru" hint="Untuk verifikasi callback Mayar. Kosongkan jika tidak berubah.">
-            <Input type="password" placeholder="Tempel webhook token…" autoComplete="off"
+          <LabeledField label="New webhook token" hint="Used to verify Mayar callbacks. Leave blank to keep unchanged.">
+            <Input type="password" placeholder="Paste webhook token…" autoComplete="off"
               value={gw.mayar_webhook_token} onChange={(e) => setGw((g) => ({ ...g, mayar_webhook_token: e.target.value }))}
               className="font-mono" data-testid="gw-webhook-input" />
           </LabeledField>
@@ -1353,16 +1353,16 @@ function PaymentsSection() {
           </LabeledField>
 
           <div className="rounded-[4px] border-2 border-dashed border-[hsl(var(--nb-border))] p-3 text-xs text-muted-foreground">
-            <span className="font-semibold">Webhook URL untuk dashboard Mayar:</span>{" "}
+            <span className="font-semibold">Webhook URL for the Mayar dashboard:</span>{" "}
             <code className="font-mono">{`${window.location.origin.replace(/^http/, "https")}`}/api/wallet/mayar/webhook</code>
           </div>
 
           <div className="flex flex-wrap gap-3">
             <Button onClick={saveGateway} disabled={save.isPending} className="gap-2" data-testid="gw-save-btn">
-              <Save className="h-4 w-4" /> Simpan gateway
+              <Save className="h-4 w-4" /> Save gateway
             </Button>
             <Button variant="outline" onClick={() => test.mutate()} disabled={test.isPending} className="gap-2" data-testid="gw-test-btn">
-              {test.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />} Test koneksi
+              {test.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />} Test connection
             </Button>
           </div>
         </div>
@@ -1375,13 +1375,13 @@ function PaymentsSection() {
             <Coins className="h-5 w-5" />
           </div>
           <div>
-            <h3 className="font-display text-lg font-bold uppercase tracking-wide">Konversi Kredit</h3>
-            <p className="text-sm text-muted-foreground">Berapa Rupiah untuk 1 kredit saat member top-up</p>
+            <h3 className="font-display text-lg font-bold uppercase tracking-wide">Credit Conversion</h3>
+            <p className="text-sm text-muted-foreground">How many Rupiah equal 1 credit when a member tops up</p>
           </div>
         </div>
 
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          <LabeledField label="Rupiah / 1 kredit">
+          <LabeledField label="Rupiah / 1 credit">
             <Input type="number" min={1} step={100} value={cr.rupiah_per_credit}
               onChange={(e) => setCr((c) => ({ ...c, rupiah_per_credit: e.target.value }))}
               className="font-mono" data-testid="credit-rpc-input" />
@@ -1396,7 +1396,7 @@ function PaymentsSection() {
               onChange={(e) => setCr((c) => ({ ...c, min_topup: e.target.value }))}
               className="font-mono" data-testid="credit-min-input" />
           </LabeledField>
-          <LabeledField label="Request / 1 kredit" hint="Overflow saat kuota pass habis">
+          <LabeledField label="Requests / 1 credit" hint="Overflow when pass quota runs out">
             <Input type="number" min={1} step={1} value={cr.requests_per_credit}
               onChange={(e) => setCr((c) => ({ ...c, requests_per_credit: e.target.value }))}
               className="font-mono" data-testid="credit-rpcredit-input" />
@@ -1404,20 +1404,20 @@ function PaymentsSection() {
         </div>
 
         <div className="mt-4 rounded-[4px] border-2 border-[hsl(var(--nb-border))] bg-primary/10 p-3 text-sm" data-testid="credit-preview">
-          <span className="font-semibold">Contoh:</span> Rp 100.000 ={" "}
-          <span className="font-mono font-bold text-primary">{preview100.toLocaleString("id-ID")} kredit</span>
-          {bonus > 0 && <span className="text-muted-foreground"> (termasuk bonus {bonus}%)</span>}
-          {" · "}Rp {rpc.toLocaleString("id-ID")} = 1 kredit
+          <span className="font-semibold">Example:</span> Rp 100,000 ={" "}
+          <span className="font-mono font-bold text-primary">{preview100.toLocaleString("en-US")} credits</span>
+          {bonus > 0 && <span className="text-muted-foreground"> (incl. {bonus}% bonus)</span>}
+          {" · "}Rp {rpc.toLocaleString("en-US")} = 1 credit
         </div>
         <p className="mt-2 text-xs text-muted-foreground" data-testid="credit-overflow-note">
-          Overflow: saat kuota request pass habis, 1 kredit otomatis dipakai untuk{" "}
-          <span className="font-mono font-semibold">{Math.max(1, parseInt(cr.requests_per_credit, 10) || 1).toLocaleString("id-ID")} request</span>{" "}
-          tambahan (≈Rp{Math.round(rpc / Math.max(1, parseInt(cr.requests_per_credit, 10) || 1)).toLocaleString("id-ID")}/request).
+          Overflow: when a pass request quota runs out, 1 credit is automatically spent for{" "}
+          <span className="font-mono font-semibold">{Math.max(1, parseInt(cr.requests_per_credit, 10) || 1).toLocaleString("en-US")} extra requests</span>{" "}
+          (≈Rp{Math.round(rpc / Math.max(1, parseInt(cr.requests_per_credit, 10) || 1)).toLocaleString("en-US")}/request).
         </p>
 
         <div className="mt-5">
           <Button onClick={saveCredits} disabled={save.isPending} className="gap-2" data-testid="credit-save-btn">
-            <Save className="h-4 w-4" /> Simpan konversi
+            <Save className="h-4 w-4" /> Save conversion
           </Button>
         </div>
       </Card>
@@ -1429,26 +1429,26 @@ function PaymentsSection() {
             <Power className="h-5 w-5" />
           </div>
           <div>
-            <h3 className="font-display text-lg font-bold uppercase tracking-wide">Ketersediaan Top-up</h3>
-            <p className="text-sm text-muted-foreground">Matikan sementara jika gateway sedang bermasalah</p>
+            <h3 className="font-display text-lg font-bold uppercase tracking-wide">Top-up availability</h3>
+            <p className="text-sm text-muted-foreground">Turn off temporarily if the gateway is having issues</p>
           </div>
         </div>
         <div className="flex items-center justify-between rounded-[4px] border-2 border-[hsl(var(--nb-border))] p-3">
-          <span className="font-display text-sm font-bold uppercase tracking-wide">Top-up aktif</span>
+          <span className="font-display text-sm font-bold uppercase tracking-wide">Top-up enabled</span>
           <Switch checked={pay.topup_enabled} onCheckedChange={(v) => setPay((p) => ({ ...p, topup_enabled: v }))} data-testid="payment-topup-toggle" />
         </div>
         {!pay.topup_enabled && (
           <div className="mt-4">
-            <LabeledField label="Pesan saat top-up nonaktif">
+            <LabeledField label="Message when top-up is disabled">
               <Input value={pay.topup_disabled_message}
                 onChange={(e) => setPay((p) => ({ ...p, topup_disabled_message: e.target.value }))}
-                placeholder="Pembayaran sedang tidak tersedia…" data-testid="payment-message-input" />
+                placeholder="Payments are temporarily unavailable…" data-testid="payment-message-input" />
             </LabeledField>
           </div>
         )}
         <div className="mt-5">
           <Button onClick={savePay} disabled={save.isPending} className="gap-2" data-testid="payment-save-btn">
-            <Save className="h-4 w-4" /> Simpan
+            <Save className="h-4 w-4" /> Save
           </Button>
         </div>
       </Card>

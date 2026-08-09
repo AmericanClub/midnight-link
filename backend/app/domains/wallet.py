@@ -32,7 +32,7 @@ MAX_TOPUP = 100_000_000       # Rp — sane upper bound to catch typos/abuse
 DEFAULT_RUPIAH_PER_CREDIT = 1000
 DEFAULT_REQ_PER_CREDIT = 333   # overflow: ~Rp3 per request at Rp1000/credit
 PAID_STATUSES = {"paid", "settled", "success"}
-DEFAULT_TOPUP_DISABLED_MSG = "Pembayaran sedang tidak tersedia untuk sementara. Silakan coba lagi nanti."
+DEFAULT_TOPUP_DISABLED_MSG = "Payments are temporarily unavailable. Please try again later."
 
 
 # --------------------- payment (top-up) master switch -------------------- #

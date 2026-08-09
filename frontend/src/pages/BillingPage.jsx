@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef, useCallback } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import {
-  Check, Wallet, ShieldCheck, Loader2, Sparkles, Plus, ArrowUpRight,
+  Check, Wallet, Loader2, Sparkles, Plus, ArrowUpRight,
   ArrowDownLeft, Lock, ExternalLink, Info, Clock, Zap, AlertTriangle, Ticket,
 } from "lucide-react";
 import DashboardLayout from "@/components/DashboardLayout";
@@ -20,23 +20,23 @@ import api, { formatApiError } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
 
 const rp = (n) => `Rp${Number(n || 0).toLocaleString("id-ID")}`;
-const fmtNum = (n) => Number(n || 0).toLocaleString("id-ID");
-const fmtReq = (n) => (n >= 1000 ? `${n / 1000}rb` : String(n));
+const fmtNum = (n) => Number(n || 0).toLocaleString("en-US");
+const fmtReq = (n) => (n >= 1000 ? `${n / 1000}k` : String(n));
 
 const QUICK = [25000, 50000, 100000, 250000, 500000];
-const LEDGER_LABEL = { topup: "Top-up", spend: "Pembelian pass", refund: "Refund", adjustment: "Penyesuaian", bonus: "Bonus" };
+const LEDGER_LABEL = { topup: "Top-up", spend: "Pass purchase", refund: "Refund", adjustment: "Adjustment", bonus: "Bonus" };
 
 const PASS_META = {
-  1: { name: "1 Hari", tag: "Cepat" },
-  3: { name: "3 Hari", tag: "Singkat" },
-  7: { name: "7 Hari", tag: "Mingguan" },
-  14: { name: "14 Hari", tag: "Dua mingguan" },
-  30: { name: "30 Hari", tag: "Sebulan penuh", popular: true },
+  1: { name: "1 Day", tag: "Quick burst" },
+  3: { name: "3 Days", tag: "Short run" },
+  7: { name: "7 Days", tag: "Weekly" },
+  14: { name: "14 Days", tag: "Bi-weekly" },
+  30: { name: "30 Days", tag: "Full month", popular: true },
 };
 
 const fmtDate = (iso) => {
   if (!iso) return "—";
-  try { return new Date(iso).toLocaleString("id-ID", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" }); }
+  try { return new Date(iso).toLocaleString("en-US", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" }); }
   catch { return "—"; }
 };
 
@@ -61,12 +61,12 @@ function TopupDialog({ open, onOpenChange, presetAmount, onCredited, rupiahPerCr
       const { data } = await api.get(`/wallet/topup/${orderId}`);
       if (data.credited) {
         stopPolling();
-        toast.success("Pembayaran diterima — kredit ditambahkan ke wallet");
+        toast.success("Payment received — credits added to your wallet");
         onCredited();
         onOpenChange(false);
         return true;
       }
-      if (!quiet) toast.info("Pembayaran belum terdeteksi. Mungkin butuh beberapa saat setelah bayar.");
+      if (!quiet) toast.info("Payment not detected yet. It can take a moment after you pay.");
     } catch (e) { /* keep polling */ }
     return false;
   }, [onCredited, onOpenChange]);
@@ -100,16 +100,16 @@ function TopupDialog({ open, onOpenChange, presetAmount, onCredited, rupiahPerCr
     <Dialog open={open} onOpenChange={(o) => { if (!o) stopPolling(); onOpenChange(o); }}>
       <DialogContent className="max-w-md" data-testid="topup-dialog">
         <DialogHeader>
-          <DialogTitle className="font-display">Top up wallet</DialogTitle>
+          <DialogTitle className="font-display">Top up your wallet</DialogTitle>
           <DialogDescription>
-            Bayar aman dengan QRIS, e-wallet, atau transfer bank via Mayar. 1 kredit = {rp(rpc)}.
+            Pay securely with QRIS, e-wallet, or bank transfer via Mayar. 1 credit = {rp(rpc)}.
           </DialogDescription>
         </DialogHeader>
 
         {!pending ? (
           <div className="space-y-5">
             <div>
-              <Label htmlFor="topup-amount">Jumlah (Rp)</Label>
+              <Label htmlFor="topup-amount">Amount (Rp)</Label>
               <Input
                 id="topup-amount" type="number" min={minTopup} step={1000} value={amount}
                 onChange={(e) => setAmount(e.target.value)}
@@ -128,15 +128,15 @@ function TopupDialog({ open, onOpenChange, presetAmount, onCredited, rupiahPerCr
               </div>
             </div>
             <div className="rounded-lg bg-muted/50 p-3 text-sm" data-testid="topup-credit-preview">
-              Anda menerima <span className="font-mono font-semibold">{fmtNum(credits)} kredit</span>{" "}
-              <span className="text-muted-foreground">untuk {rp(amt)}</span>
-              {bonusCredits > 0 && <span className="text-primary"> (termasuk {fmtNum(bonusCredits)} bonus)</span>}
+              You'll receive <span className="font-mono font-semibold">{fmtNum(credits)} credits</span>{" "}
+              <span className="text-muted-foreground">for {rp(amt)}</span>
+              {bonusCredits > 0 && <span className="text-primary"> (incl. {fmtNum(bonusCredits)} bonus)</span>}
             </div>
             <Button
               className="w-full gap-2" disabled={start.isPending || amt < minTopup || credits < 1}
               onClick={() => start.mutate()} data-testid="topup-submit-btn"
             >
-              {start.isPending ? <><Loader2 className="h-4 w-4 animate-spin" /> Memulai…</> : <><ExternalLink className="h-4 w-4" /> Lanjut ke pembayaran</>}
+              {start.isPending ? <><Loader2 className="h-4 w-4 animate-spin" /> Starting…</> : <><ExternalLink className="h-4 w-4" /> Continue to payment</>}
             </Button>
             <p className="text-center text-xs text-muted-foreground">Minimum top-up {rp(minTopup)}.</p>
           </div>
@@ -146,21 +146,21 @@ function TopupDialog({ open, onOpenChange, presetAmount, onCredited, rupiahPerCr
               <Loader2 className="h-7 w-7 animate-spin text-primary" />
             </div>
             <div>
-              <p className="font-medium">Menunggu pembayaran…</p>
+              <p className="font-medium">Waiting for your payment…</p>
               <p className="mt-1 text-sm text-muted-foreground">
-                Selesaikan pembayaran di tab baru. Kredit ditambahkan otomatis setelah terkonfirmasi.
+                Complete the payment in the new tab. We'll credit your wallet automatically once it's confirmed.
               </p>
             </div>
             <div className="flex flex-col gap-2">
               <Button variant="outline" className="gap-2" onClick={() => window.open(pending.payment_url, "_blank", "noopener")}>
-                <ExternalLink className="h-4 w-4" /> Buka halaman pembayaran
+                <ExternalLink className="h-4 w-4" /> Open payment page
               </Button>
               <Button
                 className="gap-2" disabled={checking}
                 onClick={async () => { setChecking(true); await checkStatus(pending.order_id, false); setChecking(false); }}
                 data-testid="topup-check-btn"
               >
-                {checking ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />} Saya sudah bayar
+                {checking ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />} I've completed the payment
               </Button>
             </div>
           </div>
@@ -171,7 +171,7 @@ function TopupDialog({ open, onOpenChange, presetAmount, onCredited, rupiahPerCr
 }
 
 function PassCard({ pass, rupiahPerCredit, balance, topupEnabled, onBuy, onTopup, buyingReqs }) {
-  const meta = PASS_META[pass.days] || { name: `${pass.days} Hari` };
+  const meta = PASS_META[pass.days] || { name: `${pass.days} Days` };
   const defaultIdx = Math.min(2, pass.options.length - 1);
   const [sel, setSel] = useState(pass.options[defaultIdx] || pass.options[0]);
   const price = sel?.price ?? 0;
@@ -187,14 +187,14 @@ function PassCard({ pass, rupiahPerCredit, balance, topupEnabled, onBuy, onTopup
       <div className="mb-4">
         <div className="flex items-center gap-2">
           <Clock className="h-4 w-4 text-primary" />
-          <h3 className="font-display text-lg font-bold uppercase tracking-wide">{meta.name}</h3>
-          {meta.popular && <Badge className="gap-1"><Sparkles className="h-3 w-3" />Populer</Badge>}
+          <h3 className="font-display text-lg font-bold uppercase tracking-wide whitespace-nowrap">{meta.name}</h3>
+          {meta.popular && <Badge className="gap-1"><Sparkles className="h-3 w-3" />Popular</Badge>}
         </div>
         <p className="mt-1 text-xs text-muted-foreground">{meta.tag} · {rp(pass.rate_per_request)}/request</p>
       </div>
 
       <div className="mb-3">
-        <p className="mb-1.5 text-xs font-semibold uppercase text-muted-foreground">Jumlah request</p>
+        <p className="mb-1.5 text-xs font-semibold uppercase text-muted-foreground">Requests</p>
         <div className="flex flex-wrap gap-2">
           {pass.options.map((o) => (
             <button
@@ -211,14 +211,14 @@ function PassCard({ pass, rupiahPerCredit, balance, topupEnabled, onBuy, onTopup
       <div className="mb-4 mt-auto">
         <p className="font-display text-3xl font-black" data-testid={`pass-price-${pass.days}`}>{rp(price)}</p>
         <p className="mt-1 text-xs text-muted-foreground">
-          {fmtNum(sel?.requests)} request · = {fmtNum(priceCredits)} kredit
+          {fmtNum(sel?.requests)} requests · = {fmtNum(priceCredits)} credits
         </p>
       </div>
 
       <ul className="mb-5 space-y-1.5 text-xs text-muted-foreground">
-        <li className="flex items-center gap-2"><Check className="h-3.5 w-3.5 shrink-0 text-primary" /> Semua fitur proteksi</li>
-        <li className="flex items-center gap-2"><Check className="h-3.5 w-3.5 shrink-0 text-primary" /> Link & QR tanpa batas</li>
-        <li className="flex items-center gap-2"><Check className="h-3.5 w-3.5 shrink-0 text-primary" /> Overflow otomatis pakai kredit</li>
+        <li className="flex items-center gap-2"><Check className="h-3.5 w-3.5 shrink-0 text-primary" /> All protection features</li>
+        <li className="flex items-center gap-2"><Check className="h-3.5 w-3.5 shrink-0 text-primary" /> Unlimited links & QR</li>
+        <li className="flex items-center gap-2"><Check className="h-3.5 w-3.5 shrink-0 text-primary" /> Auto overflow using credits</li>
       </ul>
 
       {short > 0 ? (
@@ -227,7 +227,7 @@ function PassCard({ pass, rupiahPerCredit, balance, topupEnabled, onBuy, onTopup
           onClick={() => onTopup(short * Math.max(1, rupiahPerCredit))}
           data-testid={`pass-cta-${pass.days}`}
         >
-          <Plus className="h-4 w-4" /> {topupEnabled ? `Top up ${rp(short * Math.max(1, rupiahPerCredit))}` : "Top-up nonaktif"}
+          <Plus className="h-4 w-4" /> {topupEnabled ? `Top up ${rp(short * Math.max(1, rupiahPerCredit))}` : "Top-up unavailable"}
         </Button>
       ) : (
         <Button
@@ -236,7 +236,7 @@ function PassCard({ pass, rupiahPerCredit, balance, topupEnabled, onBuy, onTopup
           data-testid={`pass-cta-${pass.days}`}
         >
           {isBuying ? <Loader2 className="h-4 w-4 animate-spin" /> : <Zap className="h-4 w-4" />}
-          Beli — {fmtNum(priceCredits)} kredit
+          Buy — {fmtNum(priceCredits)} credits
         </Button>
       )}
     </Card>
@@ -272,7 +272,7 @@ export default function BillingPage() {
   const balance = walletQ.data?.balance ?? 0;
   const topupEnabled = walletQ.data?.topup_enabled ?? true;
   const topupMsg = walletQ.data?.topup_disabled_message
-    || "Pembayaran sedang tidak tersedia untuk sementara. Silakan coba lagi nanti.";
+    || "Payments are temporarily unavailable. Please try again later.";
   const rupiahPerCredit = Math.max(1, walletQ.data?.rupiah_per_credit ?? 1);
   const bonusPercent = walletQ.data?.bonus_percent ?? 0;
   const minTopup = walletQ.data?.min_topup ?? 10000;
@@ -297,7 +297,7 @@ export default function BillingPage() {
         const { data } = await api.get(`/wallet/topup/${order}`);
         if (data.credited) {
           clearInterval(iv);
-          toast.success("Pembayaran diterima — kredit ditambahkan ke wallet");
+          toast.success("Payment received — credits added to your wallet");
           refreshAll();
         }
       } catch (e) { /* ignore */ }
@@ -310,7 +310,7 @@ export default function BillingPage() {
   const purchase = useMutation({
     mutationFn: async ({ days, requests }) => (await api.post("/wallet/purchase-pass", { days, requests })).data,
     onSuccess: async (data) => {
-      toast.success(`Pass aktif — ${data.label}`);
+      toast.success(`Pass activated — ${data.label}`);
       await refreshAll();
     },
     onError: (err) => toast.error(formatApiError(err.response?.data?.detail) || err.message),
@@ -336,7 +336,7 @@ export default function BillingPage() {
       <div className="mb-8">
         <h1 className="font-display text-2xl font-bold tracking-tight">Billing</h1>
         <p className="mt-1 text-sm text-muted-foreground">
-          Beli pass durasi & isi kredit. 1 kredit = {rp(rupiahPerCredit)}. Semua paket punya fitur sama — beda di durasi & jumlah request.
+          Buy duration passes & top up credits. 1 credit = {rp(rupiahPerCredit)}. Every pass has the same features — they differ only by duration & request volume.
         </p>
       </div>
 
@@ -344,8 +344,8 @@ export default function BillingPage() {
         <Card className="flex flex-col items-center gap-3 border-dashed py-16 text-center" data-testid="billing-no-access">
           <Lock className="h-8 w-8 text-muted-foreground/50" />
           <div>
-            <h3 className="font-display font-semibold">Billing dibatasi</h3>
-            <p className="text-sm text-muted-foreground">Hanya Owner dan Billing Manager yang bisa melihat atau mengubah billing.</p>
+            <h3 className="font-display font-semibold">Billing is restricted</h3>
+            <p className="text-sm text-muted-foreground">Only Owners and Billing Managers can view or change billing.</p>
           </div>
         </Card>
       ) : (
@@ -357,15 +357,15 @@ export default function BillingPage() {
           <div className="flex flex-wrap items-start justify-between gap-4">
             <div>
               <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                <Wallet className="h-4 w-4" /> Saldo wallet
+                <Wallet className="h-4 w-4" /> Wallet balance
               </div>
               <p className="mt-2 font-display text-4xl font-black tracking-tight" data-testid="wallet-balance">
                 {fmtNum(balance)}
-                <span className="ml-2 text-base font-semibold text-muted-foreground">kredit</span>
+                <span className="ml-2 text-base font-semibold text-muted-foreground">credits</span>
               </p>
-              <p className="mt-1 text-sm text-muted-foreground">≈ {rp(balance * rupiahPerCredit)} · 1 kredit = {rp(rupiahPerCredit)}</p>
+              <p className="mt-1 text-sm text-muted-foreground">≈ {rp(balance * rupiahPerCredit)} · 1 credit = {rp(rupiahPerCredit)}</p>
               <p className="mt-1 text-xs text-muted-foreground" data-testid="wallet-overflow-capacity">
-                Kapasitas overflow: <span className="font-mono font-semibold text-foreground">{fmtNum(overflowReqs)} request</span> (dari kredit)
+                Overflow capacity: <span className="font-mono font-semibold text-foreground">{fmtNum(overflowReqs)} requests</span> (from credits)
               </p>
             </div>
             <Button className="gap-2" onClick={() => openTopup(0)} disabled={!topupEnabled} data-testid="wallet-topup-btn">
@@ -385,32 +385,32 @@ export default function BillingPage() {
               <Ticket className="h-5 w-5 text-primary" />
             </div>
             <div>
-              <p className="text-sm text-muted-foreground">Pass aktif</p>
+              <p className="text-sm text-muted-foreground">Active pass</p>
               <p className="font-display text-base font-bold" data-testid="active-pass-label">
-                {entQ.isLoading ? "…" : (ent.active ? ent.label : "Tidak ada pass aktif")}
+                {entQ.isLoading ? "…" : (ent.active ? ent.label : "No active pass")}
               </p>
             </div>
           </div>
           {ent.active ? (
             <Badge variant="secondary" className="mt-4 w-fit" data-testid="active-pass-expiry">
-              Berlaku sampai {fmtDate(ent.expires_at)}
+              Valid until {fmtDate(ent.expires_at)}
             </Badge>
           ) : (
-            <p className="mt-4 text-xs text-muted-foreground">Beli pass di bawah untuk mengaktifkan proteksi & kuota request.</p>
+            <p className="mt-4 text-xs text-muted-foreground">Buy a pass below to activate protection & request quota.</p>
           )}
         </Card>
       </div>
 
       {/* Entitlement detail */}
       <Card className="mb-6 p-6" data-testid="entitlement-card">
-        <h2 className="mb-4 font-display font-semibold uppercase tracking-wide">Kuota request</h2>
+        <h2 className="mb-4 font-display font-semibold uppercase tracking-wide">Request quota</h2>
         {entQ.isLoading ? (
           <Skeleton className="h-24 w-full" />
         ) : (
           <div className="grid gap-6 md:grid-cols-2">
             <div data-testid="entitlement-quota">
               <div className="mb-1.5 flex items-center justify-between text-sm">
-                <span className="text-muted-foreground">Request pass</span>
+                <span className="text-muted-foreground">Pass requests</span>
                 <span className="font-mono">{ent.active ? `${fmtNum(used)} / ${fmtNum(included)}` : "— / —"}</span>
               </div>
               <Progress value={ent.active ? pct : 0} className={pct >= 100 ? "[&>div]:bg-destructive" : ""} />
@@ -421,25 +421,25 @@ export default function BillingPage() {
                 </div>
                 <div className="rounded-[4px] border-2 border-[hsl(var(--nb-border))] bg-muted/40 p-2">
                   <p className="font-mono text-base font-bold" data-testid="ent-used">{fmtNum(used)}</p>
-                  <p className="text-muted-foreground">Terpakai</p>
+                  <p className="text-muted-foreground">Used</p>
                 </div>
                 <div className="rounded-[4px] border-2 border-[hsl(var(--nb-border))] bg-muted/40 p-2">
                   <p className="font-mono text-base font-bold text-primary" data-testid="ent-remaining">{fmtNum(remaining)}</p>
-                  <p className="text-muted-foreground">Sisa</p>
+                  <p className="text-muted-foreground">Remaining</p>
                 </div>
               </div>
             </div>
 
             <div className="flex flex-col justify-between gap-3" data-testid="entitlement-overflow">
               <div className="rounded-[4px] border-2 border-[hsl(var(--nb-border))] p-4">
-                <p className="text-xs uppercase text-muted-foreground">Cadangan overflow (dari kredit)</p>
-                <p className="mt-1 font-display text-2xl font-black" data-testid="ent-credit-requests">{fmtNum(overflowReqs)} <span className="text-sm font-semibold text-muted-foreground">request</span></p>
+                <p className="text-xs uppercase text-muted-foreground">Overflow reserve (from credits)</p>
+                <p className="mt-1 font-display text-2xl font-black" data-testid="ent-credit-requests">{fmtNum(overflowReqs)} <span className="text-sm font-semibold text-muted-foreground">requests</span></p>
                 <p className="mt-1 text-xs text-muted-foreground">
-                  {fmtNum(balance)} kredit × {fmtNum(reqPerCredit)} request/kredit{ent.overflow_requests ? ` + ${fmtNum(ent.overflow_requests)} sisa` : ""}
+                  {fmtNum(balance)} credits × {fmtNum(reqPerCredit)} requests/credit{ent.overflow_requests ? ` + ${fmtNum(ent.overflow_requests)} left` : ""}
                 </p>
               </div>
               <p className="text-xs text-muted-foreground">
-                Saat kuota pass habis, request otomatis memakai kredit ({fmtNum(reqPerCredit)} request per 1 kredit).
+                When the pass quota runs out, requests automatically use credits ({fmtNum(reqPerCredit)} requests per 1 credit).
               </p>
             </div>
           </div>
@@ -449,10 +449,10 @@ export default function BillingPage() {
           <div className="mt-5 flex items-start gap-3 rounded-[4px] border-2 border-amber-500/60 bg-amber-500/10 p-4 text-sm text-amber-700 dark:text-amber-300" data-testid="quota-exhausted-banner">
             <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0" />
             <div>
-              <p className="font-semibold">Kuota & kredit habis — proteksi dipause</p>
+              <p className="font-semibold">Quota & credits exhausted — protection paused</p>
               <p className="mt-0.5 text-amber-700/90 dark:text-amber-300/90">
-                Link Anda <span className="font-semibold">tetap redirect</span> agar kampanye tidak mati, tetapi perlindungan
-                (bot/proxy/VPN filter) dilonggarkan sampai Anda beli pass baru atau top-up kredit.
+                Your links <span className="font-semibold">still redirect</span> so your campaigns keep running, but protection
+                (bot/proxy/VPN filtering) is relaxed until you buy a new pass or top up credits.
               </p>
             </div>
           </div>
@@ -461,8 +461,8 @@ export default function BillingPage() {
 
       {/* Passes */}
       <div className="mb-4 flex items-center gap-2">
-        <h2 className="font-display font-semibold uppercase tracking-wide">Pilih pass</h2>
-        <span className="text-xs text-muted-foreground">— pilih durasi, lalu jumlah request</span>
+        <h2 className="font-display font-semibold uppercase tracking-wide">Choose a pass</h2>
+        <span className="text-xs text-muted-foreground">— pick a duration, then a request volume</span>
       </div>
       {passesQ.isLoading ? (
         <div className="grid gap-4 md:grid-cols-3 lg:grid-cols-5">{[...Array(5)].map((_, i) => <Skeleton key={i} className="h-96 w-full rounded-xl" />)}</div>
@@ -480,7 +480,7 @@ export default function BillingPage() {
 
       {/* Transactions */}
       <div className="mb-4 mt-10 flex items-center gap-2">
-        <h2 className="font-display font-semibold uppercase tracking-wide">Riwayat transaksi</h2>
+        <h2 className="font-display font-semibold uppercase tracking-wide">Transaction history</h2>
       </div>
       <Card className="p-6" data-testid="ledger-card">
         {walletQ.isLoading ? (
@@ -488,7 +488,7 @@ export default function BillingPage() {
         ) : (walletQ.data?.ledger?.length ?? 0) === 0 ? (
           <div className="flex flex-col items-center gap-2 py-8 text-center">
             <Info className="h-6 w-6 text-muted-foreground/50" />
-            <p className="text-sm text-muted-foreground">Belum ada transaksi. Top up wallet untuk mulai.</p>
+            <p className="text-sm text-muted-foreground">No transactions yet. Top up your wallet to get started.</p>
           </div>
         ) : (
           <ul className="divide-y divide-border">
@@ -509,7 +509,7 @@ export default function BillingPage() {
                     <p className={`font-mono text-sm font-semibold ${positive ? "text-emerald-600" : "text-destructive"}`}>
                       {positive ? "+" : ""}{fmtNum(e.amount)}
                     </p>
-                    <p className="font-mono text-xs text-muted-foreground">{new Date(e.created_at).toLocaleDateString("id-ID")}</p>
+                    <p className="font-mono text-xs text-muted-foreground">{new Date(e.created_at).toLocaleDateString("en-US")}</p>
                   </div>
                 </li>
               );

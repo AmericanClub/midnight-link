@@ -163,6 +163,7 @@ async def _record(link, alias, signals, result, challenge_result, visitor_id):
         "link_id": link["id"],
         "alias": alias,
         "occurred_at": now_iso(),
+        "ip": signals.get("ip"),
         "country": signals["country"],
         "device": signals["device"],
         "browser": signals["browser"],

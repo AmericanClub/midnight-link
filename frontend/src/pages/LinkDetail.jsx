@@ -1,8 +1,8 @@
 import React, { useMemo, useState } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
-import { useQuery, useMutation } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { ArrowLeft, Copy, ExternalLink, MousePointerClick, Users, ShieldAlert, Download, ShieldCheck } from "lucide-react";
+import { ArrowLeft, Copy, ExternalLink, MousePointerClick, Users, ShieldAlert, Download, ShieldCheck, Ban } from "lucide-react";
 import {
   AreaChart,
   Area,
@@ -199,7 +199,39 @@ export default function LinkDetail() {
   const statsQ = useQuery({
     queryKey: ["link-analytics", id, workspace?.id, range, compare],
     queryFn: async () => (await api.get(`/analytics/links/${id}`, { params: { start, end, compare } })).data,
+    refetchInterval: 5000,
+  });
+
+  const queryClient = useQueryClient();
+  const ipRulesQ = useQuery({
+    queryKey: ["ip-rules", workspace?.id],
+    queryFn: async () => (await api.get("/security/ip-rules")).data,
     refetchInterval: 15000,
+  });
+  const blockedMap = useMemo(() => {
+    const m = {};
+    (ipRulesQ.data?.items || []).forEach((r) => {
+      if (r.list_type === "block") m[r.value] = r.id;
+    });
+    return m;
+  }, [ipRulesQ.data]);
+
+  const blockIp = useMutation({
+    mutationFn: async (ip) =>
+      api.post("/security/ip-rules", { list_type: "block", value: ip, note: "Blocked from Recent clicks" }),
+    onSuccess: (_, ip) => {
+      toast.success(`IP ${ip} diblokir`);
+      queryClient.invalidateQueries({ queryKey: ["ip-rules"] });
+    },
+    onError: (err) => toast.error(err.response?.data?.detail || err.message),
+  });
+  const unblockIp = useMutation({
+    mutationFn: async (ruleId) => api.delete(`/security/ip-rules/${ruleId}`),
+    onSuccess: () => {
+      toast.success("IP dibuka blokirnya");
+      queryClient.invalidateQueries({ queryKey: ["ip-rules"] });
+    },
+    onError: (err) => toast.error(err.response?.data?.detail || err.message),
   });
 
   const link = linkQ.data;
@@ -295,7 +327,16 @@ export default function LinkDetail() {
       </div>
 
       <Card className="mt-6 p-6" data-testid="recent-clicks-card">
-        <h2 className="mb-4 font-display font-semibold">Recent clicks</h2>
+        <div className="mb-4 flex items-center justify-between">
+          <h2 className="font-display font-semibold">Recent clicks</h2>
+          <span className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground" data-testid="live-indicator">
+            <span className="relative flex h-2 w-2">
+              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-500 opacity-75" />
+              <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-500" />
+            </span>
+            Live
+          </span>
+        </div>
         {(stats?.recent?.length ?? 0) === 0 ? (
           <p className="py-6 text-center text-sm text-muted-foreground">No clicks yet.</p>
         ) : (
@@ -303,12 +344,14 @@ export default function LinkDetail() {
             <TableHeader>
               <TableRow>
                 <TableHead>Time</TableHead>
+                <TableHead>IP Address</TableHead>
                 <TableHead>Country</TableHead>
                 <TableHead>Device</TableHead>
                 <TableHead>Browser</TableHead>
                 <TableHead>Type</TableHead>
                 <TableHead>Signals</TableHead>
                 <TableHead>Result</TableHead>
+                <TableHead>Action</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -325,9 +368,18 @@ export default function LinkDetail() {
                   allow: { label: "Allowed", cls: "bg-emerald-600 text-white hover:bg-emerald-600" },
                 }[decision] || { label: decision, cls: "" };
                 const reasons = (r.risk_reasons || []).join(" · ");
+                const ip = r.ip;
+                const blockedRuleId = ip ? blockedMap[ip] : null;
                 return (
                   <TableRow key={r.id} data-testid={`recent-click-${r.id}`}>
                     <TableCell className="font-mono text-xs">{new Date(r.occurred_at).toLocaleString()}</TableCell>
+                    <TableCell className="font-mono text-xs" data-testid={`click-ip-${r.id}`}>
+                      {ip ? (
+                        <span className={blockedRuleId ? "font-semibold text-destructive" : ""}>{ip}</span>
+                      ) : (
+                        <span className="text-muted-foreground">—</span>
+                      )}
+                    </TableCell>
                     <TableCell>{r.country}</TableCell>
                     <TableCell>{r.device}</TableCell>
                     <TableCell>{r.browser}</TableCell>
@@ -353,6 +405,33 @@ export default function LinkDetail() {
                       </Badge>
                       {decision !== "allow" && reasons && (
                         <p className="mt-1 max-w-[220px] truncate text-xs text-muted-foreground" title={reasons}>{reasons}</p>
+                      )}
+                    </TableCell>
+                    <TableCell>
+                      {!ip ? (
+                        <span className="text-xs text-muted-foreground">—</span>
+                      ) : blockedRuleId ? (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="h-7 gap-1 text-xs"
+                          onClick={() => unblockIp.mutate(blockedRuleId)}
+                          disabled={unblockIp.isPending}
+                          data-testid={`unblock-ip-btn-${r.id}`}
+                        >
+                          <ShieldCheck className="h-3 w-3" /> Unblock
+                        </Button>
+                      ) : (
+                        <Button
+                          size="sm"
+                          variant="destructive"
+                          className="h-7 gap-1 text-xs"
+                          onClick={() => blockIp.mutate(ip)}
+                          disabled={blockIp.isPending}
+                          data-testid={`block-ip-btn-${r.id}`}
+                        >
+                          <Ban className="h-3 w-3" /> Block IP
+                        </Button>
                       )}
                     </TableCell>
                   </TableRow>

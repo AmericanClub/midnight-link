@@ -46,7 +46,7 @@ async def _blocker(request: Request, version: str) -> JSONResponse:
     await db.api_keys.update_one({"id": key["id"]}, {"$set": {"last_used": now_iso()}, "$inc": {"request_count": 1}})
     await event_bus.publish("link.clicked", {
         "id": str(uuid.uuid4()), "event_type": "api_check", "workspace_id": key["workspace_id"],
-        "link_id": None, "alias": None, "occurred_at": now_iso(),
+        "link_id": None, "alias": None, "occurred_at": now_iso(), "ip": ip,
         "country": s["country"], "device": s["device"], "browser": s["browser"], "os": s["os"],
         "referrer": s["referrer"], "is_bot": s["is_bot"], "bot_category": s["bot_category"],
         "is_tor": s["is_tor"], "is_datacenter": s["is_datacenter"], "is_proxy": s["is_proxy"],

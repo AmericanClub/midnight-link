@@ -150,7 +150,7 @@ async def export_link_csv(
     rows = await db.analytics_events.find(flt, {"_id": 0}).sort("occurred_at", -1).to_list(10000)
 
     buf = io.StringIO()
-    cols = ["occurred_at", "country", "device", "browser", "os", "referrer",
+    cols = ["occurred_at", "ip", "country", "device", "browser", "os", "referrer",
             "is_bot", "risk_score", "decision", "challenge_result", "visitor_id"]
     writer = csv.DictWriter(buf, fieldnames=cols, extrasaction="ignore")
     writer.writeheader()

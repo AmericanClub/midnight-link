@@ -264,7 +264,7 @@ export default function Landing() {
               <Link to="/refund" className="text-muted-foreground transition-colors hover:text-primary" data-testid="footer-refund-link">Refund</Link>
               <Link to="/contact" className="text-muted-foreground transition-colors hover:text-primary" data-testid="footer-contact-link">Contact</Link>
               <a href="mailto:support@midnightlink.link" className="text-muted-foreground transition-colors hover:text-primary" data-testid="footer-support-email">support@midnightlink.link</a>
-              <a href="https://wa.me/6285111219661" target="_blank" rel="noreferrer" className="text-muted-foreground transition-colors hover:text-primary" data-testid="footer-whatsapp">WhatsApp +62 851-1121-9661</a>
+              <a href="https://wa.me/6281278899056" target="_blank" rel="noreferrer" className="text-muted-foreground transition-colors hover:text-primary" data-testid="footer-whatsapp">WhatsApp +62 812-7889-9056</a>
             </div>
             <p className="text-sm text-muted-foreground" data-testid="footer-legal-notice">
               Midnight Link — operated from Siak, Indonesia

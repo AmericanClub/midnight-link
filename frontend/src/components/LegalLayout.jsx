@@ -41,7 +41,7 @@ export default function LegalLayout({ title, updated, children, testid }) {
           <p className="text-center text-muted-foreground" data-testid="legal-notice">
             Midnight Link is a digital service operated from Siak, Indonesia ·{" "}
             <a href="mailto:support@midnightlink.link" className="hover:text-foreground">support@midnightlink.link</a> ·{" "}
-            <a href="https://wa.me/6285111219661" target="_blank" rel="noreferrer" className="hover:text-foreground">WhatsApp +62 851-1121-9661</a>
+            <a href="https://wa.me/6281278899056" target="_blank" rel="noreferrer" className="hover:text-foreground">WhatsApp +62 812-7889-9056</a>
           </p>
           <p className="text-muted-foreground">© {new Date().getFullYear()} Midnight Link. Every Click. Protected.</p>
         </div>

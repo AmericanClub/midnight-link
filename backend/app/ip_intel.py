@@ -8,6 +8,8 @@
 
 Docs: https://proxycheck.io/api/
 """
+import base64
+import hashlib
 import ipaddress
 import logging
 import time
@@ -24,7 +26,24 @@ logger = logging.getLogger("midgate.ipintel")
 
 _SETTINGS_ID = "proxycheck"
 _CACHE_TTL = 86400.0  # 24h per IP
-_fernet = Fernet(settings.IPINTEL_SECRET.encode())
+
+
+def _build_fernet(secret: str) -> Fernet:
+    """Build a Fernet from IPINTEL_SECRET.
+
+    Accepts an already-valid Fernet key as-is (keeps existing encrypted data
+    working). Any other string is deterministically normalized into a valid
+    32-byte url-safe base64 key, so the app never 500s on a misconfigured secret.
+    """
+    raw = (secret or "").strip()
+    try:
+        return Fernet(raw.encode())
+    except Exception:
+        digest = hashlib.sha256(raw.encode()).digest()
+        return Fernet(base64.urlsafe_b64encode(digest))
+
+
+_fernet = _build_fernet(settings.IPINTEL_SECRET)
 
 # in-memory config cache (reloaded from DB on change / TTL)
 _cfg: dict = {"loaded_at": 0.0, "enabled": False, "key": None, "has_key": False,

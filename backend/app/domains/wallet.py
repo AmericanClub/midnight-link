@@ -30,6 +30,7 @@ logger = logging.getLogger("midgate.wallet")
 MIN_TOPUP = 10_000            # Rp — default minimum (admin-configurable)
 MAX_TOPUP = 100_000_000       # Rp — sane upper bound to catch typos/abuse
 DEFAULT_RUPIAH_PER_CREDIT = 1000
+DEFAULT_REQ_PER_CREDIT = 333   # overflow: ~Rp3 per request at Rp1000/credit
 PAID_STATUSES = {"paid", "settled", "success"}
 DEFAULT_TOPUP_DISABLED_MSG = "Pembayaran sedang tidak tersedia untuk sementara. Silakan coba lagi nanti."
 
@@ -69,13 +70,14 @@ async def get_credit_settings() -> dict:
         "rupiah_per_credit": rpc,
         "bonus_percent": float(doc.get("bonus_percent") or 0),
         "min_topup": int(doc.get("min_topup") or MIN_TOPUP),
+        "requests_per_credit": int(doc.get("requests_per_credit") or DEFAULT_REQ_PER_CREDIT),
         "updated_at": doc.get("updated_at"),
         "updated_by": doc.get("updated_by"),
     }
 
 
 async def set_credit_settings(*, rupiah_per_credit=None, bonus_percent=None,
-                              min_topup=None, admin_email=None) -> dict:
+                              min_topup=None, requests_per_credit=None, admin_email=None) -> dict:
     updates = {"updated_at": now_iso()}
     if rupiah_per_credit is not None:
         updates["rupiah_per_credit"] = max(1, int(rupiah_per_credit))
@@ -83,6 +85,8 @@ async def set_credit_settings(*, rupiah_per_credit=None, bonus_percent=None,
         updates["bonus_percent"] = max(0.0, min(float(bonus_percent), 1000.0))
     if min_topup is not None:
         updates["min_topup"] = max(0, int(min_topup))
+    if requests_per_credit is not None:
+        updates["requests_per_credit"] = max(1, int(requests_per_credit))
     if admin_email:
         updates["updated_by"] = admin_email
     await db.platform_settings.update_one({"_id": "credits"}, {"$set": updates}, upsert=True)
@@ -99,6 +103,55 @@ def credits_for_amount(amount_rp: int, cs: dict):
 def credits_for_price(price_rp: int, cs: dict) -> int:
     """Credits needed to buy something priced in Rupiah (rounded up)."""
     return int(math.ceil(int(price_rp) / cs["rupiah_per_credit"]))
+
+
+# --------------------- request metering (per click) ---------------------- #
+async def _mark_quota_exhausted(workspace_id: str, now: str):
+    await db.workspaces.update_one(
+        {"id": workspace_id, "quota_exhausted": {"$ne": True}},
+        {"$set": {"quota_exhausted": True, "quota_exhausted_at": now}},
+    )
+
+
+async def consume_request(workspace_id: str) -> dict:
+    """Consume 1 Request for a click. Order: active plan quota -> pre-converted
+    overflow -> convert 1 credit into an overflow chunk. Returns protection flag.
+    When nothing is left (b1 soft): allow the click but pause protection + flag owner."""
+    now = now_iso()
+    # 1) active plan quota
+    doc = await db.workspaces.find_one_and_update(
+        {"id": workspace_id, "pass_expires_at": {"$gt": now},
+         "$expr": {"$lt": ["$pass_requests_used", "$pass_requests_included"]}},
+        {"$inc": {"pass_requests_used": 1}}, return_document=ReturnDocument.AFTER,
+    )
+    if doc:
+        return {"protection": True, "source": "plan"}
+    # 2) pre-converted overflow bucket
+    w = await db.wallets.find_one_and_update(
+        {"workspace_id": workspace_id, "req_overflow": {"$gte": 1}},
+        {"$inc": {"req_overflow": -1}}, return_document=ReturnDocument.AFTER,
+    )
+    if w:
+        return {"protection": True, "source": "credit"}
+    # 3) convert 1 credit -> overflow chunk (this click consumes the first of the chunk)
+    cs = await get_credit_settings()
+    rpc = max(1, int(cs.get("requests_per_credit", DEFAULT_REQ_PER_CREDIT)))
+    conv = await db.wallets.find_one_and_update(
+        {"workspace_id": workspace_id, "balance": {"$gte": 1}},
+        {"$inc": {"balance": -1, "req_overflow": rpc - 1}, "$set": {"updated_at": now}},
+        return_document=ReturnDocument.AFTER,
+    )
+    if conv:
+        await db.wallet_ledger.insert_one({
+            "id": str(uuid.uuid4()), "workspace_id": workspace_id, "type": "spend",
+            "amount": -1, "balance_after": int(conv.get("balance", 0)),
+            "description": f"Auto-converted 1 credit → {rpc:,} requests (overflow)",
+            "ref": None, "actor": "system", "created_at": now,
+        })
+        return {"protection": True, "source": "credit"}
+    # 4) fully exhausted -> soft pass-through
+    await _mark_quota_exhausted(workspace_id, now)
+    return {"protection": False, "source": "none"}
 
 
 # --------------------- payment gateway (Mayar) config -------------------- #
@@ -234,6 +287,7 @@ async def summary(ws=Depends(get_billing_workspace)):
     return {"balance": int(w.get("balance", 0)), "currency": "credit",
             "min_topup": cs["min_topup"], "gateway_ready": await mayar.configured(),
             "rupiah_per_credit": cs["rupiah_per_credit"], "bonus_percent": cs["bonus_percent"],
+            "requests_per_credit": cs["requests_per_credit"],
             "topup_enabled": ps["topup_enabled"],
             "topup_disabled_message": ps["topup_disabled_message"], "ledger": ledger}
 
@@ -336,6 +390,51 @@ async def purchase_plan(payload: PurchaseInput, ws=Depends(get_billing_workspace
         ws["id"], plan["id"], paid_via="wallet_credit", amount=price_rp, ref=entry["id"])
     return {"ok": True, "plan": plan["id"], "balance": balance_after,
             "current_period_end": period_end}
+
+
+class PurchasePassInput(BaseModel):
+    days: int
+    requests: int
+
+
+@router.post("/purchase-pass")
+async def purchase_pass(payload: PurchasePassInput, ws=Depends(get_billing_workspace)):
+    from .billing import is_valid_pass, pass_price, activate_pass_for_workspace
+    if not is_valid_pass(payload.days, payload.requests):
+        raise HTTPException(status_code=400, detail="Invalid plan option.")
+    price_rp = pass_price(payload.days, payload.requests)
+    cs = await get_credit_settings()
+    price_credits = credits_for_price(price_rp, cs)
+    w = await _get_wallet(ws["id"])
+    balance = int(w.get("balance", 0))
+    if balance < price_credits:
+        short = price_credits - balance
+        raise HTTPException(
+            status_code=402,
+            detail=f"Insufficient credits. Top up {short:,} more credits (≈Rp{short * cs['rupiah_per_credit']:,}) to activate this plan.",
+        )
+    balance_after, entry = await _apply(
+        ws["id"], -price_credits, "spend",
+        f"{payload.days}-day pass · {payload.requests:,} requests", ref=f"pass:{payload.days}:{payload.requests}")
+    res = await activate_pass_for_workspace(
+        ws["id"], payload.days, payload.requests, paid_via="wallet_credit", amount=price_rp, ref=entry["id"])
+    return {"ok": True, "balance": balance_after, "expires_at": res["expires_at"],
+            "label": res["label"], "price_rp": price_rp, "price_credits": price_credits}
+
+
+@router.get("/entitlement")
+async def entitlement(ws=Depends(get_billing_workspace)):
+    from .billing import pass_state
+    st = await pass_state(ws["id"])
+    w = await _get_wallet(ws["id"])
+    cs = await get_credit_settings()
+    rpc = max(1, int(cs.get("requests_per_credit", DEFAULT_REQ_PER_CREDIT)))
+    balance = int(w.get("balance", 0))
+    overflow = int(w.get("req_overflow", 0))
+    credit_requests = balance * rpc + overflow
+    return {**st, "credit_balance": balance, "requests_per_credit": rpc,
+            "overflow_requests": overflow, "credit_requests_available": credit_requests,
+            "total_requests_available": st["requests_remaining"] + credit_requests}
 
 
 @router.post("/mayar/webhook")

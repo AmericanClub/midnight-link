@@ -348,6 +348,7 @@ class PaymentConfigUpdate(BaseModel):
     rupiah_per_credit: int | None = None
     bonus_percent: float | None = None
     min_topup: int | None = None
+    requests_per_credit: int | None = None
     mayar_api_key: str | None = None
     mayar_webhook_token: str | None = None
     mayar_base_url: str | None = None
@@ -371,10 +372,12 @@ async def payment_config_put(payload: PaymentConfigUpdate, admin=Depends(require
         await set_payment_settings(topup_enabled=payload.topup_enabled,
                                    topup_disabled_message=payload.topup_disabled_message,
                                    admin_email=admin["email"])
-    if any(v is not None for v in (payload.rupiah_per_credit, payload.bonus_percent, payload.min_topup)):
+    if any(v is not None for v in (payload.rupiah_per_credit, payload.bonus_percent, payload.min_topup, payload.requests_per_credit)):
         await set_credit_settings(rupiah_per_credit=payload.rupiah_per_credit,
                                   bonus_percent=payload.bonus_percent,
-                                  min_topup=payload.min_topup, admin_email=admin["email"])
+                                  min_topup=payload.min_topup,
+                                  requests_per_credit=payload.requests_per_credit,
+                                  admin_email=admin["email"])
     if any(v is not None for v in (payload.mayar_api_key, payload.mayar_webhook_token, payload.mayar_base_url)):
         await set_gateway_config(api_key=payload.mayar_api_key,
                                  webhook_token=payload.mayar_webhook_token,

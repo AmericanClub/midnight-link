@@ -9,7 +9,7 @@ from ..db import db
 from ..utils import now_iso, client_ip, client_country, visitor_hash
 from ..providers import event_bus
 from .security import evaluate_request, challenge_token, verify_challenge
-from .billing import can_record_event
+from .wallet import consume_request
 
 router = APIRouter(tags=["redirect"])
 
@@ -131,6 +131,12 @@ async def redirect(alias: str, request: Request):
     signals = result["signals"]
     challenge_result = "n/a"
 
+    # Meter this Request against the workspace plan quota / credits (b1: soft pass-through).
+    meter = await consume_request(link["workspace_id"])
+    if not meter["protection"]:
+        decision = "allow"
+        result["reasons"] = (result.get("reasons") or []) + ["Quota exhausted — protection paused"]
+
     if decision == "challenge":
         token = request.query_params.get("mg_ch")
         if verify_challenge(alias, visitor_id, token):
@@ -154,8 +160,6 @@ async def redirect(alias: str, request: Request):
 
 
 async def _record(link, alias, signals, result, challenge_result, visitor_id):
-    if not await can_record_event(link["workspace_id"]):
-        return
     event = {
         "id": str(uuid.uuid4()),
         "event_type": "scan" if link.get("is_qr") else "click",

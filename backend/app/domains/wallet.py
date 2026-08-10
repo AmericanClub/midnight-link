@@ -310,8 +310,9 @@ async def _try_credit_topup(rec: dict) -> dict:
     )
     if not claimed:
         return {"status": "paid", "credited": True}
+    gw_label = "KlikQRIS" if rec.get("gateway") == "klikqris" else "Mayar"
     await _apply(rec["workspace_id"], int(rec["credits"]), "topup",
-                 f"Wallet top-up via Mayar ({int(rec['credits']):,} credits)", ref=rec["id"])
+                 f"Wallet top-up via {gw_label} ({int(rec['credits']):,} credits)", ref=rec["id"])
     logger.info("wallet top-up credited ws=%s credits=%s order=%s",
                 rec["workspace_id"], rec["credits"], rec["id"])
     return {"status": "paid", "credited": True}

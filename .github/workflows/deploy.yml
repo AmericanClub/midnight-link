@@ -29,15 +29,13 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 20
-          cache: yarn
-          cache-dependency-path: frontend/yarn.lock
 
       - name: Build frontend (on GitHub runner)
         working-directory: frontend
         env:
           CI: "false"            # treat CRA warnings as warnings, not errors
         run: |
-          yarn install --frozen-lockfile
+          yarn install --network-timeout 600000
           yarn build
 
       - name: Configure SSH

@@ -1239,6 +1239,42 @@ function LabeledField({ label, hint, children }) {
   );
 }
 
+const webhookBase = () => `https://${window.location.host}`;
+
+function WebhookUrlBox({ label, path }) {
+  return (
+    <div className="rounded-[4px] border-2 border-dashed border-[hsl(var(--nb-border))] p-3 text-xs text-muted-foreground">
+      <span className="font-semibold">{label}</span>{" "}
+      <code className="font-mono break-all">{webhookBase()}{path}</code>
+    </div>
+  );
+}
+
+function GatewayActiveBar({ active, configured, desc, onActivate, busy, testid }) {
+  return (
+    <div className="flex flex-wrap items-center justify-between gap-3 rounded-[4px] border-2 border-[hsl(var(--nb-border))] bg-muted/30 p-3">
+      <div>
+        <div className="flex items-center gap-2">
+          <span className={`text-xs font-bold uppercase tracking-wide ${configured ? "text-emerald-600" : "text-destructive"}`}>
+            {configured ? "Configured" : "Not set"}
+          </span>
+          {active && <Badge className="text-[10px]">Active gateway</Badge>}
+        </div>
+        <p className="mt-0.5 text-xs text-muted-foreground">{desc}</p>
+      </div>
+      {active ? (
+        <span className="inline-flex items-center gap-1 text-xs font-semibold text-primary">
+          <CheckCircle2 className="h-4 w-4" /> Processing payments
+        </span>
+      ) : (
+        <Button size="sm" onClick={onActivate} disabled={busy} data-testid={`gateway-activate-${testid}`}>
+          Set as active
+        </Button>
+      )}
+    </div>
+  );
+}
+
 function PaymentsSection() {
   const qc = useQueryClient();
   const { data, isLoading } = useQuery({
@@ -1328,150 +1364,109 @@ function PaymentsSection() {
 
   return (
     <div className="max-w-3xl space-y-6" data-testid="payments-section">
-      {/* ---- Active gateway selector ---- */}
-      <Card className="p-6" data-testid="active-gateway-card">
-        <div className="mb-4">
-          <h3 className="font-display text-lg font-bold uppercase tracking-wide">Active Payment Gateway</h3>
-          <p className="text-sm text-muted-foreground">Only one IDR gateway can be active at a time. Customer top-ups & partner charges use the active one.</p>
+      {/* ---- Payment gateways (tabbed) ---- */}
+      <Card className="p-6" data-testid="payments-gateways-card">
+        <div className="mb-5">
+          <h3 className="font-display text-lg font-bold uppercase tracking-wide">Payment Gateways</h3>
+          <p className="text-sm text-muted-foreground">
+            One IDR gateway is <span className="font-semibold text-foreground">active</span> at a time — it processes all customer top-ups & partner charges. Configure both and switch anytime.
+          </p>
         </div>
-        <div className="grid gap-3 sm:grid-cols-2">
-          {[
-            { key: "mayar", label: "Mayar", desc: "Hosted checkout (QRIS, e-wallet, VA)", ok: connected },
-            { key: "klikqris", label: "KlikQRIS", desc: "Dynamic QRIS · 0% MDR", ok: kqConnected },
-          ].map((g) => (
-            <button
-              key={g.key} type="button" onClick={() => setActive(g.key)} disabled={save.isPending}
-              className={`flex items-start gap-3 rounded-[4px] border-2 p-4 text-left transition-colors ${activeGw === g.key ? "border-primary bg-primary/10" : "border-[hsl(var(--nb-border))] hover:border-primary/50"}`}
-              data-testid={`gateway-select-${g.key}`}
-            >
-              <div className={`mt-0.5 flex h-9 w-9 items-center justify-center rounded-[4px] ${activeGw === g.key ? "bg-primary text-primary-foreground" : "bg-muted"}`}>
-                {g.key === "klikqris" ? <QrCode className="h-5 w-5" /> : <Store className="h-5 w-5" />}
-              </div>
-              <div className="flex-1">
-                <div className="flex items-center gap-2">
-                  <span className="font-display font-bold uppercase">{g.label}</span>
-                  {activeGw === g.key && <Badge className="text-[10px]">Active</Badge>}
-                </div>
-                <p className="text-xs text-muted-foreground">{g.desc}</p>
-                <p className={`mt-1 text-xs font-semibold ${g.ok ? "text-emerald-600" : "text-destructive"}`}>
-                  {g.ok ? "Configured" : "Not set — add credentials below"}
-                </p>
-              </div>
-            </button>
-          ))}
-        </div>
-      </Card>
 
-      {/* ---- Mayar gateway ---- */}
-      <Card className="p-6">
-        <div className="mb-5 flex items-center justify-between gap-3">
-          <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-[4px] border-[2.5px] border-[hsl(var(--nb-border))] bg-primary text-primary-foreground shadow-[3px_3px_0_0_hsl(var(--nb-shadow))]">
-              <Store className="h-5 w-5" />
+        <Tabs key={activeGw} defaultValue={activeGw} className="w-full">
+          <TabsList className="grid w-full grid-cols-2" data-testid="gateway-tabs">
+            <TabsTrigger value="mayar" data-testid="gateway-tab-mayar" className="gap-2">
+              <Store className="h-4 w-4" /> Mayar
+              <span className={`h-2 w-2 rounded-full ${connected ? "bg-emerald-500" : "bg-muted-foreground/40"}`} />
+              {activeGw === "mayar" && <Badge className="ml-1 text-[10px]">Active</Badge>}
+            </TabsTrigger>
+            <TabsTrigger value="klikqris" data-testid="gateway-tab-klikqris" className="gap-2">
+              <QrCode className="h-4 w-4" /> KlikQRIS
+              <span className={`h-2 w-2 rounded-full ${kqConnected ? "bg-emerald-500" : "bg-muted-foreground/40"}`} />
+              {activeGw === "klikqris" && <Badge className="ml-1 text-[10px]">Active</Badge>}
+            </TabsTrigger>
+          </TabsList>
+
+          {/* Mayar */}
+          <TabsContent value="mayar" className="mt-5 space-y-4" data-testid="gateway-panel-mayar">
+            <GatewayActiveBar active={activeGw === "mayar"} configured={connected}
+              desc="Hosted checkout page — QRIS, e-wallet & virtual account"
+              onActivate={() => setActive("mayar")} busy={save.isPending} testid="mayar" />
+
+            <div className="grid grid-cols-2 gap-3 rounded-[4px] border-2 border-[hsl(var(--nb-border))] bg-muted/40 p-3 text-sm sm:grid-cols-3">
+              <div><p className="text-xs uppercase text-muted-foreground">API Key</p><p className="font-mono font-semibold" data-testid="gw-apikey-current">{gwStatus.api_key_masked || "—"}</p></div>
+              <div><p className="text-xs uppercase text-muted-foreground">Webhook token</p><p className="font-semibold">{gwStatus.webhook_token_set ? "Set" : "Not set"}</p></div>
+              <div><p className="text-xs uppercase text-muted-foreground">Source</p><p className="font-semibold uppercase">{gwStatus.source || "none"}</p></div>
             </div>
-            <div>
-              <h3 className="font-display text-lg font-bold uppercase tracking-wide">Payment Gateway — Mayar</h3>
-              <p className="text-sm text-muted-foreground">Credentials are stored in the database & override .env values</p>
+
+            <LabeledField label="New API Key" hint="Leave blank to keep the current key. Never shown again for security.">
+              <Input type="password" placeholder="Paste Mayar API key…" autoComplete="off"
+                value={gw.mayar_api_key} onChange={(e) => setGw((g) => ({ ...g, mayar_api_key: e.target.value }))}
+                className="font-mono" data-testid="gw-apikey-input" />
+            </LabeledField>
+            <LabeledField label="New webhook token" hint="Used to verify Mayar callbacks. Leave blank to keep unchanged.">
+              <Input type="password" placeholder="Paste webhook token…" autoComplete="off"
+                value={gw.mayar_webhook_token} onChange={(e) => setGw((g) => ({ ...g, mayar_webhook_token: e.target.value }))}
+                className="font-mono" data-testid="gw-webhook-input" />
+            </LabeledField>
+            <LabeledField label="Base URL" hint="Default: https://api.mayar.id/hl/v1">
+              <Input placeholder="https://api.mayar.id/hl/v1"
+                value={gw.mayar_base_url} onChange={(e) => setGw((g) => ({ ...g, mayar_base_url: e.target.value }))}
+                className="font-mono" data-testid="gw-baseurl-input" />
+            </LabeledField>
+
+            <WebhookUrlBox label="Webhook URL for the Mayar dashboard:" path="/api/wallet/mayar/webhook" />
+
+            <div className="flex flex-wrap gap-3">
+              <Button onClick={saveGateway} disabled={save.isPending} className="gap-2" data-testid="gw-save-btn">
+                <Save className="h-4 w-4" /> Save Mayar
+              </Button>
+              <Button variant="outline" onClick={() => test.mutate("mayar")} disabled={test.isPending} className="gap-2" data-testid="gw-test-btn">
+                {test.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />} Test connection
+              </Button>
             </div>
-          </div>
-          <Badge variant={connected ? "success" : "destructive"} data-testid="gw-status-badge">
-            {connected ? "Configured" : "Not set"}
-          </Badge>
-        </div>
+          </TabsContent>
 
-        <div className="mb-5 grid grid-cols-2 gap-3 rounded-[4px] border-2 border-[hsl(var(--nb-border))] bg-muted/40 p-3 text-sm sm:grid-cols-3">
-          <div><p className="text-xs uppercase text-muted-foreground">API Key</p><p className="font-mono font-semibold" data-testid="gw-apikey-current">{gwStatus.api_key_masked || "—"}</p></div>
-          <div><p className="text-xs uppercase text-muted-foreground">Webhook token</p><p className="font-semibold">{gwStatus.webhook_token_set ? "Set" : "Not set"}</p></div>
-          <div><p className="text-xs uppercase text-muted-foreground">Source</p><p className="font-semibold uppercase">{gwStatus.source || "none"}</p></div>
-        </div>
+          {/* KlikQRIS */}
+          <TabsContent value="klikqris" className="mt-5 space-y-4" data-testid="gateway-panel-klikqris">
+            <GatewayActiveBar active={activeGw === "klikqris"} configured={kqConnected}
+              desc="Dynamic QRIS shown in-app for scanning · 0% MDR"
+              onActivate={() => setActive("klikqris")} busy={save.isPending} testid="klikqris" />
 
-        <div className="space-y-4">
-          <LabeledField label="New API Key" hint="Leave blank to keep the current key. Never shown again for security.">
-            <Input type="password" placeholder="Paste Mayar API key…" autoComplete="off"
-              value={gw.mayar_api_key} onChange={(e) => setGw((g) => ({ ...g, mayar_api_key: e.target.value }))}
-              className="font-mono" data-testid="gw-apikey-input" />
-          </LabeledField>
-          <LabeledField label="New webhook token" hint="Used to verify Mayar callbacks. Leave blank to keep unchanged.">
-            <Input type="password" placeholder="Paste webhook token…" autoComplete="off"
-              value={gw.mayar_webhook_token} onChange={(e) => setGw((g) => ({ ...g, mayar_webhook_token: e.target.value }))}
-              className="font-mono" data-testid="gw-webhook-input" />
-          </LabeledField>
-          <LabeledField label="Base URL" hint="Default: https://api.mayar.id/hl/v1">
-            <Input placeholder="https://api.mayar.id/hl/v1"
-              value={gw.mayar_base_url} onChange={(e) => setGw((g) => ({ ...g, mayar_base_url: e.target.value }))}
-              className="font-mono" data-testid="gw-baseurl-input" />
-          </LabeledField>
-
-          <div className="rounded-[4px] border-2 border-dashed border-[hsl(var(--nb-border))] p-3 text-xs text-muted-foreground">
-            <span className="font-semibold">Webhook URL for the Mayar dashboard:</span>{" "}
-            <code className="font-mono">{`${window.location.origin.replace(/^http/, "https")}`}/api/wallet/mayar/webhook</code>
-          </div>
-
-          <div className="flex flex-wrap gap-3">
-            <Button onClick={saveGateway} disabled={save.isPending} className="gap-2" data-testid="gw-save-btn">
-              <Save className="h-4 w-4" /> Save gateway
-            </Button>
-            <Button variant="outline" onClick={() => test.mutate("mayar")} disabled={test.isPending} className="gap-2" data-testid="gw-test-btn">
-              {test.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />} Test connection
-            </Button>
-          </div>
-        </div>
-      </Card>
-
-      {/* ---- KlikQRIS gateway ---- */}
-      <Card className="p-6" data-testid="klikqris-card">
-        <div className="mb-5 flex items-center justify-between gap-3">
-          <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-[4px] border-[2.5px] border-[hsl(var(--nb-border))] bg-primary text-primary-foreground shadow-[3px_3px_0_0_hsl(var(--nb-shadow))]">
-              <QrCode className="h-5 w-5" />
+            <div className="grid grid-cols-2 gap-3 rounded-[4px] border-2 border-[hsl(var(--nb-border))] bg-muted/40 p-3 text-sm sm:grid-cols-3">
+              <div><p className="text-xs uppercase text-muted-foreground">API Key</p><p className="font-mono font-semibold" data-testid="kq-apikey-current">{kqStatus.api_key_masked || "—"}</p></div>
+              <div><p className="text-xs uppercase text-muted-foreground">Merchant ID</p><p className="font-semibold">{kqStatus.merchant_id_set ? "Set" : "Not set"}</p></div>
+              <div><p className="text-xs uppercase text-muted-foreground">Source</p><p className="font-semibold uppercase">{kqStatus.source || "none"}</p></div>
             </div>
-            <div>
-              <h3 className="font-display text-lg font-bold uppercase tracking-wide">Payment Gateway — KlikQRIS</h3>
-              <p className="text-sm text-muted-foreground">Dynamic QRIS (0% MDR). Credentials stored in the database & override .env values</p>
+
+            <LabeledField label="New API Key (x-api-key)" hint="Leave blank to keep the current key. Never shown again for security.">
+              <Input type="password" placeholder="Paste KlikQRIS API key…" autoComplete="off"
+                value={kq.klikqris_api_key} onChange={(e) => setKq((k) => ({ ...k, klikqris_api_key: e.target.value }))}
+                className="font-mono" data-testid="kq-apikey-input" />
+            </LabeledField>
+            <LabeledField label="Merchant ID (id_merchant)">
+              <Input placeholder="e.g. 1786xxxxxxxx" autoComplete="off"
+                value={kq.klikqris_merchant_id} onChange={(e) => setKq((k) => ({ ...k, klikqris_merchant_id: e.target.value }))}
+                className="font-mono" data-testid="kq-merchant-input" />
+            </LabeledField>
+            <LabeledField label="Base URL" hint="Default: https://klikqris.com/api">
+              <Input placeholder="https://klikqris.com/api"
+                value={kq.klikqris_base_url} onChange={(e) => setKq((k) => ({ ...k, klikqris_base_url: e.target.value }))}
+                className="font-mono" data-testid="kq-baseurl-input" />
+            </LabeledField>
+
+            <WebhookUrlBox label="Callback / Webhook URL for the KlikQRIS dashboard:" path="/api/wallet/klikqris/webhook" />
+
+            <div className="flex flex-wrap gap-3">
+              <Button onClick={saveKlik} disabled={save.isPending} className="gap-2" data-testid="kq-save-btn">
+                <Save className="h-4 w-4" /> Save KlikQRIS
+              </Button>
+              <Button variant="outline" onClick={() => test.mutate("klikqris")} disabled={test.isPending} className="gap-2" data-testid="kq-test-btn">
+                {test.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />} Test connection
+              </Button>
             </div>
-          </div>
-          <Badge variant={kqConnected ? "success" : "destructive"} data-testid="kq-status-badge">
-            {kqConnected ? "Configured" : "Not set"}
-          </Badge>
-        </div>
-
-        <div className="mb-5 grid grid-cols-2 gap-3 rounded-[4px] border-2 border-[hsl(var(--nb-border))] bg-muted/40 p-3 text-sm sm:grid-cols-3">
-          <div><p className="text-xs uppercase text-muted-foreground">API Key</p><p className="font-mono font-semibold" data-testid="kq-apikey-current">{kqStatus.api_key_masked || "—"}</p></div>
-          <div><p className="text-xs uppercase text-muted-foreground">Merchant ID</p><p className="font-semibold">{kqStatus.merchant_id_set ? "Set" : "Not set"}</p></div>
-          <div><p className="text-xs uppercase text-muted-foreground">Source</p><p className="font-semibold uppercase">{kqStatus.source || "none"}</p></div>
-        </div>
-
-        <div className="space-y-4">
-          <LabeledField label="New API Key (x-api-key)" hint="Leave blank to keep the current key. Never shown again for security.">
-            <Input type="password" placeholder="Paste KlikQRIS API key…" autoComplete="off"
-              value={kq.klikqris_api_key} onChange={(e) => setKq((k) => ({ ...k, klikqris_api_key: e.target.value }))}
-              className="font-mono" data-testid="kq-apikey-input" />
-          </LabeledField>
-          <LabeledField label="Merchant ID (id_merchant)">
-            <Input placeholder="e.g. 1786xxxxxxxx" autoComplete="off"
-              value={kq.klikqris_merchant_id} onChange={(e) => setKq((k) => ({ ...k, klikqris_merchant_id: e.target.value }))}
-              className="font-mono" data-testid="kq-merchant-input" />
-          </LabeledField>
-          <LabeledField label="Base URL" hint="Default: https://klikqris.com/api">
-            <Input placeholder="https://klikqris.com/api"
-              value={kq.klikqris_base_url} onChange={(e) => setKq((k) => ({ ...k, klikqris_base_url: e.target.value }))}
-              className="font-mono" data-testid="kq-baseurl-input" />
-          </LabeledField>
-
-          <div className="rounded-[4px] border-2 border-dashed border-[hsl(var(--nb-border))] p-3 text-xs text-muted-foreground">
-            <span className="font-semibold">Callback / Webhook URL for the KlikQRIS dashboard:</span>{" "}
-            <code className="font-mono">{`${window.location.origin.replace(/^http/, "https")}`}/api/wallet/klikqris/webhook</code>
-          </div>
-
-          <div className="flex flex-wrap gap-3">
-            <Button onClick={saveKlik} disabled={save.isPending} className="gap-2" data-testid="kq-save-btn">
-              <Save className="h-4 w-4" /> Save KlikQRIS
-            </Button>
-            <Button variant="outline" onClick={() => test.mutate("klikqris")} disabled={test.isPending} className="gap-2" data-testid="kq-test-btn">
-              {test.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />} Test connection
-            </Button>
-          </div>
-        </div>
+          </TabsContent>
+        </Tabs>
       </Card>
 
       {/* ---- Credit conversion ---- */}

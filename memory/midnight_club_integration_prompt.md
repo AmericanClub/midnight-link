@@ -178,6 +178,17 @@ app.post("/api/midnightlink/webhook", express.raw({ type: "application/json" }),
 - **Idempotent**: pakai `reference_id` atau `charge_id` sebagai kunci unik agar member tidak dikredit dobel (webhook + polling bisa datang bersamaan).
 - Webhook bersifat best-effort (ada retry). **Polling adalah fallback utama** — pastikan tetap jalan meski webhook tidak sampai.
 
+## Menangani QR kadaluarsa (expired) & "bayar telat" — PENTING
+
+Kasus nyata: QR KlikQRIS kadaluarsa, customer bayar tepat setelah expired → uang tetap masuk ke merchant, tapi order di KlikQRIS bertanda **EXPIRED** dan status tidak pernah jadi PAID → member tak terkredit. Cara Midnight Club menanganinya:
+
+1. **Timer + auto-refresh QR.** Tampilkan hitung mundur dari `expires_at`. Saat mendekati/melewati expired, JANGAN biarkan user tetap scan QR lama — tampilkan tombol **"Buat QR baru"** yang memanggil `POST /api/pay/charges` lagi (charge/QR baru). Ini mencegah pembayaran telat.
+2. **Grace polling.** Meskipun QR sudah "expired" di UI, tetap polling `GET /api/pay/charges/{id}` beberapa saat lagi (mis. 2–3 menit) sebelum menyatakan gagal — settlement/webhook bisa datang telat.
+3. **Jangan pernah auto-batalkan niat top-up member seketika saat expired.** Beri masa tenggang + rekonsiliasi.
+4. **Tombol "Saya sudah bayar tapi belum masuk".** Trigger `GET /api/pay/charges/{id}`; kalau masih `pending`, buat tiket support otomatis yang menyertakan `charge_id` (= Gateway Order ID) + `reference_id` + `pay_amount` + waktu, supaya operator bisa cek settlement dan (bila perlu) settle manual dari Admin Midnight Link.
+5. **Kredit hanya setelah status "paid"** dari `GET` (polling maupun webhook). Operator Midnight Link punya tombol **Re-check** dan **Mark as paid (manual)** untuk kasus "expired tapi sebenarnya dibayar" — begitu operator Mark-as-paid, webhook `charge.paid` terkirim ke Midnight Club → member terkredit otomatis.
+6. **Cocokkan ke dashboard KlikQRIS pakai `charge_id`/Gateway Order ID**, BUKAN `reference_id`. `order_id` di KlikQRIS = `charge_id` Midnight Link.
+
 ## Checklist uji coba (di preview dulu)
 1. `GET /api/pay/ping` → 200.
 2. Pastikan gateway aktif di Admin Midnight Link = **KlikQRIS** (agar dapat QR mentah).

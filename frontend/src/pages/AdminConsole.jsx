@@ -1023,11 +1023,54 @@ function Pager({ data, onPage }) {
   );
 }
 
+function MarkPaidDialog({ partnerId, charge, onClose, onDone }) {
+  const [reason, setReason] = useState("");
+  const mut = useMutation({
+    mutationFn: async () => (await api.post(`/admin/partners/${partnerId}/charges/${charge.id}/mark-paid`, { reason: reason.trim() })).data,
+    onSuccess: () => { toast.success("Marked as paid — charge.paid webhook sent to partner"); onDone?.(); onClose(); },
+    onError: (e) => toast.error(formatApiError(e.response?.data?.detail) || e.message),
+  });
+  return (
+    <Dialog open onOpenChange={(o) => { if (!o) onClose(); }}>
+      <DialogContent className="max-w-md" data-testid="mark-paid-dialog">
+        <DialogHeader>
+          <DialogTitle className="font-display">Mark charge as paid</DialogTitle>
+          <DialogDescription>
+            Manual override — use ONLY after you've confirmed the funds actually settled
+            (e.g. the gateway shows EXPIRED but the customer really paid). This flips the
+            charge to paid and sends a signed <code>charge.paid</code> webhook so the partner
+            credits its member.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="space-y-3">
+          <div className="space-y-1 rounded-[4px] border-2 border-[hsl(var(--nb-border))] bg-muted/30 p-3 text-xs">
+            <div className="flex justify-between gap-3"><span className="text-muted-foreground">Reference</span><span className="font-mono">{charge.reference_id}</span></div>
+            <div className="flex justify-between gap-3"><span className="text-muted-foreground">Gateway Order ID</span><span className="font-mono break-all text-right">{charge.gateway_order_id || charge.id}</span></div>
+            <div className="flex justify-between gap-3"><span className="text-muted-foreground">Amount</span><span className="font-mono">{money(charge.amount)}</span></div>
+          </div>
+          <div className="space-y-1.5">
+            <label className="text-sm">Reason (required, logged)</label>
+            <Input value={reason} onChange={(e) => setReason(e.target.value)} placeholder="e.g. KlikQRIS EXPIRED but blu receipt confirms Rp100.447 settled" data-testid="mark-paid-reason" />
+          </div>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose}>Cancel</Button>
+          <Button onClick={() => reason.trim().length >= 3 && mut.mutate()} disabled={reason.trim().length < 3 || mut.isPending} data-testid="mark-paid-submit" className="gap-2">
+            {mut.isPending && <Loader2 className="h-4 w-4 animate-spin" />} Mark as paid
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 function PaginatedCharges({ partnerId, refreshParent }) {
   const [status, setStatus] = useState("all");
   const [qInput, setQInput] = useState("");
   const [q, setQ] = useState("");
   const [page, setPage] = useState(1);
+  const [markCharge, setMarkCharge] = useState(null);
+  const [recheckingId, setRecheckingId] = useState(null);
   const { data, isLoading, refetch } = useQuery({
     queryKey: ["partner-charges", partnerId, status, q, page],
     queryFn: async () => (await api.get(`/admin/partners/${partnerId}/charges`, {
@@ -1041,6 +1084,16 @@ function PaginatedCharges({ partnerId, refreshParent }) {
     try { await api.post(`/admin/partners/${partnerId}/charges/${cid}/resend`); toast.success("Webhook resent"); refetch(); refreshParent?.(); }
     catch (e) { toast.error(formatApiError(e.response?.data?.detail) || e.message); }
   };
+  const recheck = async (cid) => {
+    setRecheckingId(cid);
+    try {
+      const r = await api.post(`/admin/partners/${partnerId}/charges/${cid}/recheck`);
+      if (r.data.became_paid) toast.success("Payment confirmed at gateway — marked paid & webhook sent");
+      else toast.info(`Still "${r.data.status}" at the gateway`);
+      refetch(); refreshParent?.();
+    } catch (e) { toast.error(formatApiError(e.response?.data?.detail) || e.message); }
+    finally { setRecheckingId(null); }
+  };
   const items = data?.items || [];
   return (
     <div className="space-y-4">
@@ -1049,7 +1102,7 @@ function PaginatedCharges({ partnerId, refreshParent }) {
           { value: "all", label: "All" }, { value: "paid", label: "Paid" },
           { value: "pending", label: "Pending" }, { value: "expired", label: "Expired" }]} />
         <div className="ml-auto flex items-center gap-2">
-          <Input value={qInput} onChange={(e) => setQInput(e.target.value)} onKeyDown={(e) => e.key === "Enter" && apply()} placeholder="Search reference or customer…" className="h-9 w-60" data-testid="charge-search" />
+          <Input value={qInput} onChange={(e) => setQInput(e.target.value)} onKeyDown={(e) => e.key === "Enter" && apply()} placeholder="Search reference, customer or order ID…" className="h-9 w-64" data-testid="charge-search" />
           <Button size="sm" variant="outline" onClick={apply}>Search</Button>
         </div>
       </div>
@@ -1057,26 +1110,46 @@ function PaginatedCharges({ partnerId, refreshParent }) {
         <p className="py-8 text-center text-sm text-muted-foreground">No charges match.</p>
       ) : (
         <Table>
-          <TableHeader><TableRow><TableHead>Reference</TableHead><TableHead>Customer</TableHead><TableHead className="text-right">Amount</TableHead><TableHead>Status</TableHead><TableHead>Notified</TableHead><TableHead>Created</TableHead><TableHead></TableHead></TableRow></TableHeader>
+          <TableHeader><TableRow><TableHead>Reference / Order ID</TableHead><TableHead>Customer</TableHead><TableHead className="text-right">Amount</TableHead><TableHead>Status</TableHead><TableHead>Notified</TableHead><TableHead>Created</TableHead><TableHead></TableHead></TableRow></TableHeader>
           <TableBody>
             {items.map((c) => (
               <TableRow key={c.id} data-testid={`partner-charge-${c.id}`}>
-                <TableCell className="font-mono text-xs">{c.reference_id}</TableCell>
+                <TableCell className="font-mono text-xs">
+                  <div>{c.reference_id}</div>
+                  <button type="button" onClick={() => copyText(c.gateway_order_id || c.id)} className="mt-1 inline-flex max-w-[220px] items-center gap-1 truncate text-[10px] text-muted-foreground transition-colors hover:text-foreground" data-testid={`charge-orderid-${c.id}`} title={`Gateway Order ID — match this in the KlikQRIS/Mayar dashboard\n${c.gateway_order_id || c.id}`}>
+                    <Copy className="h-3 w-3 shrink-0" /> <span className="truncate">{c.gateway_order_id || c.id}</span>
+                  </button>
+                </TableCell>
                 <TableCell className="text-xs" data-testid={`partner-charge-customer-${c.id}`}>
                   <div className="font-medium text-foreground">{c.customer?.name || "—"}</div>
                   {c.customer?.email && <div className="text-muted-foreground">{c.customer.email}</div>}
                 </TableCell>
                 <TableCell className="text-right font-mono">{money(c.amount)}</TableCell>
-                <TableCell><Badge variant={c.status === "paid" ? "default" : "secondary"}>{c.status}</Badge></TableCell>
+                <TableCell>
+                  <Badge variant={c.status === "paid" ? "default" : "secondary"}>{c.status}</Badge>
+                  {c.manual_settle && <div className="mt-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-600" title={`Manually marked paid by ${c.manual_settle.by}: ${c.manual_settle.reason}`}>manual</div>}
+                </TableCell>
                 <TableCell>{c.notified ? <CheckCircle2 className="h-4 w-4 text-emerald-500" /> : <XCircle className="h-4 w-4 text-muted-foreground/40" />}</TableCell>
                 <TableCell className="whitespace-nowrap text-xs text-muted-foreground">{c.created_at ? new Date(c.created_at).toLocaleString("id-ID") : "—"}</TableCell>
-                <TableCell className="text-right">{c.status === "paid" && <Button size="sm" variant="ghost" className="gap-1" onClick={() => resend(c.id)} data-testid={`partner-resend-${c.id}`}><Send className="h-3.5 w-3.5" /> Resend</Button>}</TableCell>
+                <TableCell className="text-right">
+                  <div className="flex justify-end gap-1">
+                    {c.status === "paid" ? (
+                      <Button size="sm" variant="ghost" className="gap-1" onClick={() => resend(c.id)} data-testid={`partner-resend-${c.id}`}><Send className="h-3.5 w-3.5" /> Resend</Button>
+                    ) : (
+                      <>
+                        <Button size="sm" variant="ghost" className="gap-1" disabled={recheckingId === c.id} onClick={() => recheck(c.id)} data-testid={`partner-recheck-${c.id}`}>{recheckingId === c.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />} Re-check</Button>
+                        <Button size="sm" variant="outline" className="gap-1" onClick={() => setMarkCharge(c)} data-testid={`partner-markpaid-${c.id}`}><CheckCircle2 className="h-3.5 w-3.5" /> Mark paid</Button>
+                      </>
+                    )}
+                  </div>
+                </TableCell>
               </TableRow>
             ))}
           </TableBody>
         </Table>
       )}
       <Pager data={data} onPage={setPage} />
+      {markCharge && <MarkPaidDialog partnerId={partnerId} charge={markCharge} onClose={() => setMarkCharge(null)} onDone={() => { refetch(); refreshParent?.(); }} />}
     </div>
   );
 }

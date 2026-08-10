@@ -389,10 +389,15 @@ async def partner_charges(partner_id: str, admin=Depends(require_admin),
     if q and q.strip():
         rx = {"$regex": re.escape(q.strip()[:120]), "$options": "i"}
         flt["$or"] = [{"reference_id": rx}, {"customer.name": rx},
-                      {"customer.email": rx}, {"customer.mobile": rx}]
+                      {"customer.email": rx}, {"customer.mobile": rx},
+                      {"id": rx}, {"klik_order_id": rx}, {"mayar_invoice_id": rx}]
     res = await _paginate(db.partner_charges, flt, page, limit)
-    res["items"] = [_charge_public(c) | {"notified": c.get("notified", False),
-                                         "customer": c.get("customer") or {}} for c in res["items"]]
+    res["items"] = [_charge_public(c) | {
+        "notified": c.get("notified", False),
+        "customer": c.get("customer") or {},
+        "gateway_order_id": c.get("klik_order_id") or c.get("mayar_invoice_id") or c.get("id"),
+        "manual_settle": c.get("manual_settle"),
+    } for c in res["items"]]
     return res
 
 
@@ -456,6 +461,53 @@ async def resend_webhook(partner_id: str, charge_id: str, admin=Depends(require_
         raise HTTPException(status_code=400, detail="Only paid charges can be resent")
     await _deliver_charge_paid(p, charge)
     return {"ok": True}
+
+
+@admin_router.post("/{partner_id}/charges/{charge_id}/recheck")
+async def recheck_charge(partner_id: str, charge_id: str, admin=Depends(require_admin)):
+    """Re-verify a pending charge against the gateway (KlikQRIS/Mayar) right now.
+    If the gateway finally reports paid, it auto-settles + fires the charge.paid webhook."""
+    charge = await db.partner_charges.find_one(
+        {"id": charge_id, "partner_id": partner_id}, {"_id": 0})
+    if not charge:
+        raise HTTPException(status_code=404, detail="Charge not found")
+    before = charge.get("status")
+    if before == "pending":
+        charge = await _settle(charge)
+    became_paid = charge.get("status") == "paid" and before != "paid"
+    return {"status": charge.get("status"), "became_paid": became_paid,
+            "charge": _charge_public(charge)}
+
+
+class MarkPaid(BaseModel):
+    reason: str = Field(min_length=3, max_length=300)
+
+
+@admin_router.post("/{partner_id}/charges/{charge_id}/mark-paid")
+async def mark_charge_paid(partner_id: str, charge_id: str, payload: MarkPaid,
+                           admin=Depends(require_admin)):
+    """MANUAL override: flip a charge to paid and deliver the signed charge.paid webhook.
+    Use only after confirming the funds actually settled (e.g. gateway marked EXPIRED
+    but the customer paid). Requires a reason and is logged."""
+    partner = await db.partners.find_one({"id": partner_id}, {"_id": 0})
+    charge = await db.partner_charges.find_one(
+        {"id": charge_id, "partner_id": partner_id}, {"_id": 0})
+    if not partner or not charge:
+        raise HTTPException(status_code=404, detail="Not found")
+    if charge.get("status") == "paid":
+        raise HTTPException(status_code=400, detail="Charge is already paid")
+    reason = payload.reason.strip()
+    claimed = await db.partner_charges.find_one_and_update(
+        {"id": charge_id, "status": {"$ne": "paid"}},
+        {"$set": {"status": "paid", "paid_at": now_iso(),
+                  "manual_settle": {"by": admin["email"], "reason": reason, "at": now_iso()}}})
+    fresh = await db.partner_charges.find_one({"id": charge_id}, {"_id": 0})
+    if not claimed:
+        return _charge_public(fresh)
+    logger.warning("partner charge MANUAL mark-paid id=%s partner=%s by=%s reason=%r",
+                   charge_id, partner_id, admin["email"], reason)
+    asyncio.create_task(_deliver_charge_paid(partner, fresh))
+    return _charge_public(fresh)
 
 
 @admin_router.delete("/{partner_id}")

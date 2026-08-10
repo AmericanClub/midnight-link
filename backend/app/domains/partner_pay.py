@@ -18,7 +18,7 @@ import re
 import secrets
 import time
 import uuid
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 
 from fastapi import APIRouter, HTTPException, Depends, Request, Query
 from pydantic import BaseModel, Field
@@ -40,6 +40,8 @@ admin_router = APIRouter(prefix="/api/admin/partners", tags=["partner-pay-admin"
 MIN_AMOUNT = 10_000
 MAX_AMOUNT = 10_000_000  # QRIS per-transaction ceiling (BI regulation)
 _RETRY_DELAYS = (0, 3, 8)
+_EXPIRE_GRACE_S = 900       # flip pending→expired 15 min AFTER the gateway expiry (covers late settlement)
+_NO_EXPIRY_TTL_S = 86_400   # if a charge has no expires_at, expire it 24h after creation
 
 
 # ------------------------------ helpers ---------------------------------- #
@@ -60,6 +62,56 @@ def _ms_to_iso(ms) -> str | None:
         return datetime.fromtimestamp(int(ms) / 1000, tz=timezone.utc).isoformat()
     except (TypeError, ValueError):
         return None
+
+
+def _parse_dt(s) -> datetime | None:
+    """Tolerant ISO / 'YYYY-MM-DD HH:MM:SS' parser → aware UTC datetime (None on failure)."""
+    if not s:
+        return None
+    try:
+        t = str(s).strip().replace("Z", "+00:00")
+        if "T" not in t and " " in t:
+            t = t.replace(" ", "T", 1)
+        dt = datetime.fromisoformat(t)
+        return dt if dt.tzinfo else dt.replace(tzinfo=timezone.utc)
+    except (TypeError, ValueError):
+        return None
+
+
+def _is_stale(charge: dict) -> bool:
+    """A pending charge is stale once past its gateway expiry (+grace), or 24h after creation
+    when no expiry was stored. Purely clock-based — no gateway call."""
+    exp = _parse_dt(charge.get("expires_at"))
+    basis = (exp + timedelta(seconds=_EXPIRE_GRACE_S)) if exp else None
+    if not basis:
+        created = _parse_dt(charge.get("created_at"))
+        basis = (created + timedelta(seconds=_NO_EXPIRY_TTL_S)) if created else None
+    return bool(basis and datetime.now(timezone.utc) > basis)
+
+
+async def _expire_if_stale(charge: dict) -> dict:
+    if charge.get("status") == "pending" and _is_stale(charge):
+        await db.partner_charges.update_one(
+            {"id": charge["id"], "status": "pending"},
+            {"$set": {"status": "expired", "expired_at": now_iso()}})
+        return {**charge, "status": "expired"}
+    return charge
+
+
+async def _sweep_expired(partner_id: str) -> int:
+    """Flip all overdue pending charges for a partner to expired (so lists/stats/filters are correct).
+    A late-but-valid payment can still recover: the gateway webhook re-settles expired→paid,
+    and admin Re-check re-verifies expired charges."""
+    pend = await db.partner_charges.find(
+        {"partner_id": partner_id, "status": "pending"},
+        {"_id": 0, "id": 1, "expires_at": 1, "created_at": 1}).to_list(2000)
+    stale = [c["id"] for c in pend if _is_stale(c)]
+    if stale:
+        await db.partner_charges.update_many(
+            {"id": {"$in": stale}, "status": "pending"},
+            {"$set": {"status": "expired", "expired_at": now_iso()}})
+    return len(stale)
+
 
 
 def _charge_public(c: dict, *, include_qr: bool = False) -> dict:
@@ -290,6 +342,7 @@ async def get_charge(charge_id: str, partner=Depends(get_partner)):
         raise HTTPException(status_code=404, detail="Charge not found")
     if charge.get("status") == "pending":
         charge = await _settle(charge)
+        charge = await _expire_if_stale(charge)
     return _charge_public(charge, include_qr=True)
 
 
@@ -365,6 +418,7 @@ async def partner_detail(partner_id: str, admin=Depends(require_admin)):
     p = await db.partners.find_one({"id": partner_id}, {"_id": 0})
     if not p:
         raise HTTPException(status_code=404, detail="Partner not found")
+    await _sweep_expired(partner_id)
     return {"partner": {**_partner_public(p), "webhook_secret_set": bool(p.get("webhook_secret"))},
             "stats": await _partner_stats(partner_id)}
 
@@ -383,6 +437,7 @@ async def _paginate(coll, flt, page, limit, projection=None):
 async def partner_charges(partner_id: str, admin=Depends(require_admin),
                           status: str | None = Query(None), q: str | None = Query(None),
                           page: int = Query(1), limit: int = Query(20)):
+    await _sweep_expired(partner_id)
     flt = {"partner_id": partner_id}
     if status in ("paid", "pending", "expired"):
         flt["status"] = status
@@ -465,14 +520,15 @@ async def resend_webhook(partner_id: str, charge_id: str, admin=Depends(require_
 
 @admin_router.post("/{partner_id}/charges/{charge_id}/recheck")
 async def recheck_charge(partner_id: str, charge_id: str, admin=Depends(require_admin)):
-    """Re-verify a pending charge against the gateway (KlikQRIS/Mayar) right now.
-    If the gateway finally reports paid, it auto-settles + fires the charge.paid webhook."""
+    """Re-verify a pending OR expired charge against the gateway (KlikQRIS/Mayar) right now.
+    If the gateway finally reports paid, it auto-settles + fires the charge.paid webhook
+    (so a late-but-valid payment on an already-expired charge is still recoverable)."""
     charge = await db.partner_charges.find_one(
         {"id": charge_id, "partner_id": partner_id}, {"_id": 0})
     if not charge:
         raise HTTPException(status_code=404, detail="Charge not found")
     before = charge.get("status")
-    if before == "pending":
+    if before in ("pending", "expired"):
         charge = await _settle(charge)
     became_paid = charge.get("status") == "paid" and before != "paid"
     return {"status": charge.get("status"), "became_paid": became_paid,

@@ -1,6 +1,12 @@
 # Midnight Link — Product Requirements & Progress
 _(formerly "MidGate" — rebranded 2026-08)_
 
+## Implemented — Realtime Admin Console (all sections, flicker-free) (2026-06)
+- **Goal (user):** everything in the Admin Console should update in realtime without manual reload, and **without any visible flicker/blink**.
+- **Frontend `AdminConsole.jsx`:** added `refetchInterval: 5000` + `placeholderData: keepPreviousData` (imported from `@tanstack/react-query`) to ALL data/list/stats queries — Overview, Users, Workspaces, Revenue, Security Events, Global Blocklist, API Usage, Wallets (list + wallet-detail dialog), Payment Partners (list + detail stats + Charges + Deliveries). `keepPreviousData` keeps current rows/data on screen during refetch and on page/search changes, so the skeleton never re-flashes (no blink). Disabled recharts re-animation on the Overview area charts (`isAnimationActive={false}`) so they don't redraw/blink every refresh. Partner detail keeps its pulsing "● Live" badge.
+- **Excluded (intentionally):** settings/config queries (Payments config, IP-Intel, Safe Browsing, payment top-up switch) are NOT auto-polled — polling would clobber the admin's in-progress form input.
+- **Verified (preview):** frontend compiled clean; Overview renders (stats + charts + feeds) with no blank; polling pauses when tab hidden (react-query default). Frontend-only change.
+
 ## Implemented — Realtime partner detail (auto-refresh, no reload) (2026-06)
 - **Goal (user):** the Admin → Payment Partners → partner **detail** view (stats + Charges + Deliveries) should update in realtime without manual reload — so a new/paid charge appears on its own.
 - **Frontend `AdminConsole.jsx`:** added `refetchInterval: 5000` to the three detail queries — `["admin-partner", partnerId]` (stats), `["partner-charges", ...]` (charges table, respects current filter/search/page), `["partner-deliveries", ...]` (deliveries table). Added a pulsing green **"● Live"** indicator (`data-testid="partner-live-indicator"`) in the detail header. Frontend-only; no backend change.

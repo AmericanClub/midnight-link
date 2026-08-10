@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { useParams, Link, useNavigate, Navigate } from "react-router-dom";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient, keepPreviousData } from "@tanstack/react-query";
 import { toast } from "sonner";
 import {
   LayoutDashboard, Users, Building2, DollarSign, ShieldAlert, Ban, LifeBuoy, KeyRound,
@@ -72,7 +72,7 @@ function ChartCard({ title, children }) {
 
 function OverviewSection() {
   const qc = useQueryClient();
-  const { data, isLoading } = useQuery({ queryKey: ["admin-overview"], queryFn: async () => (await api.get("/admin/overview")).data });
+  const { data, isLoading } = useQuery({ queryKey: ["admin-overview"], queryFn: async () => (await api.get("/admin/overview")).data, refetchInterval: 5000, placeholderData: keepPreviousData });
   const refresh = useMutation({
     mutationFn: async () => api.post("/admin/feeds/refresh"),
     onSuccess: () => { toast.success("Threat feeds refreshed"); qc.invalidateQueries({ queryKey: ["admin-overview"] }); },
@@ -99,7 +99,7 @@ function OverviewSection() {
             <CartesianGrid strokeDasharray="3 3" opacity={0.15} vertical={false} />
             <XAxis dataKey="date" tickFormatter={shortDate} fontSize={11} tickLine={false} axisLine={false} />
             <Tooltip labelFormatter={shortDate} />
-            <Area type="monotone" dataKey="count" name="Signups" stroke="hsl(var(--primary))" fill="url(#gS)" strokeWidth={2} />
+            <Area type="monotone" dataKey="count" name="Signups" stroke="hsl(var(--primary))" fill="url(#gS)" strokeWidth={2} isAnimationActive={false} />
           </AreaChart>
         </ChartCard>
         <ChartCard title="Traffic (14 days)">
@@ -111,8 +111,8 @@ function OverviewSection() {
             <CartesianGrid strokeDasharray="3 3" opacity={0.15} vertical={false} />
             <XAxis dataKey="date" tickFormatter={shortDate} fontSize={11} tickLine={false} axisLine={false} />
             <Tooltip labelFormatter={shortDate} />
-            <Area type="monotone" dataKey="clicks" name="Clicks" stroke="#3b82f6" fill="url(#gC)" strokeWidth={2} />
-            <Area type="monotone" dataKey="blocked" name="Blocked" stroke="#ef4444" fill="url(#gB)" strokeWidth={2} />
+            <Area type="monotone" dataKey="clicks" name="Clicks" stroke="#3b82f6" fill="url(#gC)" strokeWidth={2} isAnimationActive={false} />
+            <Area type="monotone" dataKey="blocked" name="Blocked" stroke="#ef4444" fill="url(#gB)" strokeWidth={2} isAnimationActive={false} />
           </AreaChart>
         </ChartCard>
       </div>
@@ -151,6 +151,8 @@ function UsersSection() {
   const { data, isLoading } = useQuery({
     queryKey: ["admin-users", search],
     queryFn: async () => (await api.get("/admin/users", { params: search ? { search } : {} })).data,
+    refetchInterval: 5000,
+    placeholderData: keepPreviousData,
   });
   const update = useMutation({
     mutationFn: async ({ id, patch }) => api.patch(`/admin/users/${id}`, patch),
@@ -204,7 +206,7 @@ function UsersSection() {
 /* ------------------------------ Workspaces ------------------------------ */
 function WorkspacesSection() {
   const qc = useQueryClient();
-  const { data, isLoading } = useQuery({ queryKey: ["admin-workspaces"], queryFn: async () => (await api.get("/admin/workspaces")).data });
+  const { data, isLoading } = useQuery({ queryKey: ["admin-workspaces"], queryFn: async () => (await api.get("/admin/workspaces")).data, refetchInterval: 5000, placeholderData: keepPreviousData });
   const update = useMutation({
     mutationFn: async ({ id, suspended }) => api.patch(`/admin/workspaces/${id}`, { suspended }),
     onSuccess: () => { toast.success("Workspace updated"); qc.invalidateQueries({ queryKey: ["admin-workspaces"] }); },
@@ -240,7 +242,7 @@ function WorkspacesSection() {
 
 /* ------------------------------- Revenue -------------------------------- */
 function RevenueSection() {
-  const { data, isLoading } = useQuery({ queryKey: ["admin-revenue"], queryFn: async () => (await api.get("/admin/revenue")).data });
+  const { data, isLoading } = useQuery({ queryKey: ["admin-revenue"], queryFn: async () => (await api.get("/admin/revenue")).data, refetchInterval: 5000, placeholderData: keepPreviousData });
   if (isLoading || !data) return <Skeleton className="h-64 w-full rounded-xl" />;
   return (
     <div className="space-y-6">
@@ -274,7 +276,7 @@ function RevenueSection() {
 
 /* --------------------------- Security Events ---------------------------- */
 function SecuritySection() {
-  const { data, isLoading } = useQuery({ queryKey: ["admin-sec"], queryFn: async () => (await api.get("/admin/security-events", { params: { limit: 100 } })).data });
+  const { data, isLoading } = useQuery({ queryKey: ["admin-sec"], queryFn: async () => (await api.get("/admin/security-events", { params: { limit: 100 } })).data, refetchInterval: 5000, placeholderData: keepPreviousData });
   const rows = data?.items || [];
   return (
     <Card className="p-6">
@@ -305,7 +307,7 @@ function SecuritySection() {
 function BlocklistSection() {
   const qc = useQueryClient();
   const [form, setForm] = useState({ value: "", note: "" });
-  const { data, isLoading } = useQuery({ queryKey: ["admin-global-blocklist"], queryFn: async () => (await api.get("/admin/global-blocklist")).data });
+  const { data, isLoading } = useQuery({ queryKey: ["admin-global-blocklist"], queryFn: async () => (await api.get("/admin/global-blocklist")).data, refetchInterval: 5000, placeholderData: keepPreviousData });
   const add = useMutation({
     mutationFn: async () => api.post("/admin/global-blocklist", form),
     onSuccess: () => { toast.success("Added to global blocklist"); setForm({ value: "", note: "" }); qc.invalidateQueries({ queryKey: ["admin-global-blocklist"] }); },
@@ -348,7 +350,7 @@ function BlocklistSection() {
 
 /* ------------------------------ API Usage ------------------------------- */
 function ApiSection() {
-  const { data, isLoading } = useQuery({ queryKey: ["admin-api-usage"], queryFn: async () => (await api.get("/admin/api-usage")).data });
+  const { data, isLoading } = useQuery({ queryKey: ["admin-api-usage"], queryFn: async () => (await api.get("/admin/api-usage")).data, refetchInterval: 5000, placeholderData: keepPreviousData });
   const rows = data?.items || [];
   return (
     <Card className="p-6">
@@ -722,6 +724,8 @@ function WalletDetailDialog({ workspaceId, onClose }) {
     queryKey: ["admin-wallet-detail", workspaceId],
     queryFn: async () => (await api.get(`/admin/wallets/${workspaceId}`)).data,
     enabled: !!workspaceId,
+    refetchInterval: 5000,
+    placeholderData: keepPreviousData,
   });
   return (
     <Dialog open onOpenChange={(o) => { if (!o) onClose(); }}>
@@ -886,6 +890,8 @@ function WalletsSection() {
   const { data, isLoading } = useQuery({
     queryKey: ["admin-wallets", search],
     queryFn: async () => (await api.get("/admin/wallets", { params: search ? { search } : {} })).data,
+    refetchInterval: 5000,
+    placeholderData: keepPreviousData,
   });
   const rows = data?.items || [];
   return (
@@ -1028,6 +1034,7 @@ function PaginatedCharges({ partnerId, refreshParent }) {
       params: { status: status === "all" ? undefined : status, q: q || undefined, page, limit: 15 },
     })).data,
     refetchInterval: 5000,
+    placeholderData: keepPreviousData,
   });
   const apply = () => { setQ(qInput.trim()); setPage(1); };
   const resend = async (cid) => {
@@ -1083,6 +1090,7 @@ function PaginatedDeliveries({ partnerId }) {
       params: { status: status === "all" ? undefined : status, page, limit: 15 },
     })).data,
     refetchInterval: 5000,
+    placeholderData: keepPreviousData,
   });
   const items = data?.items || [];
   return (
@@ -1121,6 +1129,7 @@ function PartnerDetail({ partnerId, onBack }) {
     queryKey: ["admin-partner", partnerId],
     queryFn: async () => (await api.get(`/admin/partners/${partnerId}`)).data,
     refetchInterval: 5000,
+    placeholderData: keepPreviousData,
   });
   const p = data?.partner;
   const hookValue = hook ?? (p?.webhook_url || "");
@@ -1189,6 +1198,8 @@ function PartnersSection() {
   const { data, isLoading } = useQuery({
     queryKey: ["admin-partners"],
     queryFn: async () => (await api.get("/admin/partners")).data,
+    refetchInterval: 5000,
+    placeholderData: keepPreviousData,
   });
   const rows = data?.items || [];
   const invalidate = () => qc.invalidateQueries({ queryKey: ["admin-partners"] });

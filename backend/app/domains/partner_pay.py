@@ -62,8 +62,8 @@ def _ms_to_iso(ms) -> str | None:
         return None
 
 
-def _charge_public(c: dict) -> dict:
-    return {
+def _charge_public(c: dict, *, include_qr: bool = False) -> dict:
+    out = {
         "id": c["id"], "reference_id": c.get("reference_id"), "amount": int(c.get("amount", 0)),
         "currency": c.get("currency", "IDR"), "status": c.get("status", "pending"),
         "gateway": c.get("gateway", "mayar"),
@@ -73,6 +73,11 @@ def _charge_public(c: dict) -> dict:
         "created_at": c.get("created_at"), "paid_at": c.get("paid_at"),
         "expires_at": c.get("expires_at"),
     }
+    if include_qr:
+        # Raw QR (base64 image + hosted url) so the partner app can render the QRIS
+        # natively in-app (like Midnight Link's own billing). null for Mayar (hosted checkout only).
+        out["qris_image"] = c.get("qris_image")
+    return out
 
 
 async def get_partner(request: Request) -> dict:
@@ -269,11 +274,12 @@ async def create_charge(payload: ChargeCreate, partner=Depends(get_partner)):
         "klik_order_id": pay["provider_ref"] if pay["gateway"] == "klikqris" else None,
         "klik_signature": pay["signature"],
         "checkout_url": pay["checkout_url"], "qris_url": pay["qris_url"],
+        "qris_image": pay.get("qris_image"),
         "pay_amount": pay["pay_amount"], "expires_at": expires_at,
         "notified": False, "created_at": now_iso(), "paid_at": None,
     }
     await db.partner_charges.insert_one({**charge})
-    return {**_charge_public(charge), "qris_image": pay.get("qris_image")}
+    return _charge_public(charge, include_qr=True)
 
 
 @router.get("/charges/{charge_id}")
@@ -284,7 +290,7 @@ async def get_charge(charge_id: str, partner=Depends(get_partner)):
         raise HTTPException(status_code=404, detail="Charge not found")
     if charge.get("status") == "pending":
         charge = await _settle(charge)
-    return _charge_public(charge)
+    return _charge_public(charge, include_qr=True)
 
 
 # --------------------------- admin management ---------------------------- #

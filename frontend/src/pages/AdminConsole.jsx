@@ -1161,7 +1161,7 @@ function PartnerDetail({ partnerId, onBack }) {
             {reveal && <SecretReveal {...reveal} />}
             <div className="flex flex-wrap gap-2 border-t pt-4">
               <Button size="sm" variant="outline" className="gap-1" onClick={rotK} data-testid="partner-rotate-key"><RotateCw className="h-3.5 w-3.5" /> Rotate API key</Button>
-              <Button size="sm" variant="outline" className="gap-1" onClick={rotS}><RotateCw className="h-3.5 w-3.5" /> Rotate secret</Button>
+              <Button size="sm" variant="outline" className="gap-1" onClick={rotS} data-testid="partner-rotate-secret"><RotateCw className="h-3.5 w-3.5" /> Rotate secret</Button>
               <Button size="sm" variant="outline" className="gap-1" onClick={toggle} data-testid="partner-toggle-active"><Power className="h-3.5 w-3.5" /> {p?.active ? "Deactivate" : "Activate"}</Button>
               <Button size="sm" variant="destructive" className="ml-auto gap-1" onClick={del} data-testid="partner-delete"><Trash2 className="h-3.5 w-3.5" /> Delete partner</Button>
             </div>
@@ -1189,7 +1189,7 @@ function PartnersSection() {
   return (
     <div className="space-y-6" data-testid="admin-partners-section">
       <div className="flex items-center justify-between">
-        <p className="text-sm text-muted-foreground">Apps (e.g. midnight) that collect payments through Midnight Link's Mayar gateway.</p>
+        <p className="text-sm text-muted-foreground">Apps (e.g. midnight) that collect payments through Midnight Link's active gateway (Mayar or KlikQRIS).</p>
         <Button className="gap-2" onClick={() => setShowNew(true)} data-testid="new-partner-btn"><Plus className="h-4 w-4" /> New partner</Button>
       </div>
       {rows.length > 0 && (

@@ -9,6 +9,7 @@ KlikQRIS returns a DYNAMIC QRIS (image) to be scanned. The customer pays `total_
 the status endpoint before crediting — a webhook alone is never trusted.
 """
 import logging
+import uuid
 
 import httpx
 
@@ -136,6 +137,16 @@ async def verify_paid(order_id: str) -> bool:
     return str(data.get("status", "")).upper() in PAID_STATUSES
 
 
-async def list_history(page: int = 1) -> dict:
-    """Used by the admin 'Test connection' button (validates key + merchant)."""
-    return await _request("GET", f"/qris/history?page={int(page)}")
+async def probe() -> dict:
+    """Admin 'Test connection': validates key+merchant against the REAL endpoint
+    (/qris/create) by creating a tiny test QR. KlikQRIS has no read/list endpoint."""
+    order_id = f"TEST-{uuid.uuid4().hex[:12]}"
+    try:
+        data = await create_qris(order_id=order_id, amount=1000,
+                                 description="KlikQRIS connection test")
+    except KlikqrisError as e:
+        return {"ok": False, "message": str(e)}
+    if data.get("qris_url") or data.get("qris_image"):
+        return {"ok": True,
+                "message": "KlikQRIS connected — a Rp1.000 test QR was created and expires on its own."}
+    return {"ok": False, "message": "Unexpected response from KlikQRIS."}

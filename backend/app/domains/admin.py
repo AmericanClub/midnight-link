@@ -406,14 +406,8 @@ async def payment_config_test(gateway: str | None = None, admin=Depends(require_
     if g == "klikqris":
         if not await klikqris.configured():
             return {"ok": False, "gateway": "klikqris", "message": "KlikQRIS credentials are not set."}
-        try:
-            body = await klikqris.list_history(page=1)
-            if body.get("status"):
-                return {"ok": True, "gateway": "klikqris", "message": "KlikQRIS connection OK."}
-            return {"ok": False, "gateway": "klikqris",
-                    "message": str(body.get("message", "KlikQRIS returned an error."))}
-        except klikqris.KlikqrisError as e:
-            return {"ok": False, "gateway": "klikqris", "message": f"Failed: {e}"}
+        res = await klikqris.probe()
+        return {"ok": res["ok"], "gateway": "klikqris", "message": res["message"]}
     if not await mayar.configured():
         return {"ok": False, "gateway": "mayar", "message": "Mayar API key is not set."}
     try:

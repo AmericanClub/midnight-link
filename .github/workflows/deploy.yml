@@ -1,0 +1,74 @@
+name: Deploy to VPS
+
+# Runs automatically on every push to the default branch (Save to Github),
+# and can also be triggered manually from the Actions tab.
+on:
+  push:
+    branches: [ main ]        # change to "master" if your default branch is master
+  workflow_dispatch: {}
+
+concurrency:
+  group: deploy-production
+  cancel-in-progress: true
+
+env:
+  VPS_PATH: /opt/midnight-link
+  BACKEND_SERVICE: midnightlink-api
+  # CRA bakes envs at build time — this must match your production domain:
+  REACT_APP_BACKEND_URL: https://midnightlink.link
+  WDS_SOCKET_PORT: "443"
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: yarn
+          cache-dependency-path: frontend/yarn.lock
+
+      - name: Build frontend (on GitHub runner)
+        working-directory: frontend
+        env:
+          CI: "false"            # treat CRA warnings as warnings, not errors
+        run: |
+          yarn install --frozen-lockfile
+          yarn build
+
+      - name: Configure SSH
+        run: |
+          mkdir -p ~/.ssh
+          printf '%s\n' "${{ secrets.VPS_SSH_KEY }}" > ~/.ssh/id_deploy
+          chmod 600 ~/.ssh/id_deploy
+          PORT="${{ secrets.VPS_PORT }}"; PORT="${PORT:-22}"
+          ssh-keyscan -p "$PORT" -H "${{ secrets.VPS_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null
+
+      - name: Update backend on VPS (git pull + restart)
+        run: |
+          PORT="${{ secrets.VPS_PORT }}"; PORT="${PORT:-22}"
+          ssh -i ~/.ssh/id_deploy -p "$PORT" \
+            "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}" \
+            "set -e; \
+             cd ${VPS_PATH}; \
+             git fetch --all --quiet; \
+             git reset --hard origin/${GITHUB_REF_NAME}; \
+             sudo systemctl restart ${BACKEND_SERVICE}; \
+             echo 'backend restarted'"
+
+      - name: Upload freshly built frontend to VPS
+        run: |
+          PORT="${{ secrets.VPS_PORT }}"; PORT="${PORT:-22}"
+          rsync -az --delete \
+            -e "ssh -i ~/.ssh/id_deploy -p $PORT" \
+            frontend/build/ \
+            "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}:${VPS_PATH}/frontend/build/"
+
+      - name: Health check
+        run: |
+          sleep 6
+          curl -fsS "${REACT_APP_BACKEND_URL}/api/health" && echo "  ✅ healthy"

@@ -66,7 +66,10 @@ jobs:
             frontend/build/ \
             "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}:${VPS_PATH}/frontend/build/"
 
-      - name: Health check
+      - name: Health check (on VPS, bypassing Cloudflare)
         run: |
+          PORT="${{ secrets.VPS_PORT }}"; PORT="${PORT:-22}"
           sleep 6
-          curl -fsS "${REACT_APP_BACKEND_URL}/api/health" && echo "  ✅ healthy"
+          ssh -i ~/.ssh/id_deploy -p "$PORT" \
+            "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}" \
+            "curl -fsS http://127.0.0.1:8001/api/health && echo '  ✅ backend healthy'"

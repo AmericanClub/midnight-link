@@ -78,7 +78,9 @@ function TopupDialog({ open, onOpenChange, presetAmount, onCredited, rupiahPerCr
     })).data,
     onSuccess: (data) => {
       setPending(data);
-      window.open(data.payment_url, "_blank", "noopener");
+      if (data.gateway !== "klikqris" && data.payment_url) {
+        window.open(data.payment_url, "_blank", "noopener");
+      }
       let ticks = 0;
       stopPolling();
       pollRef.current = setInterval(async () => {
@@ -102,7 +104,7 @@ function TopupDialog({ open, onOpenChange, presetAmount, onCredited, rupiahPerCr
         <DialogHeader>
           <DialogTitle className="font-display">Top up your wallet</DialogTitle>
           <DialogDescription>
-            Pay securely with QRIS, e-wallet, or bank transfer via Mayar. 1 credit = {rp(rpc)}.
+            Pay securely via QRIS, e-wallet, or bank transfer. 1 credit = {rp(rpc)}.
           </DialogDescription>
         </DialogHeader>
 
@@ -139,6 +141,34 @@ function TopupDialog({ open, onOpenChange, presetAmount, onCredited, rupiahPerCr
               {start.isPending ? <><Loader2 className="h-4 w-4 animate-spin" /> Starting…</> : <><ExternalLink className="h-4 w-4" /> Continue to payment</>}
             </Button>
             <p className="text-center text-xs text-muted-foreground">Minimum top-up {rp(minTopup)}.</p>
+          </div>
+        ) : pending.gateway === "klikqris" ? (
+          <div className="space-y-4 text-center" data-testid="topup-waiting">
+            <div className="mx-auto w-fit rounded-[6px] border-2 border-[hsl(var(--nb-border))] bg-white p-3">
+              <img
+                src={pending.qris_image || pending.qris_url}
+                alt="KlikQRIS QR code" className="h-52 w-52 object-contain"
+                data-testid="topup-qris-image"
+              />
+            </div>
+            <div>
+              <p className="font-medium">
+                Scan to pay <span className="font-mono font-bold text-primary" data-testid="topup-pay-amount">{rp(pending.pay_amount)}</span>
+              </p>
+              <p className="mt-1 text-sm text-muted-foreground">
+                Open any QRIS app (GoPay, OVO, DANA, ShopeePay, m-banking), scan the code, and pay the exact amount. Credits are added automatically once confirmed.
+              </p>
+            </div>
+            <div className="flex items-center justify-center gap-2 text-xs text-muted-foreground">
+              <Loader2 className="h-3.5 w-3.5 animate-spin" /> Waiting for payment…
+            </div>
+            <Button
+              className="w-full gap-2" disabled={checking}
+              onClick={async () => { setChecking(true); await checkStatus(pending.order_id, false); setChecking(false); }}
+              data-testid="topup-check-btn"
+            >
+              {checking ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />} I've paid
+            </Button>
           </div>
         ) : (
           <div className="space-y-4 text-center" data-testid="topup-waiting">

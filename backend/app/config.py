@@ -24,6 +24,9 @@ class Settings:
     MAYAR_BASE_URL = os.environ.get("MAYAR_BASE_URL", "https://api.mayar.id/hl/v1")
     MAYAR_API_KEY = os.environ.get("MAYAR_API_KEY", "")
     MAYAR_WEBHOOK_TOKEN = os.environ.get("MAYAR_WEBHOOK_TOKEN", "")
+    KLIKQRIS_BASE_URL = os.environ.get("KLIKQRIS_BASE_URL", "https://klikqris.com/api")
+    KLIKQRIS_API_KEY = os.environ.get("KLIKQRIS_API_KEY", "")
+    KLIKQRIS_MERCHANT_ID = os.environ.get("KLIKQRIS_MERCHANT_ID", "")
     ALLOW_MOCK_PAYMENTS = os.environ.get("ALLOW_MOCK_PAYMENTS", "false").lower() == "true"
 
 

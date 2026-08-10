@@ -19,7 +19,7 @@ from pymongo import ReturnDocument
 from ..db import db
 from ..utils import now_iso
 from ..config import settings
-from .. import mayar
+from .. import mayar, klikqris
 from ..security import get_current_user
 from .billing import get_billing_workspace, PLAN_MAP, activate_plan_for_workspace
 from .admin import require_admin
@@ -171,6 +171,79 @@ async def set_gateway_config(*, api_key=None, webhook_token=None, base_url=None,
     return await mayar.gateway_status()
 
 
+# --------------------- active gateway (single IDR gateway) --------------- #
+async def get_active_gateway() -> str:
+    doc = await db.platform_settings.find_one({"_id": "payments"}) or {}
+    g = (doc.get("active_gateway") or "mayar").lower()
+    return g if g in ("mayar", "klikqris") else "mayar"
+
+
+async def set_active_gateway(name: str, admin_email: str | None = None) -> str:
+    name = (name or "").lower()
+    if name not in ("mayar", "klikqris"):
+        raise HTTPException(status_code=400, detail="Unknown gateway")
+    updates = {"active_gateway": name, "updated_at": now_iso()}
+    if admin_email:
+        updates["updated_by"] = admin_email
+    await db.platform_settings.update_one({"_id": "payments"}, {"$set": updates}, upsert=True)
+    return name
+
+
+async def set_klikqris_config(*, api_key=None, id_merchant=None, base_url=None,
+                              admin_email=None) -> dict:
+    updates = {"updated_at": now_iso(), "provider": "klikqris"}
+    if api_key is not None and str(api_key).strip():
+        updates["api_key"] = str(api_key).strip()
+    if id_merchant is not None and str(id_merchant).strip():
+        updates["id_merchant"] = str(id_merchant).strip()
+    if base_url is not None and str(base_url).strip():
+        updates["base_url"] = str(base_url).strip()
+    if admin_email:
+        updates["updated_by"] = admin_email
+    await db.platform_settings.update_one({"_id": "klikqris"}, {"$set": updates}, upsert=True)
+    klikqris.invalidate_creds()
+    return await klikqris.gateway_status()
+
+
+async def gateway_configured() -> bool:
+    g = await get_active_gateway()
+    return await (klikqris.configured() if g == "klikqris" else mayar.configured())
+
+
+async def create_gateway_payment(*, order_id, amount, description, name, email, mobile,
+                                 redirect_url, callback_url, extra_data) -> dict:
+    """Create a payment on the ACTIVE IDR gateway; returns a normalized dict
+    consumed by both wallet top-ups and partner charges."""
+    g = await get_active_gateway()
+    if g == "klikqris":
+        data = await klikqris.create_qris(order_id=order_id, amount=int(amount),
+                                          description=description, callback_url=callback_url)
+        klik_order = data.get("order_id") or order_id
+        pay_amount = int(round(float(data.get("total_amount") or amount)))
+        return {"gateway": "klikqris", "provider_ref": klik_order, "provider_txn_id": None,
+                "signature": data.get("signature"),
+                "payment_url": klikqris.pay_page_url(klik_order),
+                "checkout_url": klikqris.pay_page_url(klik_order),
+                "qris_image": data.get("qris_image"), "qris_url": data.get("qris_url"),
+                "pay_amount": pay_amount, "expires_at": data.get("expired_at")}
+    inv = await mayar.create_invoice(name=name, email=email, mobile=mobile, amount=int(amount),
+                                     description=description, redirect_url=redirect_url,
+                                     extra_data=extra_data)
+    return {"gateway": "mayar", "provider_ref": inv.get("id"),
+            "provider_txn_id": inv.get("transactionId"), "signature": None,
+            "payment_url": inv.get("link"), "checkout_url": inv.get("link"),
+            "qris_image": None, "qris_url": None, "pay_amount": int(amount),
+            "expires_at": inv.get("expiredAt")}
+
+
+async def verify_paid_record(rec: dict) -> bool:
+    """Authoritative re-verification, dispatched by the record's gateway."""
+    if rec.get("gateway") == "klikqris":
+        return await klikqris.verify_paid(
+            rec.get("klik_order_id") or rec.get("provider_ref") or rec.get("id"))
+    return await _verify_paid(rec.get("mayar_invoice_id"), rec.get("mayar_transaction_id"))
+
+
 # --------------------------- helpers ------------------------------------- #
 async def _get_wallet(workspace_id: str) -> dict:
     w = await db.wallets.find_one({"workspace_id": workspace_id}, {"_id": 0})
@@ -227,7 +300,7 @@ async def _verify_paid(invoice_id: str, transaction_id: str | None) -> bool:
 async def _try_credit_topup(rec: dict) -> dict:
     if rec.get("credited"):
         return {"status": "paid", "credited": True}
-    paid = await _verify_paid(rec.get("mayar_invoice_id"), rec.get("mayar_transaction_id"))
+    paid = await verify_paid_record(rec)
     if not paid:
         return {"status": rec.get("status", "pending"), "credited": False}
     # Atomic single-credit claim (protects against webhook + poll racing).
@@ -285,7 +358,8 @@ async def summary(ws=Depends(get_billing_workspace)):
     ps = await get_payment_settings()
     cs = await get_credit_settings()
     return {"balance": int(w.get("balance", 0)), "currency": "credit",
-            "min_topup": cs["min_topup"], "gateway_ready": await mayar.configured(),
+            "min_topup": cs["min_topup"], "gateway_ready": await gateway_configured(),
+            "active_gateway": await get_active_gateway(),
             "rupiah_per_credit": cs["rupiah_per_credit"], "bonus_percent": cs["bonus_percent"],
             "requests_per_credit": cs["requests_per_credit"],
             "topup_enabled": ps["topup_enabled"],
@@ -306,7 +380,7 @@ async def topup(payload: TopupInput, ws=Depends(get_billing_workspace),
     ps = await get_payment_settings()
     if not ps["topup_enabled"]:
         raise HTTPException(status_code=503, detail=ps["topup_disabled_message"])
-    if not await mayar.configured():
+    if not await gateway_configured():
         raise HTTPException(status_code=503, detail="Payment gateway is not configured yet.")
     cs = await get_credit_settings()
     amount = int(payload.amount)
@@ -324,30 +398,36 @@ async def topup(payload: TopupInput, ws=Depends(get_billing_workspace),
     base = payload.return_url if (payload.return_url or "").startswith(("http://", "https://")) \
         else f"{settings.FRONTEND_URL}/app/billing"
     return_url = f"{base}{'&' if '?' in base else '?'}topup={order_id}"
+    callback_url = f"{settings.FRONTEND_URL}/api/wallet/klikqris/webhook"
 
     try:
-        inv = await mayar.create_invoice(
-            name=user.get("name") or "Midnight Link Customer",
-            email=user.get("email"),
-            mobile=user.get("mobile") or "081200000000",
-            amount=amount,
+        pay = await create_gateway_payment(
+            order_id=order_id, amount=amount,
             description=f"Midnight Link wallet top-up — {credits:,} credits (Rp{amount:,})",
-            redirect_url=return_url,
+            name=user.get("name") or "Midnight Link Customer",
+            email=user.get("email"), mobile=user.get("mobile") or "081200000000",
+            redirect_url=return_url, callback_url=callback_url,
             extra_data={"order_id": order_id, "workspace_id": ws["id"], "kind": "wallet_topup"},
         )
-    except mayar.MayarError as e:
+    except (mayar.MayarError, klikqris.KlikqrisError) as e:
         logger.error("topup create failed ws=%s: %s", ws["id"], e)
         raise HTTPException(status_code=502, detail="Could not start payment. Please try again.")
 
     rec = {"id": order_id, "workspace_id": ws["id"], "kind": "wallet_topup",
            "amount": amount, "credits": credits, "base_credits": base_credits,
            "bonus_credits": bonus_credits, "rupiah_per_credit": cs["rupiah_per_credit"],
-           "status": "pending", "credited": False,
-           "mayar_invoice_id": inv.get("id"), "mayar_transaction_id": inv.get("transactionId"),
-           "payment_url": inv.get("link"), "created_by": user["id"], "created_at": now_iso()}
+           "status": "pending", "credited": False, "gateway": pay["gateway"],
+           "mayar_invoice_id": pay["provider_ref"] if pay["gateway"] == "mayar" else None,
+           "mayar_transaction_id": pay["provider_txn_id"],
+           "klik_order_id": pay["provider_ref"] if pay["gateway"] == "klikqris" else None,
+           "klik_signature": pay["signature"], "payment_url": pay["payment_url"],
+           "qris_url": pay["qris_url"], "pay_amount": pay["pay_amount"],
+           "expires_at": pay["expires_at"], "created_by": user["id"], "created_at": now_iso()}
     await db.mayar_payments.insert_one({**rec})
-    return {"order_id": order_id, "payment_url": inv.get("link"), "amount": amount,
-            "credits": credits}
+    return {"order_id": order_id, "gateway": pay["gateway"], "payment_url": pay["payment_url"],
+            "qris_image": pay["qris_image"], "qris_url": pay["qris_url"],
+            "pay_amount": pay["pay_amount"], "expires_at": pay["expires_at"],
+            "amount": amount, "credits": credits}
 
 
 @router.get("/topup/{order_id}")
@@ -357,8 +437,10 @@ async def topup_status(order_id: str, ws=Depends(get_billing_workspace)):
         raise HTTPException(status_code=404, detail="Not found")
     result = await _try_credit_topup(rec)
     w = await _get_wallet(ws["id"])
-    return {"order_id": order_id, "status": result["status"], "credited": result["credited"],
-            "balance": int(w.get("balance", 0)), "payment_url": rec.get("payment_url")}
+    return {"order_id": order_id, "gateway": rec.get("gateway", "mayar"),
+            "status": result["status"], "credited": result["credited"],
+            "balance": int(w.get("balance", 0)), "payment_url": rec.get("payment_url"),
+            "qris_url": rec.get("qris_url"), "pay_amount": rec.get("pay_amount")}
 
 
 @router.post("/purchase-plan")
@@ -475,6 +557,38 @@ async def mayar_webhook(request: Request):
 
     result = await _try_credit_topup(rec)
     return {"ok": True, **result}
+
+
+@router.post("/klikqris/webhook")
+async def klikqris_webhook(request: Request):
+    """Public callback from KlikQRIS (status PAID/EXPIRED). The payment is re-verified
+    against the KlikQRIS status API before crediting, so a forged webhook cannot grant
+    credits. Also routes partner charges when no top-up record matches."""
+    raw = await request.body()
+    try:
+        payload = json.loads(raw or b"{}")
+    except json.JSONDecodeError:
+        raise HTTPException(status_code=400, detail="Invalid JSON")
+
+    order_id = payload.get("order_id")
+    status = str(payload.get("status", "")).upper()
+    sig = payload.get("signature")
+    logger.info("KlikQRIS webhook order=%s status=%s", order_id, status)
+    if not order_id:
+        return {"ok": True, "ignored": True}
+
+    rec = await db.mayar_payments.find_one({"klik_order_id": order_id}, {"_id": 0})
+    if rec:
+        if rec.get("klik_signature") and sig and rec["klik_signature"] != sig:
+            logger.warning("KlikQRIS webhook signature mismatch order=%s", order_id)
+        result = await _try_credit_topup(rec)
+        return {"ok": True, **result}
+
+    from .partner_pay import handle_klik_event
+    if await handle_klik_event(order_id, payload):
+        return {"ok": True, "partner": True}
+    logger.warning("KlikQRIS webhook: no matching top-up/charge record (order=%s)", order_id)
+    return {"ok": True, "unmatched": True}
 
 
 @router.post("/admin/adjust")

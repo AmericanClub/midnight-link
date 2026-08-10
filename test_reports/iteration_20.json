@@ -1,0 +1,24 @@
+{
+  "summary": "Iteration 20 — KlikQRIS gateway ADDITION alongside Mayar tested end-to-end. Backend: 12/12 pytest passing (wallet summary exposes active_gateway/gateway_ready; admin GET/PUT /payment-config persists klikqris creds masked-only [api_key_masked shows last-4 'y123', full 'testkey123' never leaked]; active_gateway switch mayar<->klikqris works, invalid value -> 400; with active_gateway=klikqris + dummy creds, POST /wallet/topup returns 502 [routing reached KlikQRIS create — NOT the 503 not-configured branch] then restored to mayar; Mayar top-up regression: POST /wallet/topup returns gateway=mayar with payment_url; GET /wallet/topup/{id} returns gateway=mayar credited=false; admin /payment-config/test?gateway=klikqris returns {ok:false,gateway:'klikqris',message:'Failed: ...'} gracefully; mayar test returns {ok:true}; KlikQRIS webhook: unmatched order_id returns 200 {ok:true,unmatched:true}, invalid JSON returns 400; passes API regression 5 durations x 6 options intact). Frontend: admin login OK, Payments section renders active-gateway-card with both gateway-select-mayar (ACTIVE) and gateway-select-klikqris; clicking gateway-select-klikqris fires 'Settings saved' toast; klikqris-card shows all inputs (kq-apikey-input, kq-merchant-input, kq-baseurl-input), kq-save-btn, kq-test-btn, and the /api/wallet/klikqris/webhook callback URL text; kq-test-btn shows error toast gracefully with dummy creds; active gateway restored to mayar. Member Billing: wallet-topup-btn opens topup-dialog, entering 50000 + topup-submit-btn opens a new Mayar tab (https://midgate.myr.id/invoices/…) and shows the waiting state with topup-check-btn; entitlement-card + 5 pass-cards render. Active gateway confirmed restored to 'mayar' at end.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {"ui_bugs": [], "integration_issues": [], "design_issues": []},
+  "test_report_links": [
+    "/app/backend/tests/test_iteration_20_klikqris.py",
+    "/app/test_reports/pytest/iter20_klikqris.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "klikqris.py — _CREDS_CACHE is a module-global; single-instance ok, but across multiple uvicorn workers each worker has its own cache. invalidate_creds() only clears local process. Consider a TTL or per-request fetch, or DB change-stream invalidation.",
+    "wallet.py create_gateway_payment: for KlikQRIS the field 'mayar_invoice_id' stays None but the record is still stored in collection db.mayar_payments. Collection name is now misleading (holds both gateways). Consider renaming to 'payments' in a follow-up migration.",
+    "admin.py payment_config_put: klikqris fields are additive-only (empty string is ignored). There is no endpoint to clear klikqris creds — noted in the review request itself. Add DELETE /admin/payment-config/klikqris in a follow-up for symmetry with /safe-browsing/key and /ip-intel/key.",
+    "wallet.py webhook /klikqris/webhook: on signature mismatch we only log a warning and STILL proceed to _try_credit_topup. Because _try_credit_topup re-verifies via KlikQRIS status API this is safe, but consider returning 200 {mismatch:true} without triggering verify to reduce noise."
+  ],
+  "updated_files": ["/app/backend/tests/test_iteration_20_klikqris.py"],
+  "success_rate": {"backend": "100%", "frontend": "100%"},
+  "test_credentials": "Admin admin@midgate.co/Admin123!, Member member@midnightlink.link/Member123!",
+  "seed_data_creation": "Persisted dummy KlikQRIS creds via PUT /api/admin/payment-config (api_key=testkey123, id_merchant=178628431726). Active gateway restored to 'mayar' at end.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "KlikQRIS creds set in DB are DUMMY ('testkey123' / '178628431726') so real payment cannot complete — routing test verified via 502. Do NOT switch active_gateway to klikqris without cleaning up. Real KlikQRIS key must come from the user in production. Collection db.mayar_payments now stores both mayar+klikqris records; use 'gateway' field to distinguish.",
+  "rca of the issue": "N/A — no failures."
+}

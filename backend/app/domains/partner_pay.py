@@ -25,11 +25,12 @@ from pydantic import BaseModel, Field
 
 from ..db import db
 from ..utils import now_iso
+from ..config import settings
 from ..url_safety import validate_public_url, UnsafeURLError
-from .. import mayar
+from .. import mayar, klikqris
 from .admin import require_admin
 from .webhooks import sign, _post
-from .wallet import _verify_paid
+from .wallet import verify_paid_record, create_gateway_payment
 
 logger = logging.getLogger("midgate.partner_pay")
 
@@ -65,7 +66,10 @@ def _charge_public(c: dict) -> dict:
     return {
         "id": c["id"], "reference_id": c.get("reference_id"), "amount": int(c.get("amount", 0)),
         "currency": c.get("currency", "IDR"), "status": c.get("status", "pending"),
-        "checkout_url": c.get("checkout_url"), "description": c.get("description"),
+        "gateway": c.get("gateway", "mayar"),
+        "checkout_url": c.get("checkout_url"), "qris_url": c.get("qris_url"),
+        "pay_amount": int(c.get("pay_amount") or c.get("amount", 0)),
+        "description": c.get("description"),
         "created_at": c.get("created_at"), "paid_at": c.get("paid_at"),
         "expires_at": c.get("expires_at"),
     }
@@ -141,7 +145,7 @@ async def _settle(charge: dict, *, deliver: bool = True) -> dict:
     """Verify with Mayar; on first confirmation flip to paid and notify the partner."""
     if charge.get("status") == "paid":
         return charge
-    paid = await _verify_paid(charge.get("mayar_invoice_id"), charge.get("mayar_transaction_id"))
+    paid = await verify_paid_record(charge)
     if not paid:
         return charge
     claimed = await db.partner_charges.find_one_and_update(
@@ -176,6 +180,18 @@ async def handle_mayar_event(event: str | None, data: dict) -> bool:
                          {"mayar_transaction_id": {"$in": cand}}]}, {"_id": 0})
     if not charge:
         return False
+    await _settle(charge)
+    return True
+
+
+async def handle_klik_event(order_id: str, payload: dict) -> bool:
+    """Called by the KlikQRIS webhook when a top-up match isn't found."""
+    charge = await db.partner_charges.find_one({"klik_order_id": order_id}, {"_id": 0})
+    if not charge:
+        return False
+    if charge.get("klik_signature") and payload.get("signature") \
+            and charge["klik_signature"] != payload.get("signature"):
+        logger.warning("KlikQRIS partner webhook signature mismatch order=%s", order_id)
     await _settle(charge)
     return True
 
@@ -226,33 +242,38 @@ async def create_charge(payload: ChargeCreate, partner=Depends(get_partner)):
     mobile = "".join(ch for ch in (cust.mobile or "") if ch.isdigit())
     if len(mobile) < 10:
         mobile = "081200000000"
+    callback_url = f"{settings.FRONTEND_URL}/api/wallet/klikqris/webhook"
     try:
-        inv = await mayar.create_invoice(
-            name=name,
-            email=email,
-            mobile=mobile,
-            amount=amount,
+        pay = await create_gateway_payment(
+            order_id=charge_id, amount=amount,
             description=payload.description or f"{partner['name']} payment {payload.reference_id}",
+            name=name, email=email, mobile=mobile,
             redirect_url=payload.redirect_url or "https://midnightlink.link",
+            callback_url=callback_url,
             extra_data={"charge_id": charge_id, "partner_id": partner["id"],
                         "reference_id": payload.reference_id,
                         "source": partner.get("source_tag") or partner["name"]},
         )
-    except mayar.MayarError as e:
+    except (mayar.MayarError, klikqris.KlikqrisError) as e:
         logger.error("charge create failed partner=%s: %s", partner["id"], e)
         raise HTTPException(status_code=502, detail="Could not create payment. Please try again.")
 
+    expires_at = _ms_to_iso(pay["expires_at"]) if pay["gateway"] == "mayar" else pay["expires_at"]
     charge = {
         "id": charge_id, "partner_id": partner["id"], "reference_id": payload.reference_id,
         "amount": amount, "currency": "IDR", "status": "pending",
-        "description": payload.description,
+        "description": payload.description, "gateway": pay["gateway"],
         "customer": {"name": cust.name, "email": cust.email, "mobile": cust.mobile},
-        "mayar_invoice_id": inv.get("id"), "mayar_transaction_id": inv.get("transactionId"),
-        "checkout_url": inv.get("link"), "expires_at": _ms_to_iso(inv.get("expiredAt")),
+        "mayar_invoice_id": pay["provider_ref"] if pay["gateway"] == "mayar" else None,
+        "mayar_transaction_id": pay["provider_txn_id"],
+        "klik_order_id": pay["provider_ref"] if pay["gateway"] == "klikqris" else None,
+        "klik_signature": pay["signature"],
+        "checkout_url": pay["checkout_url"], "qris_url": pay["qris_url"],
+        "pay_amount": pay["pay_amount"], "expires_at": expires_at,
         "notified": False, "created_at": now_iso(), "paid_at": None,
     }
     await db.partner_charges.insert_one({**charge})
-    return _charge_public(charge)
+    return {**_charge_public(charge), "qris_image": pay.get("qris_image")}
 
 
 @router.get("/charges/{charge_id}")

@@ -352,22 +352,29 @@ class PaymentConfigUpdate(BaseModel):
     mayar_api_key: str | None = None
     mayar_webhook_token: str | None = None
     mayar_base_url: str | None = None
+    active_gateway: str | None = None
+    klikqris_api_key: str | None = None
+    klikqris_merchant_id: str | None = None
+    klikqris_base_url: str | None = None
 
 
 @router.get("/payment-config")
 async def payment_config_get(admin=Depends(require_admin)):
-    from .wallet import get_payment_settings, get_credit_settings
-    from .. import mayar
+    from .wallet import get_payment_settings, get_credit_settings, get_active_gateway
+    from .. import mayar, klikqris
     return {
         "payments": await get_payment_settings(),
         "credits": await get_credit_settings(),
         "gateway": await mayar.gateway_status(),
+        "klikqris": await klikqris.gateway_status(),
+        "active_gateway": await get_active_gateway(),
     }
 
 
 @router.put("/payment-config")
 async def payment_config_put(payload: PaymentConfigUpdate, admin=Depends(require_admin)):
-    from .wallet import set_payment_settings, set_credit_settings, set_gateway_config
+    from .wallet import (set_payment_settings, set_credit_settings, set_gateway_config,
+                         set_active_gateway, set_klikqris_config)
     if payload.topup_enabled is not None or payload.topup_disabled_message is not None:
         await set_payment_settings(topup_enabled=payload.topup_enabled,
                                    topup_disabled_message=payload.topup_disabled_message,
@@ -382,19 +389,38 @@ async def payment_config_put(payload: PaymentConfigUpdate, admin=Depends(require
         await set_gateway_config(api_key=payload.mayar_api_key,
                                  webhook_token=payload.mayar_webhook_token,
                                  base_url=payload.mayar_base_url, admin_email=admin["email"])
+    if any(v is not None for v in (payload.klikqris_api_key, payload.klikqris_merchant_id, payload.klikqris_base_url)):
+        await set_klikqris_config(api_key=payload.klikqris_api_key,
+                                  id_merchant=payload.klikqris_merchant_id,
+                                  base_url=payload.klikqris_base_url, admin_email=admin["email"])
+    if payload.active_gateway is not None:
+        await set_active_gateway(payload.active_gateway, admin_email=admin["email"])
     return await payment_config_get(admin)
 
 
 @router.post("/payment-config/test")
-async def payment_config_test(admin=Depends(require_admin)):
-    from .. import mayar
+async def payment_config_test(gateway: str | None = None, admin=Depends(require_admin)):
+    from .. import mayar, klikqris
+    from .wallet import get_active_gateway
+    g = (gateway or await get_active_gateway()).lower()
+    if g == "klikqris":
+        if not await klikqris.configured():
+            return {"ok": False, "gateway": "klikqris", "message": "KlikQRIS credentials are not set."}
+        try:
+            body = await klikqris.list_history(page=1)
+            if body.get("status"):
+                return {"ok": True, "gateway": "klikqris", "message": "KlikQRIS connection OK."}
+            return {"ok": False, "gateway": "klikqris",
+                    "message": str(body.get("message", "KlikQRIS returned an error."))}
+        except klikqris.KlikqrisError as e:
+            return {"ok": False, "gateway": "klikqris", "message": f"Failed: {e}"}
     if not await mayar.configured():
-        return {"ok": False, "message": "API key Mayar belum diatur."}
+        return {"ok": False, "gateway": "mayar", "message": "Mayar API key is not set."}
     try:
         await mayar.list_transactions(page=1, page_size=1)
-        return {"ok": True, "message": "Koneksi ke Mayar berhasil."}
+        return {"ok": True, "gateway": "mayar", "message": "Mayar connection OK."}
     except mayar.MayarError as e:
-        return {"ok": False, "message": f"Gagal: {e}"}
+        return {"ok": False, "gateway": "mayar", "message": f"Failed: {e}"}
 
 
 # --------------------------- wallets (credit) ---------------------------- #

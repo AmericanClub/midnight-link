@@ -1027,6 +1027,7 @@ function PaginatedCharges({ partnerId, refreshParent }) {
     queryFn: async () => (await api.get(`/admin/partners/${partnerId}/charges`, {
       params: { status: status === "all" ? undefined : status, q: q || undefined, page, limit: 15 },
     })).data,
+    refetchInterval: 5000,
   });
   const apply = () => { setQ(qInput.trim()); setPage(1); };
   const resend = async (cid) => {
@@ -1081,6 +1082,7 @@ function PaginatedDeliveries({ partnerId }) {
     queryFn: async () => (await api.get(`/admin/partners/${partnerId}/deliveries`, {
       params: { status: status === "all" ? undefined : status, page, limit: 15 },
     })).data,
+    refetchInterval: 5000,
   });
   const items = data?.items || [];
   return (
@@ -1118,6 +1120,7 @@ function PartnerDetail({ partnerId, onBack }) {
   const { data, refetch } = useQuery({
     queryKey: ["admin-partner", partnerId],
     queryFn: async () => (await api.get(`/admin/partners/${partnerId}`)).data,
+    refetchInterval: 5000,
   });
   const p = data?.partner;
   const hookValue = hook ?? (p?.webhook_url || "");
@@ -1135,6 +1138,13 @@ function PartnerDetail({ partnerId, onBack }) {
         <h2 className="font-display text-xl font-bold">{p?.name || "Partner"}</h2>
         {p && <Badge variant={p.active ? "default" : "secondary"}>{p.active ? "active" : "inactive"}</Badge>}
         <code className="font-mono text-xs text-muted-foreground">{p?.key_prefix}…{p?.key_last4}</code>
+        <span className="ml-auto inline-flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-emerald-600" data-testid="partner-live-indicator" title="Auto-refreshing every 5s">
+          <span className="relative flex h-2 w-2">
+            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-500 opacity-75" />
+            <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-500" />
+          </span>
+          Live
+        </span>
       </div>
       <div className="grid gap-4 sm:grid-cols-3">
         <Stat icon={QrCode} label="Charges" value={data?.stats?.charges ?? 0} />

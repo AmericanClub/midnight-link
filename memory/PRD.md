@@ -1,6 +1,11 @@
 # Midnight Link — Product Requirements & Progress
 _(formerly "MidGate" — rebranded 2026-08)_
 
+## Implemented — Realtime partner detail (auto-refresh, no reload) (2026-06)
+- **Goal (user):** the Admin → Payment Partners → partner **detail** view (stats + Charges + Deliveries) should update in realtime without manual reload — so a new/paid charge appears on its own.
+- **Frontend `AdminConsole.jsx`:** added `refetchInterval: 5000` to the three detail queries — `["admin-partner", partnerId]` (stats), `["partner-charges", ...]` (charges table, respects current filter/search/page), `["partner-deliveries", ...]` (deliveries table). Added a pulsing green **"● Live"** indicator (`data-testid="partner-live-indicator"`) in the detail header. Frontend-only; no backend change.
+- **Verified (preview):** created a temp partner, opened detail → "Live" indicator renders, layout intact; temp partner cleaned up. Polling pauses when the browser tab is hidden (react-query default).
+
 ## Implemented — Partner API in-app QRIS support + Payment Partners UI polish (2026-06)
 - **Goal (user):** let the partner app "Midnight Club" show QRIS **natively in-app** (like Midnight Link's own billing), not a new tab — for KlikQRIS. Also fix the Payment Partners screen text + verify the rotate-API-key/secret functions. User chose **Option A** (strengthen the partner API + hand the Midnight Club team a prompt; Midnight Club is a SEPARATE repo, not in /app).
 - **Backend `partner_pay.py`:** `_charge_public(c, include_qr=False)` — when `include_qr=True` it also returns `qris_image` (base64 PNG). `create_charge` now STORES `qris_image` on the charge doc and returns `_charge_public(charge, include_qr=True)`. `GET /api/pay/charges/{id}` now also returns `include_qr=True` → so the partner can render + poll the QRIS from EITHER create or status. Admin charges list stays lean (no base64). For KlikQRIS: `gateway/qris_image/qris_url/pay_amount/expires_at` present; for Mayar: `checkout_url` only (Mayar gives no raw QRIS — must redirect).

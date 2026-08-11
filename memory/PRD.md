@@ -1,6 +1,13 @@
 # Midnight Link — Product Requirements & Progress
 _(formerly "MidGate" — rebranded 2026-08)_
 
+## Diagnosed+Hardened — Mayar top-up 502/CF-520 = wrong Base URL (PayMe link) (2026-06)
+- **Report (user):** after setting Mayar active, customer top-up failed (Cloudflare 520 / origin invalid response).
+- **Root cause (from production journalctl):** Mayar `base_url` in prod DB was set to `https://mayar.to/midnight-link` — the account's **PayMe/checkout link**, NOT the API host. So `POST https://mayar.to/midnight-link/hl/v1/invoice/create` → 404 → topup returns 502 (clean). The only valid Mayar API host is `api.mayar.id` (prod). The API key (JWT for account "midnight-link") is valid — the manual curl 401 was only because the user included the literal `<>` around the token.
+- **Hardening `wallet._clean_base_url` (mayar=True):** any non-API host (mayar.to PayMe link, web.mayar.id dashboard, *.myr.id account subdomain, typo'd scheme) is now forced to `https://api.mayar.id/hl/v1`; valid API hosts `api.mayar.id`/`api.mayar.io`/`api.mayar.club` preserved (path `/hl/v1` ensured); blank = reset to default. Verified all cases.
+- **Immediate prod fix (no deploy):** set Base URL to exactly `https://api.mayar.id/hl/v1`, leave API key blank, SAVE then TEST → green. Old deployed normalization only appended `/hl/v1` (kept wrong host), so manual correct value is required until the new build ships.
+- **Security note:** user pasted their real Mayar API key (JWT) in chat → advised to rotate it in the Mayar dashboard.
+
 ## Fixed — Mayar test connection 404 + Base URL guidance (2026-06)
 - **Report (user):** Admin → Payments → Mayar "Test" returned `FAILED: MAYAR API ERROR 404`; user unsure what Base URL to enter.
 - **Root cause:** the Mayar `base_url` was set wrong in the (production) DB. Verified in preview that both `/transactions` and `/balance` work fine with the default `https://api.mayar.id/hl/v1`, so the endpoint was never the problem — a wrong Base URL (e.g. `web.mayar.id` = dashboard, or missing `/hl/v1`) makes every path 404.

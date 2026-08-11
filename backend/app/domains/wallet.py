@@ -156,20 +156,26 @@ async def consume_request(workspace_id: str) -> dict:
 
 # --------------------- payment gateway (Mayar) config -------------------- #
 def _clean_base_url(raw, *, mayar: bool = False) -> str:
-    """Normalize a pasted API base URL: fix scheme typos (ttps://, htps://…), force https,
-    strip trailing slash, and append /hl/v1 for Mayar hosts that omit it. '' means reset to default."""
+    """Normalize a pasted API base URL. For Mayar, any non-API host (PayMe link like
+    mayar.to/<acct>, the web.mayar.id dashboard, or an account *.myr.id subdomain) is forced
+    to the real API host https://api.mayar.id/hl/v1. '' means reset to default."""
     b = str(raw or "").strip()
     if not b:
         return ""
     if "//" in b:
-        b = b.split("//", 1)[1]  # drop any (possibly broken) scheme prefix
+        b = b.split("//", 1)[1]  # drop any (possibly typo'd) scheme prefix
     b = b.strip().strip("/")
     if not b:
         return ""
-    b = "https://" + b
-    if mayar and "mayar" in b and "/hl/v" not in b:
-        b += "/hl/v1"
-    return b
+    if mayar:
+        host = b.split("/", 1)[0].lower()
+        valid_api_hosts = {"api.mayar.id", "api.mayar.io", "api.mayar.club"}
+        if host not in valid_api_hosts:
+            return "https://api.mayar.id/hl/v1"  # wrong host (PayMe/dashboard) → force prod API
+        if "/hl/v" not in b:
+            b = host + "/hl/v1"
+        return "https://" + b
+    return "https://" + b
 
 
 async def set_gateway_config(*, api_key=None, webhook_token=None, base_url=None,

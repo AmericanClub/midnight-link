@@ -1429,11 +1429,9 @@ function PaymentsSection() {
   const preview100 = base100 + Math.floor((base100 * bonus) / 100);
 
   const saveGateway = () => {
-    const patch = {};
-    if (gw.mayar_base_url && gw.mayar_base_url.trim()) patch.mayar_base_url = gw.mayar_base_url.trim();
+    const patch = { mayar_base_url: (gw.mayar_base_url || "").trim() };
     if (gw.mayar_api_key.trim()) patch.mayar_api_key = gw.mayar_api_key.trim();
     if (gw.mayar_webhook_token.trim()) patch.mayar_webhook_token = gw.mayar_webhook_token.trim();
-    if (Object.keys(patch).length === 0) { toast.info("No gateway changes"); return; }
     save.mutate(patch, { onSuccess: () => setGw((g) => ({ ...g, mayar_api_key: "", mayar_webhook_token: "" })) });
   };
   const saveKlik = () => {

@@ -155,22 +155,43 @@ async def consume_request(workspace_id: str) -> dict:
 
 
 # --------------------- payment gateway (Mayar) config -------------------- #
+def _clean_base_url(raw, *, mayar: bool = False) -> str:
+    """Normalize a pasted API base URL: fix scheme typos (ttps://, htps://…), force https,
+    strip trailing slash, and append /hl/v1 for Mayar hosts that omit it. '' means reset to default."""
+    b = str(raw or "").strip()
+    if not b:
+        return ""
+    if "//" in b:
+        b = b.split("//", 1)[1]  # drop any (possibly broken) scheme prefix
+    b = b.strip().strip("/")
+    if not b:
+        return ""
+    b = "https://" + b
+    if mayar and "mayar" in b and "/hl/v" not in b:
+        b += "/hl/v1"
+    return b
+
+
 async def set_gateway_config(*, api_key=None, webhook_token=None, base_url=None,
                              admin_email=None) -> dict:
     updates = {"updated_at": now_iso(), "provider": "mayar"}
+    unset = {}
     if api_key is not None and str(api_key).strip():
         updates["api_key"] = str(api_key).strip()
     if webhook_token is not None and str(webhook_token).strip():
         updates["webhook_token"] = str(webhook_token).strip()
-    if base_url is not None and str(base_url).strip():
-        b = str(base_url).strip().rstrip("/")
-        # auto-fix the common mistake of pasting the Mayar host without the /hl/v1 API path
-        if "mayar" in b and "/hl/v" not in b:
-            b = b + "/hl/v1"
-        updates["base_url"] = b
+    if base_url is not None:
+        cleaned = _clean_base_url(base_url, mayar=True)
+        if cleaned:
+            updates["base_url"] = cleaned
+        else:
+            unset["base_url"] = ""  # blank = reset to the production default
     if admin_email:
         updates["updated_by"] = admin_email
-    await db.platform_settings.update_one({"_id": "gateway"}, {"$set": updates}, upsert=True)
+    op = {"$set": updates}
+    if unset:
+        op["$unset"] = unset
+    await db.platform_settings.update_one({"_id": "gateway"}, op, upsert=True)
     mayar.invalidate_creds()
     return await mayar.gateway_status()
 

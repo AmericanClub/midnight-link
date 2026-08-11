@@ -1,6 +1,14 @@
 # Midnight Link — Product Requirements & Progress
 _(formerly "MidGate" — rebranded 2026-08)_
 
+## Fixed — Mayar test connection 404 + Base URL guidance (2026-06)
+- **Report (user):** Admin → Payments → Mayar "Test" returned `FAILED: MAYAR API ERROR 404`; user unsure what Base URL to enter.
+- **Root cause:** the Mayar `base_url` was set wrong in the (production) DB. Verified in preview that both `/transactions` and `/balance` work fine with the default `https://api.mayar.id/hl/v1`, so the endpoint was never the problem — a wrong Base URL (e.g. `web.mayar.id` = dashboard, or missing `/hl/v1`) makes every path 404.
+- **Fixes:** (1) `mayar.py` new `get_balance()` (`GET /hl/v1/balance`); (2) admin `payment-config/test` now calls `get_balance()` (reliable even for zero-transaction accounts) and shows the balance; clearer messages for 404 (check Base URL, not web.mayar.id) and 401/403 (wrong key); (3) `wallet.set_gateway_config` auto-appends `/hl/v1` when a mayar host is pasted without the API path, and strips trailing slash; (4) frontend Base URL hint/placeholder clarified ("leave blank for production; use api.mayar.id/hl/v1, NOT web.mayar.id").
+- **Correct Base URL:** blank (=default) or exactly `https://api.mayar.id/hl/v1` (production). Sandbox per Mayar docs = `https://api.mayar.io/hl/v1`.
+- **User can fix production NOW without deploy:** correct the Base URL value in the production admin and re-test. Code improvements apply after deploy.
+- **Verified (preview):** test returns `{"ok":true,"message":"Connected. Balance: Rp107.582"}`; balance keys `balanceActive/balancePending/balance`; `/transactions` also works; frontend compiled; backend healthy.
+
 ## Implemented — Partner charges auto-expire (2026-06)
 - **Bug (user-reported):** partner charges never auto-expired — `expires_at` was stored but never enforced, so unpaid charges stayed **PENDING forever** (the "Expired" filter chip was never populated). Old pending rows cluttered the list.
 - **Fix `partner_pay.py`:** clock-based lazy expiry (no gateway call). `_is_stale()` = pending AND now > `expires_at` + **15 min grace** (covers late settlement), or 24h after `created_at` when no `expires_at` was stored. `_sweep_expired(partner_id)` bulk-flips overdue pending→expired and runs on the admin charges-list + partner-detail(stats) endpoints (so counts/filters/chips are correct). Partner poll `GET /api/pay/charges/{id}` also expires stale pending after its settle attempt.

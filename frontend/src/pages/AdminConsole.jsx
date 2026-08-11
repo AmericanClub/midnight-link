@@ -1503,8 +1503,8 @@ function PaymentsSection() {
                 value={gw.mayar_webhook_token} onChange={(e) => setGw((g) => ({ ...g, mayar_webhook_token: e.target.value }))}
                 className="font-mono" data-testid="gw-webhook-input" />
             </LabeledField>
-            <LabeledField label="Base URL" hint="Default: https://api.mayar.id/hl/v1">
-              <Input placeholder="https://api.mayar.id/hl/v1"
+            <LabeledField label="Base URL" hint="Leave blank for production. Must be the API host https://api.mayar.id/hl/v1 — NOT web.mayar.id (the dashboard).">
+              <Input placeholder="https://api.mayar.id/hl/v1 (leave blank for default)"
                 value={gw.mayar_base_url} onChange={(e) => setGw((g) => ({ ...g, mayar_base_url: e.target.value }))}
                 className="font-mono" data-testid="gw-baseurl-input" />
             </LabeledField>

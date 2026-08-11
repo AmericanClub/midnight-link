@@ -119,6 +119,12 @@ async def get_invoice(invoice_id: str) -> dict:
     return body.get("data", {}) or {}
 
 
+async def get_balance() -> dict:
+    """Lightweight connection check — returns balanceActive/balancePending/balance."""
+    body = await _request("GET", "/balance")
+    return body.get("data", body) or {}
+
+
 async def list_transactions(page: int = 1, page_size: int = 25) -> list:
     body = await _request("GET", f"/transactions?page={page}&pageSize={page_size}")
     return body.get("data", []) or []

@@ -411,10 +411,21 @@ async def payment_config_test(gateway: str | None = None, admin=Depends(require_
     if not await mayar.configured():
         return {"ok": False, "gateway": "mayar", "message": "Mayar API key is not set."}
     try:
-        await mayar.list_transactions(page=1, page_size=1)
-        return {"ok": True, "gateway": "mayar", "message": "Mayar connection OK."}
+        bal = await mayar.get_balance()
+        active = bal.get("balanceActive")
+        if active is None:
+            active = bal.get("balance")
+        extra = f" Balance: Rp{int(active):,}".replace(",", ".") if isinstance(active, (int, float)) else ""
+        return {"ok": True, "gateway": "mayar", "message": f"Connected.{extra}"}
     except mayar.MayarError as e:
-        return {"ok": False, "gateway": "mayar", "message": f"Failed: {e}"}
+        msg = str(e)
+        if "404" in msg:
+            msg = ("Endpoint not found (404). Set Base URL to exactly https://api.mayar.id/hl/v1 "
+                   "(leave blank to use this default) and make sure the API key is from the same "
+                   "Mayar account. Do not use web.mayar.id — that is the dashboard, not the API.")
+        elif "401" in msg or "403" in msg:
+            msg = "Unauthorized — the API key is wrong or not from this account. Copy it from Mayar dashboard → Settings → API/Integration."
+        return {"ok": False, "gateway": "mayar", "message": f"Failed: {msg}"}
 
 
 # --------------------------- wallets (credit) ---------------------------- #

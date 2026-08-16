@@ -574,3 +574,52 @@ async def delete_partner(partner_id: str, admin=Depends(require_admin)):
     await db.partner_charges.delete_many({"partner_id": partner_id})
     await db.partner_webhook_deliveries.delete_many({"partner_id": partner_id})
     return {"ok": True}
+
+
+
+# --------------------------- reconciliation ----------------------------- #
+_RECONCILE_INTERVAL_S = 60
+
+
+async def reconcile_pending(limit: int = 40) -> dict:
+    """Safety-net reconciliation: actively re-verify recent pending (and briefly-expired)
+    partner charges + wallet top-ups against the gateway status API and settle the paid ones.
+    Covers webhooks that were blocked, missed, or delivered before the gateway had synced —
+    so operators no longer need to press Re-check manually. Uses the same verified settle path."""
+    now = datetime.now(timezone.utc)
+    pend_cut = (now - timedelta(hours=6)).isoformat()
+    exp_cut = (now - timedelta(minutes=60)).isoformat()
+    q = {"$or": [
+        {"status": "pending", "created_at": {"$gte": pend_cut}},
+        {"status": "expired", "created_at": {"$gte": exp_cut}},
+    ]}
+    charges = await db.partner_charges.find(q, {"_id": 0}).sort("created_at", -1).limit(limit).to_list(limit)
+    settled = 0
+    for c in charges:
+        before = c.get("status")
+        try:
+            res = await _settle(c)
+            if res.get("status") == "paid" and before != "paid":
+                settled += 1
+        except Exception as e:  # noqa: BLE001
+            logger.warning("reconcile charge %s failed: %s", c.get("id"), e)
+    topups = 0
+    try:
+        from .wallet import reconcile_topups
+        topups = await reconcile_topups(limit=limit)
+    except Exception as e:  # noqa: BLE001
+        logger.warning("reconcile topups failed: %s", e)
+    if settled or topups:
+        logger.info("reconciler settled %d partner charge(s), %d top-up(s)", settled, topups)
+    return {"partner_settled": settled, "topups_settled": topups, "checked": len(charges)}
+
+
+async def run_reconciler(interval: int = _RECONCILE_INTERVAL_S):
+    """Background loop started on app startup."""
+    logger.info("payment reconciler started (every %ss)", interval)
+    while True:
+        try:
+            await reconcile_pending()
+        except Exception as e:  # noqa: BLE001
+            logger.warning("reconciler cycle error: %s", e)
+        await asyncio.sleep(interval)

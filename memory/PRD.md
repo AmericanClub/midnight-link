@@ -1,6 +1,13 @@
 # Midnight Link — Product Requirements & Progress
 _(formerly "MidGate" — rebranded 2026-08)_
 
+## Implemented — Auto-reconciler (self-healing stuck top-ups/charges) (2026-06)
+- **Problem (user):** Midnight Club top-ups often stuck PENDING in Midnight Link even though KlikQRIS shows SUCCESS; operator had to press Re-check manually to credit. Production `journalctl | grep "KlikQRIS webhook"` returned **nothing** → the KlikQRIS callback never reaches the backend (blocked upstream — Cloudflare/WAF — since outbound works: Re-check pulls status fine). Also affected by a race where the webhook fires before KlikQRIS's own status API syncs.
+- **Fix — background reconciler:** `partner_pay.reconcile_pending()` re-verifies recent PENDING partner charges (created ≤6h) + briefly-EXPIRED ones (≤60m, catches late payment) against the gateway status API and settles the paid ones via the same guarded `_settle` path; `wallet.reconcile_topups()` does the same for uncredited wallet top-ups via the idempotent `_try_credit_topup`. `run_reconciler()` loops every 60s, started in `server.py` `on_startup`. Bounded (limit 40/cycle). So blocked/missed/raced webhooks auto-recover within ~1 min — no manual Re-check needed.
+- **Verified (preview):** reconciler starts cleanly ("payment reconciler started (every 60s)"); stubbed gateway verify→paid: seeded pending charge auto-settled (status→paid, paid_at set, `partner_settled:1`); idempotent topup path runs clean; test data cleaned up; backend healthy.
+- **Root-cause fix (user action, on VPS/Cloudflare):** the webhook must be allowed through Cloudflare — add a WAF custom rule to SKIP (bot/WAF/managed) for path `/api/wallet/klikqris/webhook` (+ `/api/wallet/mayar/webhook`), and/or disable Bot Fight Mode for that path; confirm via nginx access log whether the POST reaches origin. Reconciler is the permanent safety net regardless.
+- **Deploy note:** reconciler activates in production only after next deploy.
+
 ## Diagnosed+Hardened — Mayar top-up 502/CF-520 = wrong Base URL (PayMe link) (2026-06)
 - **Report (user):** after setting Mayar active, customer top-up failed (Cloudflare 520 / origin invalid response).
 - **Root cause (from production journalctl):** Mayar `base_url` in prod DB was set to `https://mayar.to/midnight-link` — the account's **PayMe/checkout link**, NOT the API host. So `POST https://mayar.to/midnight-link/hl/v1/invoice/create` → 404 → topup returns 502 (clean). The only valid Mayar API host is `api.mayar.id` (prod). The API key (JWT for account "midnight-link") is valid — the manual curl 401 was only because the user included the literal `<>` around the token.

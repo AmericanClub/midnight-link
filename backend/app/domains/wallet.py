@@ -275,6 +275,25 @@ async def verify_paid_record(rec: dict) -> bool:
     return await _verify_paid(rec.get("mayar_invoice_id"), rec.get("mayar_transaction_id"))
 
 
+async def reconcile_topups(limit: int = 40) -> int:
+    """Safety-net: re-verify recent uncredited top-ups against the gateway and credit if paid.
+    Idempotent — same guarded path as the webhook, so no double credit."""
+    from datetime import datetime, timezone, timedelta
+    cut = (datetime.now(timezone.utc) - timedelta(hours=6)).isoformat()
+    recs = await db.mayar_payments.find(
+        {"credited": {"$ne": True}, "created_at": {"$gte": cut}},
+        {"_id": 0}).sort("created_at", -1).limit(limit).to_list(limit)
+    credited = 0
+    for rec in recs:
+        try:
+            res = await _try_credit_topup(rec)
+            if res.get("credited"):
+                credited += 1
+        except Exception as e:  # noqa: BLE001
+            logger.warning("reconcile topup %s failed: %s", rec.get("id"), e)
+    return credited
+
+
 # --------------------------- helpers ------------------------------------- #
 async def _get_wallet(workspace_id: str) -> dict:
     w = await db.wallets.find_one({"workspace_id": workspace_id}, {"_id": 0})

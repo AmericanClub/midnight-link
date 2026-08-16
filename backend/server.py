@@ -111,4 +111,6 @@ async def on_startup():
     await seed_admin()
     asyncio.create_task(refresh_tor())
     asyncio.create_task(asyncio.to_thread(warm_geoip))
+    from app.domains.partner_pay import run_reconciler
+    asyncio.create_task(run_reconciler())
     logger.info("Midnight Link Core API started")

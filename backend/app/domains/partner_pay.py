@@ -579,16 +579,20 @@ async def delete_partner(partner_id: str, admin=Depends(require_admin)):
 
 # --------------------------- reconciliation ----------------------------- #
 _RECONCILE_INTERVAL_S = 60
+_RECONCILE_PENDING_WINDOW_H = 2    # re-check pending charges/top-ups created within last N hours
+_RECONCILE_EXPIRED_WINDOW_MIN = 60  # also re-check briefly-expired charges (late payment grace)
 
 
 async def reconcile_pending(limit: int = 40) -> dict:
     """Safety-net reconciliation: actively re-verify recent pending (and briefly-expired)
     partner charges + wallet top-ups against the gateway status API and settle the paid ones.
     Covers webhooks that were blocked, missed, or delivered before the gateway had synced —
-    so operators no longer need to press Re-check manually. Uses the same verified settle path."""
+    so operators no longer need to press Re-check manually. Uses the same verified settle path.
+    Window is small on purpose: a QRIS can only be paid within its validity (~1h), so anything
+    older is already dead and not worth re-checking."""
     now = datetime.now(timezone.utc)
-    pend_cut = (now - timedelta(hours=6)).isoformat()
-    exp_cut = (now - timedelta(minutes=60)).isoformat()
+    pend_cut = (now - timedelta(hours=_RECONCILE_PENDING_WINDOW_H)).isoformat()
+    exp_cut = (now - timedelta(minutes=_RECONCILE_EXPIRED_WINDOW_MIN)).isoformat()
     q = {"$or": [
         {"status": "pending", "created_at": {"$gte": pend_cut}},
         {"status": "expired", "created_at": {"$gte": exp_cut}},

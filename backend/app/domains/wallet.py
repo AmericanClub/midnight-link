@@ -279,7 +279,7 @@ async def reconcile_topups(limit: int = 40) -> int:
     """Safety-net: re-verify recent uncredited top-ups against the gateway and credit if paid.
     Idempotent — same guarded path as the webhook, so no double credit."""
     from datetime import datetime, timezone, timedelta
-    cut = (datetime.now(timezone.utc) - timedelta(hours=6)).isoformat()
+    cut = (datetime.now(timezone.utc) - timedelta(hours=2)).isoformat()
     recs = await db.mayar_payments.find(
         {"credited": {"$ne": True}, "created_at": {"$gte": cut}},
         {"_id": 0}).sort("created_at", -1).limit(limit).to_list(limit)

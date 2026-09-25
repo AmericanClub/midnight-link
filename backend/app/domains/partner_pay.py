@@ -22,6 +22,7 @@ from datetime import datetime, timezone, timedelta
 
 from fastapi import APIRouter, HTTPException, Depends, Request, Query
 from pydantic import BaseModel, Field
+from pymongo.errors import DuplicateKeyError
 
 from ..db import db
 from ..utils import now_iso
@@ -669,12 +670,37 @@ async def reconcile_pending(limit: int = 40) -> dict:
             "topups_settled": topups, "checked": len(charges)}
 
 
+async def _acquire_reconciler_lock(ttl_seconds: int) -> bool:
+    """Distributed single-flight lock so the reconciler runs in ONLY ONE process per
+    cycle even when uvicorn is started with multiple --workers. Without this, every
+    worker would run reconcile_pending()/redeliver_unnotified() simultaneously and the
+    partner (e.g. Midnight Club) could receive the same charge.paid webhook N times.
+
+    Atomic: the (_id, expires_at<=now) filtered update + unique-_id upsert insert means
+    exactly one worker wins each tick. The lock self-expires (ttl < interval) so a crash
+    mid-cycle never wedges it — the next tick simply takes over."""
+    now = datetime.now(timezone.utc)
+    now_s = now.isoformat()
+    exp_s = (now + timedelta(seconds=ttl_seconds)).isoformat()
+    try:
+        await db.locks.find_one_and_update(
+            {"_id": "reconciler", "expires_at": {"$lte": now_s}},
+            {"$set": {"expires_at": exp_s}},
+            upsert=True,
+        )
+        return True
+    except DuplicateKeyError:
+        # Lock is currently held by another worker (not yet expired).
+        return False
+
+
 async def run_reconciler(interval: int = _RECONCILE_INTERVAL_S):
     """Background loop started on app startup."""
     logger.info("payment reconciler started (every %ss)", interval)
     while True:
         try:
-            await reconcile_pending()
+            if await _acquire_reconciler_lock(ttl_seconds=max(10, interval - 10)):
+                await reconcile_pending()
         except Exception as e:  # noqa: BLE001
             logger.warning("reconciler cycle error: %s", e)
         await asyncio.sleep(interval)

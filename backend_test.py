@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
-Regression test suite for Midnight Link backend after MongoDB index additions
-and outbound webhook redelivery sweep implementation.
+Regression test suite for Midnight Link backend after adding single-flight reconciler lock
+(partner_pay.py: _acquire_reconciler_lock + run_reconciler now acquires MongoDB lock before each 60s cycle).
 
 Tests:
 1. GET /api/health -> 200 {status:ok, service:core-api}
@@ -172,7 +172,7 @@ def test_klikqris_webhook_fast_ack():
     """Test 5: POST /api/wallet/klikqris/webhook -> 200 {ok:true,queued:true} in <2s"""
     try:
         payload = {
-            "order_id": "regress-idx-1",
+            "order_id": "lock-regress-1",
             "status": "PAID"
         }
         
@@ -214,7 +214,7 @@ def test_mayar_webhook_fast_ack():
         payload = {
             "event": "payment.received",
             "data": {
-                "id": "regress-idx-2"
+                "id": "lock-regress-2"
             }
         }
         
@@ -253,7 +253,7 @@ def test_mayar_webhook_fast_ack():
 def main():
     print("=" * 80)
     print("MIDNIGHT LINK BACKEND REGRESSION TEST")
-    print("Testing MongoDB index additions + outbound webhook redelivery sweep")
+    print("Testing single-flight reconciler lock (multi-worker dedupe)")
     print("=" * 80)
     print(f"Backend URL: {BACKEND_URL}")
     print(f"API Base: {API_BASE}")

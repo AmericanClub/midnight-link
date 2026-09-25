@@ -25,7 +25,7 @@ Logika app: `if gateway === "klikqris"` → render QR in-app; `else (mayar)` →
 ## Konfigurasi (env di Midnight Club)
 
 ```
-MIDNIGHTLINK_BASE_URL=   # TEST: https://link-midnight-design.preview.emergentagent.com
+MIDNIGHTLINK_BASE_URL=   # TEST: https://dev-continue-44.preview.emergentagent.com
                          # LIVE: https://midnightlink.link
 MIDNIGHTLINK_PARTNER_KEY=mgpay_live_xxxxxxxx   # dari Admin Midnight Link → Payment Partners
 MIDNIGHTLINK_WEBHOOK_SECRET=mgwhsec_xxxxxxxx    # untuk verifikasi tanda tangan webhook

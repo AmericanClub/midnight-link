@@ -15,7 +15,7 @@ import json
 from typing import Dict, Any
 
 # Backend URL from frontend/.env
-BACKEND_URL = os.getenv("REACT_APP_BACKEND_URL", "https://link-midnight-design.preview.emergentagent.com")
+BACKEND_URL = os.getenv("REACT_APP_BACKEND_URL", "https://dev-continue-44.preview.emergentagent.com")
 API_BASE = f"{BACKEND_URL}/api"
 
 # Test credentials

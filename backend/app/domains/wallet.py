@@ -6,6 +6,7 @@ converted to credits at the same rate so pricing stays consistent. Credits never
 All balance changes append an immutable ledger entry. Payments are only credited after
 server-side verification with Mayar (idempotent), so forged webhooks cannot grant credits.
 """
+import asyncio
 import hmac
 import json
 import logging
@@ -570,24 +571,22 @@ async def entitlement(ws=Depends(get_billing_workspace)):
             "total_requests_available": st["requests_remaining"] + credit_requests}
 
 
-@router.post("/mayar/webhook")
-async def mayar_webhook(request: Request):
-    """Public callback from Mayar (event `payment.received`). Re-verified against the
-    Mayar API before crediting, so authenticity of the request is not solely relied on."""
-    raw = await request.body()
-    try:
-        payload = json.loads(raw or b"{}")
-    except json.JSONDecodeError:
-        raise HTTPException(status_code=400, detail="Invalid JSON")
+def _schedule_bg(coro, label: str):
+    """Run a coroutine fire-and-forget on the event loop, guarding exceptions.
 
-    event = payload.get("event") or payload.get("event.received")
-    data = payload.get("data") or {}
-    token_ok = await _verify_webhook_token(request)
-    logger.info("Mayar webhook event=%s token_ok=%s", event, token_ok)
+    Used so payment webhooks can acknowledge the provider immediately (well within
+    their ~10s client timeout) while the slower authoritative re-verification +
+    crediting happens afterwards. Safe because crediting is idempotent (atomic
+    single-credit claim) and also backstopped by the 60s reconciler."""
+    async def _wrapper():
+        try:
+            await coro
+        except Exception as e:  # noqa: BLE001
+            logger.warning("background webhook task (%s) failed: %s", label, e)
+    asyncio.create_task(_wrapper())
 
-    if event and event != "payment.received":
-        return {"ok": True, "ignored": event}
 
+async def _process_mayar_event(event: str | None, data: dict):
     extra = data.get("extraData") or {}
     rec = None
     if extra.get("order_id"):
@@ -602,19 +601,59 @@ async def mayar_webhook(request: Request):
     if not rec:
         from .partner_pay import handle_mayar_event
         if await handle_mayar_event(event, data):
-            return {"ok": True, "partner": True}
+            return
         logger.warning("Mayar webhook: no matching top-up/charge record (event=%s)", event)
-        return {"ok": True, "unmatched": True}
+        return
+    await _try_credit_topup(rec)
 
-    result = await _try_credit_topup(rec)
-    return {"ok": True, **result}
+
+async def _process_klik_event(order_id: str, payload: dict):
+    sig = payload.get("signature")
+    rec = await db.mayar_payments.find_one({"klik_order_id": order_id}, {"_id": 0})
+    if rec:
+        if rec.get("klik_signature") and sig and rec["klik_signature"] != sig:
+            logger.warning("KlikQRIS webhook signature mismatch order=%s", order_id)
+        await _try_credit_topup(rec)
+        return
+    from .partner_pay import handle_klik_event
+    if await handle_klik_event(order_id, payload):
+        return
+    logger.warning("KlikQRIS webhook: no matching top-up/charge record (order=%s)", order_id)
+
+
+@router.post("/mayar/webhook")
+async def mayar_webhook(request: Request):
+    """Public callback from Mayar (event `payment.received`). Re-verified against the
+    Mayar API before crediting, so authenticity of the request is not solely relied on.
+
+    Responds immediately and does the (slower) re-verification + crediting in the
+    background so Mayar's HTTP client never times out waiting on us."""
+    raw = await request.body()
+    try:
+        payload = json.loads(raw or b"{}")
+    except json.JSONDecodeError:
+        raise HTTPException(status_code=400, detail="Invalid JSON")
+
+    event = payload.get("event") or payload.get("event.received")
+    data = payload.get("data") or {}
+    token_ok = await _verify_webhook_token(request)
+    logger.info("Mayar webhook event=%s token_ok=%s", event, token_ok)
+
+    if event and event != "payment.received":
+        return {"ok": True, "ignored": event}
+
+    _schedule_bg(_process_mayar_event(event, data), "mayar")
+    return {"ok": True, "queued": True}
 
 
 @router.post("/klikqris/webhook")
 async def klikqris_webhook(request: Request):
     """Public callback from KlikQRIS (status PAID/EXPIRED). The payment is re-verified
     against the KlikQRIS status API before crediting, so a forged webhook cannot grant
-    credits. Also routes partner charges when no top-up record matches."""
+    credits. Also routes partner charges when no top-up record matches.
+
+    Responds immediately and does the (slower) re-verification + crediting in the
+    background so KlikQRIS's HTTP client (~10s timeout) never times out on us."""
     raw = await request.body()
     try:
         payload = json.loads(raw or b"{}")
@@ -623,23 +662,12 @@ async def klikqris_webhook(request: Request):
 
     order_id = payload.get("order_id")
     status = str(payload.get("status", "")).upper()
-    sig = payload.get("signature")
     logger.info("KlikQRIS webhook order=%s status=%s", order_id, status)
     if not order_id:
         return {"ok": True, "ignored": True}
 
-    rec = await db.mayar_payments.find_one({"klik_order_id": order_id}, {"_id": 0})
-    if rec:
-        if rec.get("klik_signature") and sig and rec["klik_signature"] != sig:
-            logger.warning("KlikQRIS webhook signature mismatch order=%s", order_id)
-        result = await _try_credit_topup(rec)
-        return {"ok": True, **result}
-
-    from .partner_pay import handle_klik_event
-    if await handle_klik_event(order_id, payload):
-        return {"ok": True, "partner": True}
-    logger.warning("KlikQRIS webhook: no matching top-up/charge record (order=%s)", order_id)
-    return {"ok": True, "unmatched": True}
+    _schedule_bg(_process_klik_event(order_id, payload), "klikqris")
+    return {"ok": True, "queued": True}
 
 
 @router.post("/admin/adjust")

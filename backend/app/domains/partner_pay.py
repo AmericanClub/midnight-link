@@ -581,6 +581,49 @@ async def delete_partner(partner_id: str, admin=Depends(require_admin)):
 _RECONCILE_INTERVAL_S = 60
 _RECONCILE_PENDING_WINDOW_H = 2    # re-check pending charges/top-ups created within last N hours
 _RECONCILE_EXPIRED_WINDOW_MIN = 60  # also re-check briefly-expired charges (late payment grace)
+_REDELIVER_WINDOW_H = 24           # keep retrying outbound charge.paid webhooks for up to N hours
+_REDELIVER_COOLDOWN_S = 55         # min gap between redelivery attempts for the same charge
+_REDELIVER_LIMIT = 25              # max charges redelivered per reconciler cycle
+
+
+async def redeliver_unnotified(limit: int = _REDELIVER_LIMIT) -> int:
+    """Safety-net for OUTBOUND partner webhooks (e.g. Midnight Link -> Midnight Club).
+
+    A charge can be settled (`paid`) yet the partner was briefly down/slow when we first
+    delivered `charge.paid` -> `notified` stays False. Because the charge is already
+    `paid`, the normal settle path never re-delivers, so without this the notification is
+    lost until an admin presses Resend. This sweep keeps retrying every reconciler cycle
+    until it succeeds or the charge ages out of the window. Idempotent: the partner is
+    expected to dedupe on charge_id / reference_id (the delivery_id changes each attempt)."""
+    now = datetime.now(timezone.utc)
+    win_cut = (now - timedelta(hours=_REDELIVER_WINDOW_H)).isoformat()
+    cool_cut = (now - timedelta(seconds=_REDELIVER_COOLDOWN_S)).isoformat()
+    q = {
+        "status": "paid",
+        "notified": {"$ne": True},
+        "paid_at": {"$gte": win_cut},
+        "$or": [
+            {"last_delivery_at": {"$exists": False}},
+            {"last_delivery_at": None},
+            {"last_delivery_at": {"$lte": cool_cut}},
+        ],
+    }
+    charges = await db.partner_charges.find(q, {"_id": 0}).sort("paid_at", 1).limit(limit).to_list(limit)
+    if not charges:
+        return 0
+
+    async def _one(c: dict):
+        partner = await db.partners.find_one({"id": c["partner_id"]}, {"_id": 0})
+        if not partner or not partner.get("webhook_url"):
+            return
+        try:
+            await _deliver_charge_paid(partner, c)
+        except Exception as e:  # noqa: BLE001
+            logger.warning("redeliver charge %s failed: %s", c.get("id"), e)
+
+    # Concurrent so one slow partner doesn't stall the whole sweep.
+    await asyncio.gather(*[_one(c) for c in charges])
+    return len(charges)
 
 
 async def reconcile_pending(limit: int = 40) -> dict:
@@ -607,15 +650,23 @@ async def reconcile_pending(limit: int = 40) -> dict:
                 settled += 1
         except Exception as e:  # noqa: BLE001
             logger.warning("reconcile charge %s failed: %s", c.get("id"), e)
+    # Retry any outbound charge.paid webhooks that never got through to the partner.
+    redelivered = 0
+    try:
+        redelivered = await redeliver_unnotified()
+    except Exception as e:  # noqa: BLE001
+        logger.warning("redeliver sweep failed: %s", e)
     topups = 0
     try:
         from .wallet import reconcile_topups
         topups = await reconcile_topups(limit=limit)
     except Exception as e:  # noqa: BLE001
         logger.warning("reconcile topups failed: %s", e)
-    if settled or topups:
-        logger.info("reconciler settled %d partner charge(s), %d top-up(s)", settled, topups)
-    return {"partner_settled": settled, "topups_settled": topups, "checked": len(charges)}
+    if settled or topups or redelivered:
+        logger.info("reconciler settled %d partner charge(s), redelivered %d webhook(s), %d top-up(s)",
+                    settled, redelivered, topups)
+    return {"partner_settled": settled, "redelivered": redelivered,
+            "topups_settled": topups, "checked": len(charges)}
 
 
 async def run_reconciler(interval: int = _RECONCILE_INTERVAL_S):

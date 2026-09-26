@@ -942,11 +942,11 @@ const copyText = (t) => { navigator.clipboard?.writeText(t); toast.success("Copi
 
 function SecretReveal({ label, value, testid }) {
   return (
-    <div className="rounded-lg border border-amber-500/30 bg-amber-500/5 p-3">
-      <p className="mb-1 text-xs font-medium text-amber-600">{label} — shown once, copy it now</p>
-      <div className="flex items-center gap-2">
-        <code className="flex-1 truncate rounded bg-background px-2 py-1 font-mono text-xs" data-testid={testid}>{value}</code>
-        <Button size="sm" variant="outline" className="gap-1" onClick={() => copyText(value)}><Copy className="h-3.5 w-3.5" /> Copy</Button>
+    <div className="min-w-0 overflow-hidden rounded-lg border border-amber-500/30 bg-amber-500/5 p-3">
+      <p className="mb-1 break-words text-xs font-medium text-amber-600">{label} — shown once, copy it now</p>
+      <div className="flex min-w-0 items-center gap-2">
+        <code className="min-w-0 flex-1 truncate rounded bg-background px-2 py-1 font-mono text-xs" data-testid={testid}>{value}</code>
+        <Button size="sm" variant="outline" className="shrink-0 gap-1" onClick={() => copyText(value)}><Copy className="h-3.5 w-3.5" /> Copy</Button>
       </div>
     </div>
   );
@@ -966,7 +966,7 @@ function NewPartnerDialog({ onClose, onCreated }) {
   });
   return (
     <Dialog open onOpenChange={(o) => { if (!o) onClose(); }}>
-      <DialogContent className="max-w-lg" data-testid="new-partner-dialog">
+      <DialogContent className="max-w-lg overflow-hidden" data-testid="new-partner-dialog">
         <DialogHeader>
           <DialogTitle className="font-display">{creds ? "Partner created" : "New payment partner"}</DialogTitle>
           <DialogDescription>{creds ? "Store these credentials in the partner app now." : "Create a partner app (e.g. midnight) that can collect payments through Midnight Link."}</DialogDescription>
@@ -987,7 +987,7 @@ function NewPartnerDialog({ onClose, onCreated }) {
             </DialogFooter>
           </div>
         ) : (
-          <div className="space-y-3">
+          <div className="min-w-0 space-y-3">
             <SecretReveal label="Partner API Key (Authorization: Bearer …)" value={creds.api_key} testid="partner-new-apikey" />
             <SecretReveal label="Webhook Signing Secret (verify X-MidnightLink-Signature)" value={creds.webhook_secret} testid="partner-new-secret" />
             <DialogFooter><Button onClick={onClose} data-testid="partner-creds-done">Done</Button></DialogFooter>

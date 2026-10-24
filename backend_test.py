@@ -19,7 +19,7 @@ import requests
 from typing import Dict, Any
 
 # Backend URL from frontend/.env
-BACKEND_URL = os.getenv("REACT_APP_BACKEND_URL", "https://dev-continue-44.preview.emergentagent.com")
+BACKEND_URL = os.getenv("REACT_APP_BACKEND_URL", "https://proyek-baru-4.preview.emergentagent.com")
 API_BASE = f"{BACKEND_URL}/api"
 
 # Admin credentials from test_credentials.md

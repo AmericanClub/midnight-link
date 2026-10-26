@@ -356,17 +356,23 @@ class PaymentConfigUpdate(BaseModel):
     klikqris_api_key: str | None = None
     klikqris_merchant_id: str | None = None
     klikqris_base_url: str | None = None
+    kasera_api_key: str | None = None
+    kasera_webhook_secret: str | None = None
+    kasera_base_url: str | None = None
+    kasera_expiry_minutes: int | None = None
+    kasera_fee_mode: str | None = None
 
 
 @router.get("/payment-config")
 async def payment_config_get(admin=Depends(require_admin)):
     from .wallet import get_payment_settings, get_credit_settings, get_active_gateway
-    from .. import mayar, klikqris
+    from .. import mayar, klikqris, kasera
     return {
         "payments": await get_payment_settings(),
         "credits": await get_credit_settings(),
         "gateway": await mayar.gateway_status(),
         "klikqris": await klikqris.gateway_status(),
+        "kasera": await kasera.gateway_status(),
         "active_gateway": await get_active_gateway(),
     }
 
@@ -374,7 +380,7 @@ async def payment_config_get(admin=Depends(require_admin)):
 @router.put("/payment-config")
 async def payment_config_put(payload: PaymentConfigUpdate, admin=Depends(require_admin)):
     from .wallet import (set_payment_settings, set_credit_settings, set_gateway_config,
-                         set_active_gateway, set_klikqris_config)
+                         set_active_gateway, set_klikqris_config, set_kasera_config)
     if payload.topup_enabled is not None or payload.topup_disabled_message is not None:
         await set_payment_settings(topup_enabled=payload.topup_enabled,
                                    topup_disabled_message=payload.topup_disabled_message,
@@ -393,6 +399,14 @@ async def payment_config_put(payload: PaymentConfigUpdate, admin=Depends(require
         await set_klikqris_config(api_key=payload.klikqris_api_key,
                                   id_merchant=payload.klikqris_merchant_id,
                                   base_url=payload.klikqris_base_url, admin_email=admin["email"])
+    if any(v is not None for v in (payload.kasera_api_key, payload.kasera_webhook_secret,
+                                   payload.kasera_base_url, payload.kasera_expiry_minutes,
+                                   payload.kasera_fee_mode)):
+        await set_kasera_config(api_key=payload.kasera_api_key,
+                                webhook_secret=payload.kasera_webhook_secret,
+                                base_url=payload.kasera_base_url,
+                                expiry_minutes=payload.kasera_expiry_minutes,
+                                fee_mode=payload.kasera_fee_mode, admin_email=admin["email"])
     if payload.active_gateway is not None:
         await set_active_gateway(payload.active_gateway, admin_email=admin["email"])
     return await payment_config_get(admin)
@@ -400,9 +414,12 @@ async def payment_config_put(payload: PaymentConfigUpdate, admin=Depends(require
 
 @router.post("/payment-config/test")
 async def payment_config_test(gateway: str | None = None, admin=Depends(require_admin)):
-    from .. import mayar, klikqris
+    from .. import mayar, klikqris, kasera
     from .wallet import get_active_gateway
     g = (gateway or await get_active_gateway()).lower()
+    if g == "kasera":
+        res = await kasera.probe()
+        return {"ok": res["ok"], "gateway": "kasera", "message": res["message"]}
     if g == "klikqris":
         if not await klikqris.configured():
             return {"ok": False, "gateway": "klikqris", "message": "KlikQRIS credentials are not set."}

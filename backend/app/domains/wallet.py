@@ -20,7 +20,8 @@ from pymongo import ReturnDocument
 from ..db import db
 from ..utils import now_iso
 from ..config import settings
-from .. import mayar, klikqris
+from .. import mayar, klikqris, kasera
+from ..qr_image import qr_data_url
 from ..security import get_current_user
 from .billing import get_billing_workspace, PLAN_MAP, activate_plan_for_workspace
 from .admin import require_admin
@@ -204,15 +205,18 @@ async def set_gateway_config(*, api_key=None, webhook_token=None, base_url=None,
 
 
 # --------------------- active gateway (single IDR gateway) --------------- #
+GATEWAYS = ("mayar", "klikqris", "kasera")
+
+
 async def get_active_gateway() -> str:
     doc = await db.platform_settings.find_one({"_id": "payments"}) or {}
     g = (doc.get("active_gateway") or "mayar").lower()
-    return g if g in ("mayar", "klikqris") else "mayar"
+    return g if g in GATEWAYS else "mayar"
 
 
 async def set_active_gateway(name: str, admin_email: str | None = None) -> str:
     name = (name or "").lower()
-    if name not in ("mayar", "klikqris"):
+    if name not in GATEWAYS:
         raise HTTPException(status_code=400, detail="Unknown gateway")
     updates = {"active_gateway": name, "updated_at": now_iso()}
     if admin_email:
@@ -237,8 +241,48 @@ async def set_klikqris_config(*, api_key=None, id_merchant=None, base_url=None,
     return await klikqris.gateway_status()
 
 
+async def set_kasera_config(*, api_key=None, webhook_secret=None, base_url=None,
+                            expiry_minutes=None, fee_mode=None, admin_email=None) -> dict:
+    updates = {"updated_at": now_iso(), "provider": "kasera"}
+    unset = {}
+    if api_key is not None and str(api_key).strip():
+        k = str(api_key).strip()
+        if kasera.key_mode(k) not in ("live", "test"):
+            raise HTTPException(status_code=400,
+                                detail="Kasera API key must start with kp_live_ or kp_test_.")
+        updates["api_key"] = k
+    if webhook_secret is not None and str(webhook_secret).strip():
+        updates["webhook_secret"] = str(webhook_secret).strip()
+    if base_url is not None:
+        cleaned = kasera.clean_base_url(base_url)
+        if cleaned:
+            updates["base_url"] = cleaned
+        else:
+            unset["base_url"] = ""  # blank = default https://pay.kasera.id
+    if expiry_minutes is not None:
+        try:
+            m = int(expiry_minutes)
+        except (TypeError, ValueError):
+            raise HTTPException(status_code=400, detail="QR expiry must be a number of minutes.")
+        updates["expiry_minutes"] = max(kasera.MIN_EXPIRY_MIN, min(m, kasera.MAX_EXPIRY_MIN))
+    if fee_mode is not None:
+        if fee_mode not in kasera.FEE_MODES:
+            raise HTTPException(status_code=400, detail="fee_mode must be 'merchant' or 'payer'.")
+        updates["fee_mode"] = fee_mode
+    if admin_email:
+        updates["updated_by"] = admin_email
+    op = {"$set": updates}
+    if unset:
+        op["$unset"] = unset
+    await db.platform_settings.update_one({"_id": "kasera"}, op, upsert=True)
+    kasera.invalidate_creds()
+    return await kasera.gateway_status()
+
+
 async def gateway_configured() -> bool:
     g = await get_active_gateway()
+    if g == "kasera":
+        return await kasera.configured()
     return await (klikqris.configured() if g == "klikqris" else mayar.configured())
 
 
@@ -247,6 +291,28 @@ async def create_gateway_payment(*, order_id, amount, description, name, email, 
     """Create a payment on the ACTIVE IDR gateway; returns a normalized dict
     consumed by both wallet top-ups and partner charges."""
     g = await get_active_gateway()
+    if g == "kasera":
+        gross = int(amount)
+        if await kasera.fee_mode() == "payer":
+            # Kasera always deducts its fee from the amount; gross it up so we still net `amount`.
+            try:
+                qris = await kasera.get_qris_method()
+                if qris and qris.get("fee"):
+                    gross = kasera.gross_up(int(amount), qris["fee"])
+            except kasera.KaseraError as e:
+                logger.warning("Kasera fee lookup failed (charging base amount): %s", e)
+        data = await kasera.create_qris(
+            order_id=order_id, amount=gross, description=description,
+            customer={"name": name, "email": email, "phone": mobile},
+            return_url=redirect_url,
+            merchant_ref=(extra_data or {}).get("reference_id") or (extra_data or {}).get("kind"))
+        qr = (data.get("payment") or {}).get("qr_string")
+        return {"gateway": "kasera", "provider_ref": data.get("id"), "provider_txn_id": None,
+                "signature": None,
+                "payment_url": data.get("checkout_url"), "checkout_url": data.get("checkout_url"),
+                "qris_image": qr_data_url(qr), "qris_url": None, "qr_string": qr,
+                "pay_amount": int(data.get("amount") or gross), "expires_at": data.get("expires_at"),
+                "livemode": data.get("livemode"), "fee": data.get("fee"), "net": data.get("net")}
     if g == "klikqris":
         data = await klikqris.create_qris(order_id=order_id, amount=int(amount),
                                           description=description, callback_url=callback_url)
@@ -257,6 +323,7 @@ async def create_gateway_payment(*, order_id, amount, description, name, email, 
                 "payment_url": klikqris.pay_page_url(klik_order),
                 "checkout_url": klikqris.pay_page_url(klik_order),
                 "qris_image": data.get("qris_image"), "qris_url": data.get("qris_url"),
+                "qr_string": None,
                 "pay_amount": pay_amount, "expires_at": data.get("expired_at")}
     inv = await mayar.create_invoice(name=name, email=email, mobile=mobile, amount=int(amount),
                                      description=description, redirect_url=redirect_url,
@@ -264,12 +331,14 @@ async def create_gateway_payment(*, order_id, amount, description, name, email, 
     return {"gateway": "mayar", "provider_ref": inv.get("id"),
             "provider_txn_id": inv.get("transactionId"), "signature": None,
             "payment_url": inv.get("link"), "checkout_url": inv.get("link"),
-            "qris_image": None, "qris_url": None, "pay_amount": int(amount),
+            "qris_image": None, "qris_url": None, "qr_string": None, "pay_amount": int(amount),
             "expires_at": inv.get("expiredAt")}
 
 
 async def verify_paid_record(rec: dict) -> bool:
     """Authoritative re-verification, dispatched by the record's gateway."""
+    if rec.get("gateway") == "kasera":
+        return await kasera.verify_paid(rec.get("kasera_id"))
     if rec.get("gateway") == "klikqris":
         return await klikqris.verify_paid(
             rec.get("klik_order_id") or rec.get("provider_ref") or rec.get("id"))
@@ -348,10 +417,12 @@ async def _verify_paid(invoice_id: str, transaction_id: str | None) -> bool:
     return False
 
 
-async def _try_credit_topup(rec: dict) -> dict:
+async def _try_credit_topup(rec: dict, *, verified: bool = False) -> dict:
+    """Credit a top-up once. `verified=True` only for a signature-verified gateway event
+    (Kasera payment.paid) whose amount matched — otherwise the gateway is re-checked."""
     if rec.get("credited"):
         return {"status": "paid", "credited": True}
-    paid = await verify_paid_record(rec)
+    paid = True if verified else await verify_paid_record(rec)
     if not paid:
         return {"status": rec.get("status", "pending"), "credited": False}
     # Atomic single-credit claim (protects against webhook + poll racing).
@@ -361,9 +432,10 @@ async def _try_credit_topup(rec: dict) -> dict:
     )
     if not claimed:
         return {"status": "paid", "credited": True}
-    gw_label = "KlikQRIS" if rec.get("gateway") == "klikqris" else "Mayar"
+    gw_label = {"klikqris": "KlikQRIS", "kasera": "Kasera"}.get(rec.get("gateway"), "Mayar")
+    sandbox = " · SANDBOX TEST" if rec.get("livemode") is False else ""
     await _apply(rec["workspace_id"], int(rec["credits"]), "topup",
-                 f"Wallet top-up via {gw_label} ({int(rec['credits']):,} credits)", ref=rec["id"])
+                 f"Wallet top-up via {gw_label} ({int(rec['credits']):,} credits){sandbox}", ref=rec["id"])
     logger.info("wallet top-up credited ws=%s credits=%s order=%s",
                 rec["workspace_id"], rec["credits"], rec["id"])
     return {"status": "paid", "credited": True}
@@ -461,8 +533,9 @@ async def topup(payload: TopupInput, ws=Depends(get_billing_workspace),
             redirect_url=return_url, callback_url=callback_url,
             extra_data={"order_id": order_id, "workspace_id": ws["id"], "kind": "wallet_topup"},
         )
-    except (mayar.MayarError, klikqris.KlikqrisError) as e:
-        logger.error("topup create failed ws=%s: %s", ws["id"], e)
+    except (mayar.MayarError, klikqris.KlikqrisError, kasera.KaseraError) as e:
+        logger.error("topup create failed ws=%s: %s (%s)", ws["id"], e,
+                     kasera.friendly_error(e) if isinstance(e, kasera.KaseraError) else "")
         raise HTTPException(status_code=502, detail="Could not start payment. Please try again.")
 
     rec = {"id": order_id, "workspace_id": ws["id"], "kind": "wallet_topup",
@@ -475,9 +548,14 @@ async def topup(payload: TopupInput, ws=Depends(get_billing_workspace),
            "klik_signature": pay["signature"], "payment_url": pay["payment_url"],
            "qris_url": pay["qris_url"], "pay_amount": pay["pay_amount"],
            "expires_at": pay["expires_at"], "created_by": user["id"], "created_at": now_iso()}
+    if pay["gateway"] == "kasera":
+        rec.update({"kasera_id": pay["provider_ref"], "qr_string": pay.get("qr_string"),
+                    "livemode": pay.get("livemode"), "gateway_fee": pay.get("fee"),
+                    "gateway_net": pay.get("net")})
     await db.mayar_payments.insert_one({**rec})
     return {"order_id": order_id, "gateway": pay["gateway"], "payment_url": pay["payment_url"],
             "qris_image": pay["qris_image"], "qris_url": pay["qris_url"],
+            "qr_string": pay.get("qr_string"), "livemode": pay.get("livemode"),
             "pay_amount": pay["pay_amount"], "expires_at": pay["expires_at"],
             "amount": amount, "credits": credits}
 
@@ -492,7 +570,32 @@ async def topup_status(order_id: str, ws=Depends(get_billing_workspace)):
     return {"order_id": order_id, "gateway": rec.get("gateway", "mayar"),
             "status": result["status"], "credited": result["credited"],
             "balance": int(w.get("balance", 0)), "payment_url": rec.get("payment_url"),
-            "qris_url": rec.get("qris_url"), "pay_amount": rec.get("pay_amount")}
+            "qris_url": rec.get("qris_url"), "pay_amount": rec.get("pay_amount"),
+            "livemode": rec.get("livemode")}
+
+
+@router.post("/topup/{order_id}/simulate")
+async def topup_simulate(order_id: str, ws=Depends(get_billing_workspace)):
+    """SANDBOX ONLY (Kasera test key): mark a TEST top-up as paid at Kasera so the full flow
+    can be tried without real money. Refused for live payments or when a live key is set.
+    Crediting still goes through the normal verified path (GET status at Kasera)."""
+    rec = await db.mayar_payments.find_one({"id": order_id, "workspace_id": ws["id"]}, {"_id": 0})
+    if not rec:
+        raise HTTPException(status_code=404, detail="Not found")
+    if rec.get("gateway") != "kasera" or rec.get("livemode") is not False \
+            or await kasera.mode() != "test":
+        raise HTTPException(status_code=403,
+                            detail="Simulation is only available for Kasera sandbox (test) payments.")
+    if not rec.get("credited"):
+        try:
+            await kasera.simulate_payment(rec.get("payment_url"), "succeeded")
+        except kasera.KaseraError as e:
+            raise HTTPException(status_code=502, detail=f"Simulation failed: {kasera.friendly_error(e)}")
+        await asyncio.sleep(1.2)
+    result = await _try_credit_topup(rec)
+    w = await _get_wallet(ws["id"])
+    return {"order_id": order_id, "status": result["status"], "credited": result["credited"],
+            "balance": int(w.get("balance", 0))}
 
 
 @router.post("/purchase-plan")
@@ -667,6 +770,113 @@ async def klikqris_webhook(request: Request):
         return {"ok": True, "ignored": True}
 
     _schedule_bg(_process_klik_event(order_id, payload), "klikqris")
+    return {"ok": True, "queued": True}
+
+
+# ------------------------------ Kasera Pay ------------------------------- #
+async def _record_kasera_event(eid, etype: str, data: dict, signed: bool):
+    """Audit trail of received Kasera events (deduped by event id; counts redeliveries)."""
+    if not eid:
+        return
+    try:
+        await db.kasera_events.update_one(
+            {"id": eid},
+            {"$setOnInsert": {"type": etype, "payment_request_id": data.get("payment_request_id"),
+                              "external_id": data.get("external_id"), "amount": data.get("amount"),
+                              "status": data.get("status"), "signed": signed,
+                              "received_at": now_iso()},
+             "$inc": {"deliveries": 1}, "$set": {"last_received_at": now_iso()}},
+            upsert=True)
+    except Exception as e:  # noqa: BLE001 — audit must never block settlement
+        logger.warning("kasera event log failed %s: %s", eid, e)
+
+
+async def _kasera_confirm_topup(rec: dict):
+    """Fresh (uncached) status read at Kasera with a short retry, then credit if succeeded."""
+    if await kasera.verify_paid(rec.get("kasera_id"), fresh=True, retries=2):
+        await _try_credit_topup(rec, verified=True)
+
+
+async def _process_kasera_event(etype: str, data: dict, trusted: bool) -> bool:
+    """Route a Kasera event to the matching top-up or partner charge.
+    `trusted` = the delivery carried a valid Kasera-Signature-V1; a paid event is then
+    settled directly when its amount matches, otherwise the status is re-read from Kasera."""
+    txn_id = data.get("payment_request_id")
+    ext = data.get("external_id")
+    status = str(data.get("status") or "").lower()
+    rec = None
+    if txn_id:
+        rec = await db.mayar_payments.find_one({"kasera_id": txn_id}, {"_id": 0})
+    if not rec and ext:
+        rec = await db.mayar_payments.find_one({"id": ext, "gateway": "kasera"}, {"_id": 0})
+    if rec:
+        if etype == "payment.paid":
+            expected = int(rec.get("pay_amount") or rec.get("amount") or 0)
+            amount_ok = int(data.get("amount") or -1) == expected
+            if trusted and not amount_ok:
+                logger.warning("Kasera paid amount mismatch order=%s got=%s expected=%s",
+                               rec["id"], data.get("amount"), expected)
+            if trusted and amount_ok and status in ("", "succeeded"):
+                await _try_credit_topup(rec, verified=True)
+            else:
+                # Not provable from the event alone -> re-read status at Kasera, off the request path.
+                _schedule_bg(_kasera_confirm_topup(rec), "kasera-verify")
+        elif etype in ("payment.expired", "payment.failed", "payment.canceled"):
+            # Informational only: a later payment.paid still credits (money wins).
+            await db.mayar_payments.update_one(
+                {"id": rec["id"], "credited": {"$ne": True}, "status": "pending"},
+                {"$set": {"status": etype.split(".", 1)[1], "gateway_status_at": now_iso()}})
+        return True
+    from .partner_pay import handle_kasera_event
+    if await handle_kasera_event(etype, data, trusted):
+        return True
+    logger.warning("Kasera webhook: no matching top-up/charge record (payreq=%s ext=%s)", txn_id, ext)
+    return False
+
+
+@router.post("/kasera/webhook")
+async def kasera_webhook(request: Request):
+    """Public callback from Kasera Pay (payment.paid / payment.expired / payment.failed).
+
+    With a signing secret configured, the Kasera-Signature-V1 header is REQUIRED and checked
+    over the raw body (5-min replay window); a valid paid event is settled right away (DB only,
+    fast) so a failure returns 5xx and Kasera retries. Without a secret, the event is never
+    trusted: it is re-verified against GET /v1/transactions in the background."""
+    raw = await request.body()
+    secret = await kasera.webhook_secret()
+    signed = False
+    if secret:
+        if not kasera.verify_signature(raw, request.headers.get("kasera-signature-v1"), secret):
+            logger.warning("Kasera webhook rejected: invalid or expired signature (event=%s)",
+                           request.headers.get("kasera-event-id"))
+            raise HTTPException(status_code=400, detail="Invalid signature")
+        signed = True
+    try:
+        payload = json.loads(raw or b"{}")
+    except json.JSONDecodeError:
+        raise HTTPException(status_code=400, detail="Invalid JSON")
+    if not isinstance(payload, dict):
+        raise HTTPException(status_code=400, detail="Invalid payload")
+
+    etype = str(payload.get("type") or "")
+    eid = payload.get("id") or request.headers.get("kasera-event-id")
+    data = payload.get("data") if isinstance(payload.get("data"), dict) else {}
+    logger.info("Kasera webhook event=%s type=%s payreq=%s signed=%s",
+                eid, etype, data.get("payment_request_id"), signed)
+    if not etype.startswith("payment."):
+        return {"ok": True, "ignored": etype or "unknown"}  # e.g. test.ping from the dashboard
+
+    km = await kasera.mode()
+    lm = payload.get("livemode")
+    if isinstance(lm, bool) and km in ("live", "test") and lm != (km == "live"):
+        logger.warning("Kasera webhook ignored: livemode=%s but configured key is %s", lm, km)
+        return {"ok": True, "ignored": "mode_mismatch"}
+
+    await _record_kasera_event(eid, etype, data, signed)
+    if signed:
+        await _process_kasera_event(etype, data, trusted=True)
+        return {"ok": True}
+    _schedule_bg(_process_kasera_event(etype, data, trusted=False), "kasera")
     return {"ok": True, "queued": True}
 
 

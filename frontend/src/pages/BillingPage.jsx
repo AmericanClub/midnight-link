@@ -78,7 +78,8 @@ function TopupDialog({ open, onOpenChange, presetAmount, onCredited, rupiahPerCr
     })).data,
     onSuccess: (data) => {
       setPending(data);
-      if (data.gateway !== "klikqris" && data.payment_url) {
+      const inApp = data.qris_image || data.qris_url;
+      if (!inApp && data.payment_url) {
         window.open(data.payment_url, "_blank", "noopener");
       }
       let ticks = 0;
@@ -142,12 +143,17 @@ function TopupDialog({ open, onOpenChange, presetAmount, onCredited, rupiahPerCr
             </Button>
             <p className="text-center text-xs text-muted-foreground">Minimum top-up {rp(minTopup)}.</p>
           </div>
-        ) : pending.gateway === "klikqris" ? (
+        ) : (pending.qris_image || pending.qris_url) ? (
           <div className="space-y-4 text-center" data-testid="topup-waiting">
+            {pending.livemode === false && (
+              <div className="mx-auto w-fit rounded-[4px] bg-amber-500/15 px-2 py-0.5 text-[11px] font-bold uppercase tracking-wide text-amber-600" data-testid="topup-sandbox-badge">
+                Sandbox test — no real money
+              </div>
+            )}
             <div className="mx-auto w-fit rounded-[6px] border-2 border-[hsl(var(--nb-border))] bg-white p-3">
               <img
                 src={pending.qris_image || pending.qris_url}
-                alt="KlikQRIS QR code" className="h-52 w-52 object-contain"
+                alt={`${pending.gateway === "kasera" ? "Kasera" : "KlikQRIS"} QRIS code`} className="h-52 w-52 object-contain"
                 data-testid="topup-qris-image"
               />
             </div>
@@ -155,13 +161,40 @@ function TopupDialog({ open, onOpenChange, presetAmount, onCredited, rupiahPerCr
               <p className="font-medium">
                 Scan to pay <span className="font-mono font-bold text-primary" data-testid="topup-pay-amount">{rp(pending.pay_amount)}</span>
               </p>
+              {pending.gateway === "kasera" && Number(pending.pay_amount) > Number(pending.amount) && (
+                <p className="mt-0.5 text-xs text-muted-foreground" data-testid="topup-fee-note">
+                  Includes {rp(Number(pending.pay_amount) - Number(pending.amount))} payment fee
+                </p>
+              )}
               <p className="mt-1 text-sm text-muted-foreground">
-                Open any QRIS app (GoPay, OVO, DANA, ShopeePay, m-banking), scan the code, and pay the exact amount. Credits are added automatically once confirmed.
+                Open any QRIS app (GoPay, OVO, DANA, ShopeePay, m-banking), scan the code, and pay the exact amount. Credits are added instantly once the payment is confirmed.
               </p>
+              {pending.expires_at && (
+                <p className="mt-1 text-xs text-muted-foreground" data-testid="topup-expires">
+                  QR valid until {new Date(pending.expires_at).toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" })}
+                </p>
+              )}
             </div>
             <div className="flex items-center justify-center gap-2 text-xs text-muted-foreground">
               <Loader2 className="h-3.5 w-3.5 animate-spin" /> Waiting for payment…
             </div>
+            {pending.gateway === "kasera" && pending.livemode === false && (
+              <Button
+                variant="outline" className="w-full gap-2 border-amber-500/60 text-amber-600" disabled={checking}
+                onClick={async () => {
+                  setChecking(true);
+                  try {
+                    const { data } = await api.post(`/wallet/topup/${pending.order_id}/simulate`);
+                    if (!data.credited) await checkStatus(pending.order_id, false);
+                    else await checkStatus(pending.order_id, true);
+                  } catch (e) { toast.error(formatApiError(e.response?.data?.detail) || e.message); }
+                  setChecking(false);
+                }}
+                data-testid="topup-simulate-btn"
+              >
+                {checking ? <Loader2 className="h-4 w-4 animate-spin" /> : <Zap className="h-4 w-4" />} Simulate payment (Sandbox)
+              </Button>
+            )}
             <Button
               className="w-full gap-2" disabled={checking}
               onClick={async () => { setChecking(true); await checkStatus(pending.order_id, false); setChecking(false); }}

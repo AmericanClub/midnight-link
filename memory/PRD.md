@@ -1,6 +1,18 @@
 # Midnight Link — Product Requirements & Progress
 _(formerly "MidGate" — rebranded 2026-08)_
 
+## Implemented — Third payment gateway: Kasera Pay (customer top-up + partner charges) (2026-06)
+- **Goal (user):** add Kasera Pay (pay.kasera.id) as a 3rd gateway (with Mayar & KlikQRIS; still ONE active at a time), serving both wallet top-ups and Midnight Club partner charges. QRIS shown IN-APP (like KlikQRIS).
+- **Backend:** `app/kasera.py` (client: Bearer kp_live_/kp_test_ key, Idempotency-Key, create/status, HMAC `Kasera-Signature-V1` t=,v1= webhook verify, sandbox simulate), `app/qr_image.py` (pure-python QR → base64 PNG). `wallet.py` + `partner_pay.py` dispatch to Kasera; webhook `POST /api/wallet/kasera/webhook` (signature-verified, then status re-verified before crediting). Admin `payment-config` GET/PUT/test supports `kasera_*` (api key + webhook secret masked; expiry minutes; fee mode merchant|payer; base URL).
+- **Frontend:** Admin → Payments → **Kasera tab** (mode badge Sandbox/Live, sandbox warning, key/secret/expiry/base URL, fee-paid-by selector, webhook URL box, Save/Test). Billing top-up shows Kasera QR in-app + SANDBOX badge + "Simulate payment (sandbox)" (test keys only). Partner charges list has "Simulate paid" for sandbox Kasera charges.
+- **Verified (preview, against local Kasera MOCK):** admin save/test toast ("Kasera connected — Sandbox"), top-up 25.000 → QR rendered (392px, mobile 390 OK) → simulate → wallet +25 credits. Test user/partner/mock config cleaned up; preview active gateway reset to Mayar, Kasera config blank. ⚠️ **Kasera LIVE API NOT verified** — user tests with real key.
+- **User setup:** Admin → Payments → Kasera: paste API key + webhook signing secret, leave Base URL blank, Save → Test → "Set as active". Register webhook `https://midnightlink.link/api/wallet/kasera/webhook` in Kasera dashboard (events payment.paid/expired/failed). Requires redeploy (backend+frontend).
+
+## Backlog (user-approved order)
+- P1: Confirm before deleting a partner (don't wipe charge history) — user selected this as first payment fix.
+- P1: Stack new pass on active pass; fix revenue calculation.
+- P1: Admin auth hardening (stop .env password reset on restart, real reset email, rate limit, 2FA).
+
 ## Implemented — Auto-reconciler (self-healing stuck top-ups/charges) (2026-06)
 - **Problem (user):** Midnight Club top-ups often stuck PENDING in Midnight Link even though KlikQRIS shows SUCCESS; operator had to press Re-check manually to credit. Production `journalctl | grep "KlikQRIS webhook"` returned **nothing** → the KlikQRIS callback never reaches the backend (blocked upstream — Cloudflare/WAF — since outbound works: Re-check pulls status fine). Also affected by a race where the webhook fires before KlikQRIS's own status API syncs.
 - **Fix — background reconciler:** `partner_pay.reconcile_pending()` re-verifies recent PENDING partner charges (created ≤6h) + briefly-EXPIRED ones (≤60m, catches late payment) against the gateway status API and settles the paid ones via the same guarded `_settle` path; `wallet.reconcile_topups()` does the same for uncredited wallet top-ups via the idempotent `_try_credit_topup`. `run_reconciler()` loops every 60s, started in `server.py` `on_startup`. Bounded (limit 40/cycle). So blocked/missed/raced webhooks auto-recover within ~1 min — no manual Re-check needed.

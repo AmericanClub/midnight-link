@@ -27,6 +27,9 @@ class Settings:
     KLIKQRIS_BASE_URL = os.environ.get("KLIKQRIS_BASE_URL", "https://klikqris.com/api")
     KLIKQRIS_API_KEY = os.environ.get("KLIKQRIS_API_KEY", "")
     KLIKQRIS_MERCHANT_ID = os.environ.get("KLIKQRIS_MERCHANT_ID", "")
+    KASERA_BASE_URL = os.environ.get("KASERA_BASE_URL", "https://pay.kasera.id")
+    KASERA_API_KEY = os.environ.get("KASERA_API_KEY", "")
+    KASERA_WEBHOOK_SECRET = os.environ.get("KASERA_WEBHOOK_SECRET", "")
     ALLOW_MOCK_PAYMENTS = os.environ.get("ALLOW_MOCK_PAYMENTS", "false").lower() == "true"
 
 

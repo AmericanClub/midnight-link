@@ -28,7 +28,7 @@ from ..db import db
 from ..utils import now_iso
 from ..config import settings
 from ..url_safety import validate_public_url, UnsafeURLError
-from .. import mayar, klikqris
+from .. import mayar, klikqris, kasera
 from .admin import require_admin
 from .webhooks import sign, _post
 from .wallet import verify_paid_record, create_gateway_payment
@@ -125,11 +125,14 @@ def _charge_public(c: dict, *, include_qr: bool = False) -> dict:
         "description": c.get("description"),
         "created_at": c.get("created_at"), "paid_at": c.get("paid_at"),
         "expires_at": c.get("expires_at"),
+        "livemode": c.get("livemode"),  # Kasera: false = sandbox/test payment (no real money)
     }
     if include_qr:
         # Raw QR (base64 image + hosted url) so the partner app can render the QRIS
         # natively in-app (like Midnight Link's own billing). null for Mayar (hosted checkout only).
         out["qris_image"] = c.get("qris_image")
+        # Raw EMV QRIS payload (Kasera) for partners that prefer to render the QR themselves.
+        out["qr_string"] = c.get("qr_string")
     return out
 
 
@@ -199,11 +202,12 @@ async def _deliver_charge_paid(partner: dict, charge: dict):
                   "last_delivery_at": now_iso()}})
 
 
-async def _settle(charge: dict, *, deliver: bool = True) -> dict:
-    """Verify with Mayar; on first confirmation flip to paid and notify the partner."""
+async def _settle(charge: dict, *, deliver: bool = True, verified: bool = False) -> dict:
+    """Verify with the gateway; on first confirmation flip to paid and notify the partner.
+    `verified=True` only for a signature-verified gateway event (Kasera) whose amount matched."""
     if charge.get("status") == "paid":
         return charge
-    paid = await verify_paid_record(charge)
+    paid = True if verified else await verify_paid_record(charge)
     if not paid:
         return charge
     claimed = await db.partner_charges.find_one_and_update(
@@ -254,6 +258,46 @@ async def handle_klik_event(order_id: str, payload: dict) -> bool:
     return True
 
 
+async def _kasera_confirm_charge(charge: dict):
+    """Fresh (uncached) status read at Kasera with a short retry, then settle if succeeded."""
+    try:
+        if await kasera.verify_paid(charge.get("kasera_id"), fresh=True, retries=2):
+            await _settle(charge, verified=True)
+    except Exception as e:  # noqa: BLE001
+        logger.warning("background settle %s failed: %s", charge.get("id"), e)
+
+
+async def handle_kasera_event(etype: str, data: dict, trusted: bool) -> bool:
+    """Called by the Kasera webhook when no wallet top-up matches."""
+    txn_id = data.get("payment_request_id")
+    ext = data.get("external_id")
+    charge = None
+    if txn_id:
+        charge = await db.partner_charges.find_one({"kasera_id": txn_id}, {"_id": 0})
+    if not charge and ext:
+        charge = await db.partner_charges.find_one({"id": ext, "gateway": "kasera"}, {"_id": 0})
+    if not charge:
+        return False
+    if etype == "payment.paid":
+        expected = int(charge.get("pay_amount") or charge.get("amount") or 0)
+        amount_ok = int(data.get("amount") or -1) == expected
+        if trusted and not amount_ok:
+            logger.warning("Kasera partner paid amount mismatch charge=%s got=%s expected=%s",
+                           charge["id"], data.get("amount"), expected)
+        status = str(data.get("status") or "").lower()
+        if trusted and amount_ok and status in ("", "succeeded"):
+            await _settle(charge, verified=True)
+        else:
+            asyncio.create_task(_kasera_confirm_charge(charge))
+    elif etype in ("payment.expired", "payment.failed", "payment.canceled"):
+        # Expire right away (a later payment.paid still settles expired -> paid: money wins).
+        await db.partner_charges.update_one(
+            {"id": charge["id"], "status": "pending"},
+            {"$set": {"status": "expired", "expired_at": now_iso(),
+                      "gateway_status": etype.split(".", 1)[1]}})
+    return True
+
+
 # --------------------------- partner-facing API -------------------------- #
 class Customer(BaseModel):
     name: str | None = None
@@ -289,7 +333,7 @@ async def create_charge(payload: ChargeCreate, partner=Depends(get_partner)):
     if existing:
         if existing.get("status") == "pending":
             existing = await _settle(existing)
-        return _charge_public(existing)
+        return _charge_public(existing, include_qr=existing.get("status") == "pending")
 
     charge_id = str(uuid.uuid4())
     cust = payload.customer
@@ -312,6 +356,10 @@ async def create_charge(payload: ChargeCreate, partner=Depends(get_partner)):
                         "reference_id": payload.reference_id,
                         "source": partner.get("source_tag") or partner["name"]},
         )
+    except kasera.KaseraError as e:
+        logger.error("charge create failed partner=%s (kasera): %s", partner["id"], e)
+        raise HTTPException(status_code=502,
+                            detail=f"Could not create payment: {kasera.friendly_error(e)}")
     except (mayar.MayarError, klikqris.KlikqrisError) as e:
         logger.error("charge create failed partner=%s: %s", partner["id"], e)
         raise HTTPException(status_code=502, detail="Could not create payment. Please try again.")
@@ -331,7 +379,19 @@ async def create_charge(payload: ChargeCreate, partner=Depends(get_partner)):
         "pay_amount": pay["pay_amount"], "expires_at": expires_at,
         "notified": False, "created_at": now_iso(), "paid_at": None,
     }
-    await db.partner_charges.insert_one({**charge})
+    if pay["gateway"] == "kasera":
+        charge.update({"kasera_id": pay["provider_ref"], "qr_string": pay.get("qr_string"),
+                       "livemode": pay.get("livemode"), "gateway_fee": pay.get("fee"),
+                       "gateway_net": pay.get("net")})
+    try:
+        await db.partner_charges.insert_one({**charge})
+    except DuplicateKeyError:
+        # Concurrent create with the same reference_id: return the one that won.
+        existing = await db.partner_charges.find_one(
+            {"partner_id": partner["id"], "reference_id": payload.reference_id}, {"_id": 0})
+        if existing:
+            return _charge_public(existing, include_qr=True)
+        raise
     return _charge_public(charge, include_qr=True)
 
 
@@ -446,12 +506,14 @@ async def partner_charges(partner_id: str, admin=Depends(require_admin),
         rx = {"$regex": re.escape(q.strip()[:120]), "$options": "i"}
         flt["$or"] = [{"reference_id": rx}, {"customer.name": rx},
                       {"customer.email": rx}, {"customer.mobile": rx},
-                      {"id": rx}, {"klik_order_id": rx}, {"mayar_invoice_id": rx}]
+                      {"id": rx}, {"klik_order_id": rx}, {"mayar_invoice_id": rx},
+                      {"kasera_id": rx}]
     res = await _paginate(db.partner_charges, flt, page, limit)
     res["items"] = [_charge_public(c) | {
         "notified": c.get("notified", False),
         "customer": c.get("customer") or {},
-        "gateway_order_id": c.get("klik_order_id") or c.get("mayar_invoice_id") or c.get("id"),
+        "gateway_order_id": (c.get("kasera_id") or c.get("klik_order_id")
+                             or c.get("mayar_invoice_id") or c.get("id")),
         "manual_settle": c.get("manual_settle"),
     } for c in res["items"]]
     return res
@@ -565,6 +627,31 @@ async def mark_charge_paid(partner_id: str, charge_id: str, payload: MarkPaid,
                    charge_id, partner_id, admin["email"], reason)
     asyncio.create_task(_deliver_charge_paid(partner, fresh))
     return _charge_public(fresh)
+
+
+@admin_router.post("/{partner_id}/charges/{charge_id}/simulate")
+async def simulate_charge(partner_id: str, charge_id: str, admin=Depends(require_admin)):
+    """SANDBOX ONLY (Kasera test key): mark a TEST charge as paid at Kasera, then settle via the
+    normal verified path so the partner receives a real signed charge.paid webhook."""
+    charge = await db.partner_charges.find_one(
+        {"id": charge_id, "partner_id": partner_id}, {"_id": 0})
+    if not charge:
+        raise HTTPException(status_code=404, detail="Charge not found")
+    if charge.get("gateway") != "kasera" or charge.get("livemode") is not False \
+            or await kasera.mode() != "test":
+        raise HTTPException(status_code=403,
+                            detail="Simulation is only available for Kasera sandbox (test) charges.")
+    before = charge.get("status")
+    if before != "paid":
+        try:
+            await kasera.simulate_payment(charge.get("checkout_url"), "succeeded")
+        except kasera.KaseraError as e:
+            raise HTTPException(status_code=502, detail=f"Simulation failed: {kasera.friendly_error(e)}")
+        await asyncio.sleep(1.2)
+        charge = await _settle(charge)
+    return {"status": charge.get("status"),
+            "became_paid": charge.get("status") == "paid" and before != "paid",
+            "charge": _charge_public(charge)}
 
 
 @admin_router.delete("/{partner_id}")

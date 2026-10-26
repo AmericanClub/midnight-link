@@ -31,5 +31,9 @@ async def ensure_indexes():
     await db.partner_charges.create_index("klik_order_id", sparse=True)
     await db.partner_charges.create_index([("status", 1), ("created_at", -1)])
     await db.partner_charges.create_index([("status", 1), ("notified", 1), ("paid_at", 1)])
+    # Kasera Pay: webhook + reconciler match by the payreq id; signed events are kept for audit.
+    await db.mayar_payments.create_index("kasera_id", sparse=True)
+    await db.partner_charges.create_index("kasera_id", sparse=True)
+    await db.kasera_events.create_index("id", unique=True)
     await db.partner_webhook_deliveries.create_index([("partner_id", 1), ("created_at", -1)])
     await db.partner_webhook_deliveries.create_index("charge_id")

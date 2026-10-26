@@ -7,7 +7,7 @@ import {
   RefreshCw, LogOut, Search, Trash2, Plus, TrendingUp, MousePointerClick, LinkIcon,
   QrCode, Ticket, ShieldCheck, Plug, ExternalLink, CheckCircle2, XCircle, Loader2,
   Wallet, ArrowDownLeft, ArrowUpRight, Clock, Store, Copy, RotateCw, Send, Power, ArrowLeft,
-  CreditCard, Save, Coins,
+  CreditCard, Save, Coins, FlaskConical, Zap,
 } from "lucide-react";
 import { AreaChart, Area, ResponsiveContainer, Tooltip, XAxis, CartesianGrid } from "recharts";
 import Logo from "@/components/Logo";
@@ -1094,6 +1094,16 @@ function PaginatedCharges({ partnerId, refreshParent }) {
     } catch (e) { toast.error(formatApiError(e.response?.data?.detail) || e.message); }
     finally { setRecheckingId(null); }
   };
+  const simulate = async (cid) => {
+    setRecheckingId(cid);
+    try {
+      const r = await api.post(`/admin/partners/${partnerId}/charges/${cid}/simulate`);
+      if (r.data.status === "paid") toast.success("Sandbox payment simulated — charge paid & webhook sent");
+      else toast.info(`Simulated — still "${r.data.status}". It will update in a few seconds.`);
+      refetch(); refreshParent?.();
+    } catch (e) { toast.error(formatApiError(e.response?.data?.detail) || e.message); }
+    finally { setRecheckingId(null); }
+  };
   const items = data?.items || [];
   return (
     <div className="space-y-4">
@@ -1116,9 +1126,13 @@ function PaginatedCharges({ partnerId, refreshParent }) {
               <TableRow key={c.id} data-testid={`partner-charge-${c.id}`}>
                 <TableCell className="font-mono text-xs">
                   <div>{c.reference_id}</div>
-                  <button type="button" onClick={() => copyText(c.gateway_order_id || c.id)} className="mt-1 inline-flex max-w-[220px] items-center gap-1 truncate text-[10px] text-muted-foreground transition-colors hover:text-foreground" data-testid={`charge-orderid-${c.id}`} title={`Gateway Order ID — match this in the KlikQRIS/Mayar dashboard\n${c.gateway_order_id || c.id}`}>
+                  <button type="button" onClick={() => copyText(c.gateway_order_id || c.id)} className="mt-1 inline-flex max-w-[220px] items-center gap-1 truncate text-[10px] text-muted-foreground transition-colors hover:text-foreground" data-testid={`charge-orderid-${c.id}`} title={`Gateway Order ID — match this in the Kasera/KlikQRIS/Mayar dashboard\n${c.gateway_order_id || c.id}`}>
                     <Copy className="h-3 w-3 shrink-0" /> <span className="truncate">{c.gateway_order_id || c.id}</span>
                   </button>
+                  <div className="mt-0.5 flex items-center gap-1 text-[10px] uppercase tracking-wide text-muted-foreground">
+                    <span data-testid={`charge-gateway-${c.id}`}>{c.gateway}</span>
+                    {c.livemode === false && <span className="rounded-[3px] bg-amber-500/15 px-1 font-semibold text-amber-600" data-testid={`charge-sandbox-${c.id}`}>sandbox</span>}
+                  </div>
                 </TableCell>
                 <TableCell className="text-xs" data-testid={`partner-charge-customer-${c.id}`}>
                   <div className="font-medium text-foreground">{c.customer?.name || "—"}</div>
@@ -1137,6 +1151,9 @@ function PaginatedCharges({ partnerId, refreshParent }) {
                       <Button size="sm" variant="ghost" className="gap-1" onClick={() => resend(c.id)} data-testid={`partner-resend-${c.id}`}><Send className="h-3.5 w-3.5" /> Resend</Button>
                     ) : (
                       <>
+                        {c.gateway === "kasera" && c.livemode === false && (
+                          <Button size="sm" variant="ghost" className="gap-1 text-amber-600" disabled={recheckingId === c.id} onClick={() => simulate(c.id)} data-testid={`partner-simulate-${c.id}`} title="Kasera sandbox only — no real money"><FlaskConical className="h-3.5 w-3.5" /> Simulate paid</Button>
+                        )}
                         <Button size="sm" variant="ghost" className="gap-1" disabled={recheckingId === c.id} onClick={() => recheck(c.id)} data-testid={`partner-recheck-${c.id}`}>{recheckingId === c.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />} Re-check</Button>
                         <Button size="sm" variant="outline" className="gap-1" onClick={() => setMarkCharge(c)} data-testid={`partner-markpaid-${c.id}`}><CheckCircle2 className="h-3.5 w-3.5" /> Mark paid</Button>
                       </>
@@ -1378,6 +1395,8 @@ function PaymentsSection() {
 
   const [gw, setGw] = useState({ mayar_api_key: "", mayar_webhook_token: "", mayar_base_url: "" });
   const [kq, setKq] = useState({ klikqris_api_key: "", klikqris_merchant_id: "", klikqris_base_url: "" });
+  const [ks, setKs] = useState({ kasera_api_key: "", kasera_webhook_secret: "", kasera_base_url: "",
+    kasera_expiry_minutes: 60, kasera_fee_mode: "merchant" });
   const [activeGw, setActiveGw] = useState("mayar");
   const [cr, setCr] = useState({ rupiah_per_credit: 1000, bonus_percent: 0, min_topup: 10000, requests_per_credit: 333 });
   const [pay, setPay] = useState({ topup_enabled: true, topup_disabled_message: "" });
@@ -1387,6 +1406,9 @@ function PaymentsSection() {
     setGw((g) => ({ ...g, mayar_base_url: data.gateway?.base_url || "" }));
     setKq((k) => ({ ...k, klikqris_base_url: data.klikqris?.base_url || "",
       klikqris_merchant_id: data.klikqris?.merchant_id || "" }));
+    setKs((k) => ({ ...k, kasera_base_url: data.kasera?.base_url || "",
+      kasera_expiry_minutes: data.kasera?.expiry_minutes ?? 60,
+      kasera_fee_mode: data.kasera?.fee_mode || "merchant" }));
     setActiveGw(data.active_gateway || "mayar");
     setCr({
       rupiah_per_credit: data.credits?.rupiah_per_credit ?? 1000,
@@ -1423,6 +1445,9 @@ function PaymentsSection() {
   const connected = gwStatus.api_key_set;
   const kqStatus = data?.klikqris || {};
   const kqConnected = kqStatus.api_key_set && kqStatus.merchant_id_set;
+  const ksStatus = data?.kasera || {};
+  const ksConnected = !!ksStatus.api_key_set;
+  const ksSandbox = ksStatus.mode === "test";
   const rpc = Math.max(1, Number(cr.rupiah_per_credit) || 1);
   const bonus = Math.max(0, Number(cr.bonus_percent) || 0);
   const base100 = Math.floor(100000 / rpc);
@@ -1441,6 +1466,16 @@ function PaymentsSection() {
     if (kq.klikqris_api_key.trim()) patch.klikqris_api_key = kq.klikqris_api_key.trim();
     if (Object.keys(patch).length === 0) { toast.info("No KlikQRIS changes"); return; }
     save.mutate(patch, { onSuccess: () => setKq((k) => ({ ...k, klikqris_api_key: "" })) });
+  };
+  const saveKasera = () => {
+    const patch = {
+      kasera_base_url: (ks.kasera_base_url || "").trim(),
+      kasera_expiry_minutes: Math.max(5, Math.min(1440, parseInt(ks.kasera_expiry_minutes, 10) || 60)),
+      kasera_fee_mode: ks.kasera_fee_mode === "payer" ? "payer" : "merchant",
+    };
+    if (ks.kasera_api_key.trim()) patch.kasera_api_key = ks.kasera_api_key.trim();
+    if (ks.kasera_webhook_secret.trim()) patch.kasera_webhook_secret = ks.kasera_webhook_secret.trim();
+    save.mutate(patch, { onSuccess: () => setKs((k) => ({ ...k, kasera_api_key: "", kasera_webhook_secret: "" })) });
   };
   const setActive = (name) => { setActiveGw(name); save.mutate({ active_gateway: name }); };
   const saveCredits = () => save.mutate({
@@ -1461,12 +1496,12 @@ function PaymentsSection() {
         <div className="mb-5">
           <h3 className="font-display text-lg font-bold uppercase tracking-wide">Payment Gateways</h3>
           <p className="text-sm text-muted-foreground">
-            One IDR gateway is <span className="font-semibold text-foreground">active</span> at a time — it processes all customer top-ups & partner charges. Configure both and switch anytime.
+            One IDR gateway is <span className="font-semibold text-foreground">active</span> at a time — it processes all customer top-ups & partner charges. Configure them and switch anytime.
           </p>
         </div>
 
         <Tabs key={activeGw} defaultValue={activeGw} className="w-full">
-          <TabsList className="grid w-full grid-cols-2" data-testid="gateway-tabs">
+          <TabsList className="grid w-full grid-cols-3" data-testid="gateway-tabs">
             <TabsTrigger value="mayar" data-testid="gateway-tab-mayar" className="gap-2">
               <Store className="h-4 w-4" /> Mayar
               <span className={`h-2 w-2 rounded-full ${connected ? "bg-emerald-500" : "bg-muted-foreground/40"}`} />
@@ -1476,6 +1511,11 @@ function PaymentsSection() {
               <QrCode className="h-4 w-4" /> KlikQRIS
               <span className={`h-2 w-2 rounded-full ${kqConnected ? "bg-emerald-500" : "bg-muted-foreground/40"}`} />
               {activeGw === "klikqris" && <Badge className="ml-1 text-[10px]">Active</Badge>}
+            </TabsTrigger>
+            <TabsTrigger value="kasera" data-testid="gateway-tab-kasera" className="gap-2">
+              <Zap className="h-4 w-4" /> Kasera
+              <span className={`h-2 w-2 rounded-full ${ksConnected ? "bg-emerald-500" : "bg-muted-foreground/40"}`} />
+              {activeGw === "kasera" && <Badge className="ml-1 text-[10px]">Active</Badge>}
             </TabsTrigger>
           </TabsList>
 
@@ -1554,6 +1594,84 @@ function PaymentsSection() {
                 <Save className="h-4 w-4" /> Save KlikQRIS
               </Button>
               <Button variant="outline" onClick={() => test.mutate("klikqris")} disabled={test.isPending} className="gap-2" data-testid="kq-test-btn">
+                {test.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />} Test connection
+              </Button>
+            </div>
+          </TabsContent>
+
+          {/* Kasera Pay */}
+          <TabsContent value="kasera" className="mt-5 space-y-4" data-testid="gateway-panel-kasera">
+            <GatewayActiveBar active={activeGw === "kasera"} configured={ksConnected}
+              desc="QRIS shown in-app (Direct API) · signed payment.paid webhook"
+              onActivate={() => setActive("kasera")} busy={save.isPending} testid="kasera" />
+
+            {ksConnected && ksSandbox && (
+              <div className="flex items-start gap-2 rounded-[4px] border-2 border-amber-500/60 bg-amber-500/10 p-3 text-xs text-amber-700 dark:text-amber-400" data-testid="kasera-sandbox-warning">
+                <FlaskConical className="mt-0.5 h-4 w-4 shrink-0" />
+                <span><span className="font-bold uppercase">Sandbox key (kp_test_)</span> — payments are fake and can be settled with “Simulate paid”, but they still add real credits here. Use only for testing; switch to a <span className="font-mono">kp_live_</span> key before going live.</span>
+              </div>
+            )}
+
+            <div className="grid grid-cols-2 gap-3 rounded-[4px] border-2 border-[hsl(var(--nb-border))] bg-muted/40 p-3 text-sm sm:grid-cols-4">
+              <div><p className="text-xs uppercase text-muted-foreground">API Key</p><p className="font-mono font-semibold" data-testid="ks-apikey-current">{ksStatus.api_key_masked || "—"}</p></div>
+              <div><p className="text-xs uppercase text-muted-foreground">Mode</p>
+                <p className={`font-semibold uppercase ${ksSandbox ? "text-amber-600" : ksStatus.mode === "live" ? "text-emerald-600" : ""}`} data-testid="ks-mode">
+                  {ksStatus.mode === "test" ? "Sandbox" : ksStatus.mode === "live" ? "Live" : "—"}
+                </p></div>
+              <div><p className="text-xs uppercase text-muted-foreground">Signing secret</p><p className={`font-semibold ${ksStatus.webhook_secret_set ? "" : "text-destructive"}`} data-testid="ks-secret-status">{ksStatus.webhook_secret_set ? "Set" : "Not set"}</p></div>
+              <div><p className="text-xs uppercase text-muted-foreground">Source</p><p className="font-semibold uppercase">{ksStatus.source || "none"}</p></div>
+            </div>
+
+            <LabeledField label="New API Key" hint="Kasera dashboard → Developer → API key. kp_live_… for real payments, kp_test_… for Sandbox. Leave blank to keep the current key.">
+              <Input type="password" placeholder="kp_live_… or kp_test_…" autoComplete="off"
+                value={ks.kasera_api_key} onChange={(e) => setKs((k) => ({ ...k, kasera_api_key: e.target.value }))}
+                className="font-mono" data-testid="ks-apikey-input" />
+            </LabeledField>
+            <LabeledField label="Webhook signing secret" hint="Kasera dashboard → Developer → Webhook → add the endpoint below, then copy its signing secret here (same mode as the key). Leave blank to keep unchanged.">
+              <Input type="password" placeholder="Paste signing secret…" autoComplete="off"
+                value={ks.kasera_webhook_secret} onChange={(e) => setKs((k) => ({ ...k, kasera_webhook_secret: e.target.value }))}
+                className="font-mono" data-testid="ks-secret-input" />
+            </LabeledField>
+
+            <div className="grid gap-4 sm:grid-cols-2">
+              <LabeledField label="QR expiry (minutes)" hint="How long a QRIS stays payable. Kasera default 60, max 1440.">
+                <Input type="number" min={5} max={1440} step={5} value={ks.kasera_expiry_minutes}
+                  onChange={(e) => setKs((k) => ({ ...k, kasera_expiry_minutes: e.target.value }))}
+                  className="font-mono" data-testid="ks-expiry-input" />
+              </LabeledField>
+              <LabeledField label="Base URL" hint="Leave blank for https://pay.kasera.id">
+                <Input placeholder="https://pay.kasera.id"
+                  value={ks.kasera_base_url} onChange={(e) => setKs((k) => ({ ...k, kasera_base_url: e.target.value }))}
+                  className="font-mono" data-testid="ks-baseurl-input" />
+              </LabeledField>
+            </div>
+
+            <LabeledField label="Transaction fee paid by" hint="Kasera always deducts its fee from the amount. Choose who carries it — this is set here, not in the Kasera dashboard.">
+              <div className="grid gap-2 sm:grid-cols-2" data-testid="ks-fee-mode">
+                {[
+                  { v: "merchant", t: "Midnight Link", d: "Buyer pays the exact amount; the fee is deducted from what you receive." },
+                  { v: "payer", t: "Buyer", d: "The fee is added to the QR amount so you still receive the full amount." },
+                ].map((o) => (
+                  <button key={o.v} type="button" onClick={() => setKs((k) => ({ ...k, kasera_fee_mode: o.v }))}
+                    className={`rounded-[4px] border-2 p-3 text-left transition-colors ${ks.kasera_fee_mode === o.v ? "border-primary bg-primary/10" : "border-[hsl(var(--nb-border))] hover:border-primary/50"}`}
+                    data-testid={`ks-fee-${o.v}`}>
+                    <span className="block font-display text-sm font-bold uppercase tracking-wide">{o.t}</span>
+                    <span className="mt-0.5 block text-xs text-muted-foreground">{o.d}</span>
+                  </button>
+                ))}
+              </div>
+            </LabeledField>
+
+            <WebhookUrlBox label="Webhook endpoint URL for the Kasera dashboard (Developer → Tambah endpoint), exactly — no trailing slash:" path="/api/wallet/kasera/webhook" />
+            <p className="text-xs text-muted-foreground">
+              Tick the events <span className="font-mono">payment.paid</span>, <span className="font-mono">payment.expired</span> and <span className="font-mono">payment.failed</span>. Live and Sandbox have separate endpoints & secrets in Kasera.
+            </p>
+
+            <div className="flex flex-wrap gap-3">
+              <Button onClick={saveKasera} disabled={save.isPending} className="gap-2" data-testid="ks-save-btn">
+                <Save className="h-4 w-4" /> Save Kasera
+              </Button>
+              <Button variant="outline" onClick={() => test.mutate("kasera")} disabled={test.isPending} className="gap-2" data-testid="ks-test-btn">
                 {test.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />} Test connection
               </Button>
             </div>

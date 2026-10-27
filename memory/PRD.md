@@ -8,6 +8,10 @@ _(formerly "MidGate" — rebranded 2026-08)_
 - **Verified (preview, against local Kasera MOCK):** admin save/test toast ("Kasera connected — Sandbox"), top-up 25.000 → QR rendered (392px, mobile 390 OK) → simulate → wallet +25 credits. Test user/partner/mock config cleaned up; preview active gateway reset to Mayar, Kasera config blank. ⚠️ **Kasera LIVE API NOT verified** — user tests with real key.
 - **User setup:** Admin → Payments → Kasera: paste API key + webhook signing secret, leave Base URL blank, Save → Test → "Set as active". Register webhook `https://midnightlink.link/api/wallet/kasera/webhook` in Kasera dashboard (events payment.paid/expired/failed). Requires redeploy (backend+frontend).
 
+- **Real Sandbox verified (2026-06):** user's kp_test_ key + whsec saved in preview admin → Test "Kasera connected — Sandbox". Real Kasera: create QRIS (qr_string ok), simulate → verify_paid True, signed webhook received (signed=True). >Rp1.000.000 with placeholder customer also OK.
+- **Load test (no code change, real Kasera Sandbox, `/app/memory/scripts/kasera_load.py`):** mimics Midnight Club (burst creates + 4s polling, 5 abandoned QRs). Peak 10+5 open QRs: 15/15 created (p50 0.9s), 10/10 paid exactly once, 1 partner webhook each (success), paid seen avg 3.2s / max 6.8s, ~58 Kasera req/min (~20% of 300/min), one harmless per-transaction 429 (1 read/s/txn). 2× load 20+5: 25/25 created, 20/20 paid once, 0×429, ~85 req/min (~28%). User says real peak ≈10 (avg 5) → ample headroom. Optional hardening (poll from DB, global read budget, QR render off-loop) NOT applied — user chose test-only.
+- Preview state after tests: Kasera sandbox creds kept, active gateway = Mayar (user clicks "Set as active" to test).
+
 ## Backlog (user-approved order)
 - P1: Confirm before deleting a partner (don't wipe charge history) — user selected this as first payment fix.
 - P1: Stack new pass on active pass; fix revenue calculation.

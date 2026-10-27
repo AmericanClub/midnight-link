@@ -12,6 +12,8 @@ _(formerly "MidGate" — rebranded 2026-08)_
 - **Load test (no code change, real Kasera Sandbox, `/app/memory/scripts/kasera_load.py`):** mimics Midnight Club (burst creates + 4s polling, 5 abandoned QRs). Peak 10+5 open QRs: 15/15 created (p50 0.9s), 10/10 paid exactly once, 1 partner webhook each (success), paid seen avg 3.2s / max 6.8s, ~58 Kasera req/min (~20% of 300/min), one harmless per-transaction 429 (1 read/s/txn). 2× load 20+5: 25/25 created, 20/20 paid once, 0×429, ~85 req/min (~28%). User says real peak ≈10 (avg 5) → ample headroom. Optional hardening (poll from DB, global read budget, QR render off-loop) NOT applied — user chose test-only.
 - Preview state after tests: Kasera sandbox creds kept, active gateway = Mayar (user clicks "Set as active" to test).
 
+- **Deploy readiness (2026-06):** backend py_compile OK; no new deps (reportlab+pillow already used by billing.py in prod); no hardcoded keys/mock URLs; production frontend build OK (CI=false). Ready to push via Save to Github → GitHub Actions VPS deploy.
+
 ## Backlog (user-approved order)
 - P1: Confirm before deleting a partner (don't wipe charge history) — user selected this as first payment fix.
 - P1: Stack new pass on active pass; fix revenue calculation.

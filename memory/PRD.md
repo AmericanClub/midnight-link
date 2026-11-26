@@ -305,3 +305,9 @@ Backend 25/26 pytest (fixed the 1 brute-force issue; re-verified via curl). Fron
 1. Email verification + resend + login notification.
 2. Dynamic QR codes (types, customization, export).
 3. Traffic Protection MVP (risk score + rules + block/challenge).
+
+## 2026-11-26 — Partner data cleanup + Midnight Club diagnosis
+- Admin → Payment Partners → partner → Settings: "Clean up > 30 days" (preview + confirm). Deletes that partner's partner_charges (all statuses) + partner_webhook_deliveries with created_at older than 30 days (min 30, enforced server-side). Partner/API key kept. Audit log action `partner.data_cleanup`.
+  - API: GET /api/admin/partners/{id}/cleanup-preview?older_than_days=30 ; POST /api/admin/partners/{id}/cleanup {older_than_days, confirm:true}
+- Diagnosis (VPS logs): POST /api/pay/charges returns 200 in ~1s with qris_image; "Failed to create payment" is in Midnight Club's client code (likely only supports klikqris/mayar). Fix prompt for MC agent: memory/midnight_club_kasera_fix_prompt.md
+- Production = self-hosted VPS (157.230.51.87), deployed by GitHub Actions on push to main (.github/workflows/deploy.yml).

@@ -1,0 +1,18 @@
+{
+  "summary": "Tested the partner data cleanup feature (>30 days) end to end. Backend: 10 of 10 pytest tests passed. They cover preview counts, preview not deleting anything, 422/404/400 validation, rejection of unauthenticated and non-admin callers, deletion limited to one partner and to records older than 30 days, the stats returned after deletion, the audit_logs entry, the partner and API key surviving (/api/pay/ping still works), and a second run deleting nothing. All of this ran on two TEST_ partners created and deleted by the tests. Frontend: ran the full flow on the seeded partner 'Midnight Club Test'. Before cleanup: 7 charges, 3 paid, Rp1.200.000. The preview showed 4 charges, 4 webhook logs and the paid warning (Rp900.000). Cancel deleted nothing. Delete permanently showed the toast and refreshed the stats to 3 / 1 / Rp300.000 and the Charges tab to 3 rows. Opening the dialog again showed partner-cleanup-nothing with confirm disabled.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {"ui_bugs": [], "integration_issues": [], "design_issues": []},
+  "test_report_links": ["/app/backend/tests/test_iteration_21_partner_cleanup.py", "/app/test_reports/pytest/pytest_results_iter21.xml"],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "Minor: the cutoff is worked out again when the admin confirms, not taken from the preview. Records that pass the 30-day mark while the dialog is open get deleted without having been counted in the preview. Option: send the preview cutoff and use max(preview_cutoff, now-30d).",
+    "Minor: cleanup frees the unique (partner_id, reference_id) index for deleted charges. If a partner later sends an old reference_id again, a new charge is created instead of the original being returned. This is acceptable if partners never reuse references older than 30 days; it is worth noting in the partner API docs.",
+    "Info: the preview status breakdown is shown after _sweep_expired runs, because partner_detail runs it on load. The seeded '35d pending' charge was therefore counted as expired (UI showed Pending 0 / Expired 2). This is expected, not a bug."
+  ],
+  "updated_files": ["/app/backend/tests/test_iteration_21_partner_cleanup.py"],
+  "success_rate": {"backend": "100%", "frontend": "100%"},
+  "seed_data_creation": "The pytest run creates 2 TEST_cleanup_* partners with 7 charges and 7 deliveries each, then deletes them along with their audit logs. The UI test ran the actual cleanup on the seeded partner e67ad1ee-..., which now has 3 charges and 3 deliveries.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Run with: cd /app/backend && pytest tests/test_iteration_21_partner_cleanup.py -n 0. The tests depend on running in order, so they must run serially. The seeded partner 'Midnight Club Test' has already been cleaned (3 charges left); re-seed it if the UI flow needs to be run again."
+}

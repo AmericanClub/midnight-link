@@ -654,6 +654,72 @@ async def simulate_charge(partner_id: str, charge_id: str, admin=Depends(require
             "charge": _charge_public(charge)}
 
 
+CLEANUP_MIN_DAYS = 30  # never purge anything younger than this (keeps recent records for disputes)
+
+
+class CleanupRequest(BaseModel):
+    older_than_days: int = Field(default=CLEANUP_MIN_DAYS, ge=CLEANUP_MIN_DAYS, le=3650)
+    confirm: bool = False
+
+
+def _cleanup_cutoff(days: int) -> str:
+    return (datetime.now(timezone.utc) - timedelta(days=days)).isoformat()
+
+
+async def _cleanup_counts(partner_id: str, cutoff: str) -> dict:
+    flt = {"partner_id": partner_id, "created_at": {"$lt": cutoff}}
+    rows = await db.partner_charges.aggregate([
+        {"$match": flt},
+        {"$group": {"_id": "$status", "count": {"$sum": 1}, "amount": {"$sum": "$amount"}}},
+    ]).to_list(20)
+    by_status = {(r["_id"] or "unknown"): int(r["count"]) for r in rows}
+    paid = next((r for r in rows if r["_id"] == "paid"), {})
+    deliveries = await db.partner_webhook_deliveries.count_documents(flt)
+    return {"charges": sum(by_status.values()), "by_status": by_status,
+            "paid_amount": int(paid.get("amount", 0)), "deliveries": deliveries}
+
+
+@admin_router.get("/{partner_id}/cleanup-preview")
+async def cleanup_preview(partner_id: str, admin=Depends(require_admin),
+                          older_than_days: int = Query(CLEANUP_MIN_DAYS, ge=CLEANUP_MIN_DAYS, le=3650)):
+    """How many charges / webhook logs older than N days would be removed (nothing is deleted)."""
+    if not await db.partners.find_one({"id": partner_id}, {"_id": 1}):
+        raise HTTPException(status_code=404, detail="Partner not found")
+    cutoff = _cleanup_cutoff(older_than_days)
+    return {"older_than_days": older_than_days, "cutoff": cutoff,
+            **await _cleanup_counts(partner_id, cutoff)}
+
+
+@admin_router.post("/{partner_id}/cleanup")
+async def cleanup_partner_data(partner_id: str, payload: CleanupRequest,
+                               admin=Depends(require_admin)):
+    """Permanently delete this partner's charges + webhook delivery logs older than N days
+    (min 30). The partner, its API key and recent (< N days) records are kept."""
+    if not payload.confirm:
+        raise HTTPException(status_code=400, detail="Confirmation required")
+    p = await db.partners.find_one({"id": partner_id}, {"_id": 0, "id": 1, "name": 1})
+    if not p:
+        raise HTTPException(status_code=404, detail="Partner not found")
+    cutoff = _cleanup_cutoff(payload.older_than_days)
+    before = await _cleanup_counts(partner_id, cutoff)
+    flt = {"partner_id": partner_id, "created_at": {"$lt": cutoff}}
+    ch = await db.partner_charges.delete_many(flt)
+    dl = await db.partner_webhook_deliveries.delete_many(flt)
+    await db.audit_logs.insert_one({
+        "id": str(uuid.uuid4()), "action": "partner.data_cleanup", "target": partner_id,
+        "actor": admin.get("email"),
+        "after": {"older_than_days": payload.older_than_days, "cutoff": cutoff,
+                  "charges_deleted": ch.deleted_count, "deliveries_deleted": dl.deleted_count,
+                  "by_status": before["by_status"], "paid_amount": before["paid_amount"]},
+        "at": now_iso(),
+    })
+    logger.info("partner %s cleanup by %s: %d charges, %d deliveries older than %s",
+                partner_id, admin.get("email"), ch.deleted_count, dl.deleted_count, cutoff)
+    return {"ok": True, "older_than_days": payload.older_than_days, "cutoff": cutoff,
+            "charges_deleted": ch.deleted_count, "deliveries_deleted": dl.deleted_count,
+            "stats": await _partner_stats(partner_id)}
+
+
 @admin_router.delete("/{partner_id}")
 async def delete_partner(partner_id: str, admin=Depends(require_admin)):
     res = await db.partners.delete_one({"id": partner_id})

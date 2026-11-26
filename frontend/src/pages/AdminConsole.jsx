@@ -28,6 +28,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import api, { formatApiError } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
 import SupportTicketsAdmin from "@/components/SupportTicketsAdmin";
+import PartnerCleanup from "@/components/PartnerCleanup";
 
 const NAV = [
   { key: "overview", label: "Overview", icon: LayoutDashboard },
@@ -1274,6 +1275,7 @@ function PartnerDetail({ partnerId, onBack }) {
               <Button size="sm" variant="outline" className="gap-1" onClick={toggle} data-testid="partner-toggle-active"><Power className="h-3.5 w-3.5" /> {p?.active ? "Deactivate" : "Activate"}</Button>
               <Button size="sm" variant="destructive" className="ml-auto gap-1" onClick={del} data-testid="partner-delete"><Trash2 className="h-3.5 w-3.5" /> Delete partner</Button>
             </div>
+            <PartnerCleanup partnerId={partnerId} onDone={() => { refetch(); qc.invalidateQueries({ queryKey: ["admin-partners"] }); qc.invalidateQueries({ queryKey: ["partner-charges", partnerId] }); qc.invalidateQueries({ queryKey: ["partner-deliveries", partnerId] }); }} />
           </Card>
         </TabsContent>
       </Tabs>
